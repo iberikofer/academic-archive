@@ -1,0 +1,25 @@
+BEGIN_FILE_LOG: 9982-TEXT-STREAM. Date: 2025-11-17.
+Lorem ipsum dolor sit amet, 1234567, consectetur adipiscing elit.
+Nulla facilisi. @not_an_email mention.
+First contact: user.one@gmail.com (this one is dirty).
+Second contact: ADMIN@OUTLOOK.COM (this one is clean and uppercase).
+Third: hello@ukr.net
+Fourth (clean): support@mail.com
+Fifth (mixed): Contact@Yahoo.com
+Sixth: helpdesk@email.com
+Seventh (dirty): My.Personal@iCloud.com, (with a comma).
+More text... 992-555-123. Path: C:\Windows\System32.
+This one is not on your list: security@proton.me, so it should be skipped.
+Also skip this: info@corporate.biz.
+And this: @another_handle.
+What about just text@domain.com? This has no valid domain from the list.
+Eighth: sales@yahoo.com (clean).
+Ninth: another.user@gmail.com (dirty).
+Tenth: TEST@EMAIL.COM (clean, uppercase).
+Eleventh: random.person@ukr.net
+Twelfth: apple.fan@icloud.com
+Thirteenth: MicrosoftUser@outlook.com
+This is a very complex word: test@gmail.com.and.also@ukr.net (Your 'break' should stop this)
+Another complex one: user@mail.com,contact@yahoo.com (Also should be stopped by 'break')
+And one with numbers: 12345@ukr.net (dirty)
+Lots of junk text here $$$ 100% 

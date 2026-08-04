@@ -1,0 +1,111 @@
+# ============================
+# Custom keep-rules
+# ============================
+!.github/instructions/gooffy-settings.json
+
+# ============================
+# C / C++ / Visual Studio / MSBuild
+# ============================
+*.d
+*.slo
+*.lo
+*.o
+*.obj
+*.gch
+*.pch
+*.ilk
+*.pdb
+*.dwo
+*.so
+*.dylib
+*.dll
+*.mod
+*.smod
+*.lai
+*.la
+*.a
+*.lib
+*.exe
+*.out
+*.app
+Debug/
+Release/
+x64/
+x86/
+
+# ============================
+# Java / IntelliJ IDEA
+# ============================
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+target/
+*.class
+*.jar
+
+# ============================
+# C# / .NET / Visual Studio
+# ============================
+.vs/
+bin/
+obj/
+*.suo
+*.user
+*.userosv
+*.userosscache
+*.sln.docstates
+
+# ============================
+# Python
+# ============================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# ============================
+# Editors & Tools
+# ============================
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/keybindings.json
+!.vscode/extensions.json
+*.qodo
+
+# ============================
+# General build / dist output
+# ============================
+dist/
+build/
+
+# ============================
+# Settings / secrets / local configs
+# ============================
+*settings*.json
+!.github/instructions/*settings*.json
+.idea/workspace.xml
+
+# ============================
+# OS files & Temp
+# ============================
+.DS_Store
+Thumbs.db
+*.tmp
+
+# ============================
+# Project specific ignores
+# ============================
+JDK/
+.JDK*
+courseProject/assets/
+courseProject/oop2024/
+**/.vscode/
+laboratory-works/MZPI/

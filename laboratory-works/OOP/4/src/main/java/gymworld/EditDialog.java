@@ -1,0 +1,77 @@
+package gymworld;
+
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
+import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.VBox;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+
+public class EditDialog {
+    public static void display(Athlete athlete) {
+        Stage window = new Stage();
+        window.initOwner(GymWorld.mainStage);
+        window.initModality(Modality.APPLICATION_MODAL);
+        window.setTitle("Edit Athlete");
+
+        VBox layout = new VBox(10);
+        layout.setPadding(new Insets(20));
+
+        Label typeLabel = new Label("Type:");
+        ComboBox<String> typeCombo = new ComboBox<>();
+        typeCombo.getItems().addAll("Athlete", "Powerlifter", "Gym Boss");
+        typeCombo.setValue(athlete.getType());
+
+        Label nameLabel = new Label("Name:");
+        TextField nameInput = new TextField(athlete.getName());
+
+        Label weightLabel = new Label("Weight (kg):");
+        TextField weightInput = new TextField(String.valueOf(athlete.getWeight()));
+
+        CheckBox hasEquipment = new CheckBox("Has Equipment");
+        hasEquipment.setSelected(athlete.getEquipment() != null);
+
+        Label eqLabel = new Label("Equipment:");
+        ComboBox<String> eqCombo = new ComboBox<>();
+        eqCombo.getItems().addAll("Water bottle", "Dumbbell", "Barbell", "Kettlebell", "Jump Rope", "Exercise Band", "Treadmill", "Elliptical machine", "Stationary bike", "Rowing machine");
+
+        if (athlete.getEquipment() != null) {
+            eqCombo.setValue(athlete.getEquipment().getName());
+        } else {
+            eqCombo.setValue("Exercise band");
+            eqCombo.setDisable(true);
+        }
+
+        hasEquipment.setOnAction(e -> eqCombo.setDisable(!hasEquipment.isSelected()));
+
+        Button submitButton = new Button("Save Changes");
+        submitButton.setOnAction(e -> {
+            athlete.setName(nameInput.getText());
+
+            try {
+                athlete.setWeight(Double.parseDouble(weightInput.getText()));
+            } catch (NumberFormatException ex) {
+                athlete.setWeight(80.0);
+            }
+
+            if (hasEquipment.isSelected()) {
+                athlete.setEquipment(new Equipment(eqCombo.getValue(), 5, "kg"));
+            } else {
+                athlete.setEquipment(null);
+            }
+
+            athlete.setType(typeCombo.getValue());
+            window.close();
+        });
+
+        layout.getChildren().addAll(typeLabel, typeCombo, nameLabel, nameInput, weightLabel, weightInput, hasEquipment, eqLabel, eqCombo, submitButton);
+
+        Scene scene = new Scene(layout, 300, 420);
+        window.setScene(scene);
+        window.showAndWait();
+    }
+}
