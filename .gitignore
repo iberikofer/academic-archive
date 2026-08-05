@@ -108,6 +108,8 @@ JDK/
 courseProject/assets/
 courseProject/oop2024/
 JavaCourseProject2025/oop2024/
+oop2024/
+**/oop2024/
 **/.vscode/
 laboratory-works/MZPI/
 JavaCourseProject2025/Теми_Курсових_2026.docx
