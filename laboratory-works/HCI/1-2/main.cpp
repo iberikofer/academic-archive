@@ -1,189 +1,184 @@
 #include <iostream>
 #include <string>
 #include <sstream>
-#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <limits>
-using namespace std;
+#include <cstdio>
 
 struct ModeSettings
 {
-	string deviceName = "COM1";
+	std::string deviceName = "COM1";
 	int speed = 9600;
 	char parity = 'N';
 	int dataBits = 8;
 	int stopBits = 1;
 };
 
-ModeSettings chosenModeSettings;
-int optionChosen = 0;
-int commandChosen = 0;
-int MODEmenuChoice = 0;
-bool inMenu = true;
-string fileToErase;
-string fileToCopy;
-string fileToCopyDest;
-
 int getSafeInt()
 {
 	int value;
-	while (!(cin >> value))
+	while (!(std::cin >> value))
 	{
-		cin.clear();
-		cin.ignore(numeric_limits<streamsize>::max(), '\n');
-		cerr << "Error! Please enter a single NUMBER: ";
+		std::cin.clear();
+		std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+		std::cerr << "Error! Please enter a single NUMBER: ";
 	}
-	cin.ignore(numeric_limits<streamsize>::max(), '\n');
+	std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 	return value;
 }
 
-void menuChoice()
+int menuChoice()
 {
-	cout << "Hello world! Please choose a command...(enter a number)" << endl
-			 << "1 - MODE" << endl
-			 << "2 - ERA" << endl
-			 << "3 - PIP" << endl
-			 << "4 - Type myself" << endl
-			 << "5 - Exit" << endl
-			 << endl;
-	commandChosen = getSafeInt();
+	std::cout << "Hello world! Please choose a command...(enter a number)" << std::endl
+			  << "1 - MODE" << std::endl
+			  << "2 - ERA" << std::endl
+			  << "3 - PIP" << std::endl
+			  << "4 - Type myself" << std::endl
+			  << "5 - Exit" << std::endl
+			  << std::endl;
+	return getSafeInt();
 }
 
-void printModeSettings()
+void printModeSettings(const ModeSettings &settings)
 {
-	cout << endl
-			 << "---Chosen ModeSettings---" << endl
-			 << "Chosen deviceName: " << chosenModeSettings.deviceName << endl
-			 << "Chosen speed: " << chosenModeSettings.speed << endl
-			 << "Chosen parity: " << chosenModeSettings.parity << endl
-			 << "Chosen stopBits: " << chosenModeSettings.stopBits << endl
-			 << endl;
+	std::cout << std::endl
+			  << "---Chosen ModeSettings---" << std::endl
+			  << "Chosen deviceName: " << settings.deviceName << std::endl
+			  << "Chosen speed: " << settings.speed << std::endl
+			  << "Chosen parity: " << settings.parity << std::endl
+			  << "Chosen stopBits: " << settings.stopBits << std::endl
+			  << std::endl;
 }
 
 int main()
 {
-	int exitConfirmed = 0;
+	ModeSettings chosenModeSettings;
+	int commandChosen = 0;
+	std::string fileToErase;
+	std::string fileToCopy;
+	std::string fileToCopyDest;
+
 	system("color 0A");
 
 	do
 	{
-		menuChoice();
+		commandChosen = menuChoice();
 
 		switch (commandChosen)
 		{
 		case (1):
-{
-    cout << "Status for device " << chosenModeSettings.deviceName << ":" << endl;
-    cout << "-------------------------------------------" << endl;
-    cout << "    Baud:            " << chosenModeSettings.speed << endl;
-    cout << "    Parity:          " << chosenModeSettings.parity << endl;
-    cout << "    Data Bits:       " << chosenModeSettings.stopBits + 7;
-    cout << "\n    Stop Bits:       " << chosenModeSettings.stopBits << endl;
-    cout << "    Timeout:         OFF" << endl << endl;
+		{
+			std::cout << "Status for device " << chosenModeSettings.deviceName << ":" << std::endl;
+			std::cout << "-------------------------------------------" << std::endl;
+			std::cout << "    Baud:            " << chosenModeSettings.speed << std::endl;
+			std::cout << "    Parity:          " << chosenModeSettings.parity << std::endl;
+			std::cout << "    Data Bits:       " << chosenModeSettings.stopBits + 7;
+			std::cout << "\n    Stop Bits:       " << chosenModeSettings.stopBits << std::endl;
+			std::cout << "    Timeout:         OFF" << std::endl << std::endl;
 
-		cout << "Current Console Status (CON):" << endl;
-		system("mode CON"); 
-    cout << endl;
-}
-break;
+			std::cout << "Current Console Status (CON):" << std::endl;
+			system("mode CON"); 
+			std::cout << std::endl;
+		}
+		break;
 		case (2):
 		{
-			cout << "You chose ERA." << endl
-					 << "Which file do you want to Delete?" << endl;
-			cin >> fileToErase;
-			if (!remove(fileToErase.c_str()))
-				cout << "File removed successfully!" << endl;
+			std::cout << "You chose ERA." << std::endl
+					  << "Which file do you want to Delete?" << std::endl;
+			std::cin >> fileToErase;
+			if (!std::remove(fileToErase.c_str()))
+				std::cout << "File removed successfully!" << std::endl;
 			else
-				cerr << "Error deleting the file!" << endl;
+				std::cerr << "Error deleting the file!" << std::endl;
 		}
 		break;
 		case (3):
 		{
-			cout << "You chose PIP." << endl;
+			std::cout << "You chose PIP." << std::endl;
 
-			cout << "Enter source file path: ";
-			cin >> fileToCopy;
+			std::cout << "Enter source file path: ";
+			std::cin >> fileToCopy;
 
-			ifstream checkFile(fileToCopy);
+			std::ifstream checkFile(fileToCopy);
 			if (!checkFile.is_open())
 			{
-				cerr << "Error: Source file does not exist at " << fileToCopy << endl
-						 << endl;
+				std::cerr << "Error: Source file does not exist at " << fileToCopy << std::endl
+						  << std::endl;
 				break;
 			}
 			checkFile.close();
 
-			cout << "Enter destination file path: ";
-			cin >> fileToCopyDest;
+			std::cout << "Enter destination file path: ";
+			std::cin >> fileToCopyDest;
 
-			ifstream source(fileToCopy, ios::binary);
-			ofstream dest(fileToCopyDest, ios::binary);
+			std::ifstream source(fileToCopy, std::ios::binary);
+			std::ofstream dest(fileToCopyDest, std::ios::binary);
 
 			if (source.is_open() && dest.is_open())
 			{
 				dest << source.rdbuf();
-				cout << "File copied successfully to " << fileToCopyDest << "!" << endl
-						 << endl;
+				std::cout << "File copied successfully to " << fileToCopyDest << "!" << std::endl
+						  << std::endl;
 			}
 			else
 			{
-				cerr << "Error: Could not create destination file at " << fileToCopyDest << endl
-						 << endl;
+				std::cerr << "Error: Could not create destination file at " << fileToCopyDest << std::endl
+						  << std::endl;
 			}
 		}
 		break;
 		case (4):
 		{
-			cout << "Enter your command: " << endl;
-			string fullCommand;
-			getline(cin, fullCommand);
+			std::cout << "Enter your command: " << std::endl;
+			std::string fullCommand;
+			std::getline(std::cin, fullCommand);
 
-			istringstream iss(fullCommand);
-			string commandKeyword;
+			std::istringstream iss(fullCommand);
+			std::string commandKeyword;
 			iss >> commandKeyword;
 			for (auto &c : commandKeyword)
-				c = toupper(c);
+				c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
 
 			if (commandKeyword == "ERA")
 			{
 				if (iss >> fileToErase)
 				{
-					if (!remove(fileToErase.c_str()))
-						cout << "Successfully removed!" << endl;
+					if (!std::remove(fileToErase.c_str()))
+						std::cout << "Successfully removed!" << std::endl;
 					else
-						cerr << "Error removing the file!" << endl;
+						std::cerr << "Error removing the file!" << std::endl;
 				}
 				else
 				{
-					cerr << "Usage: ERA <filename>" << endl;
+					std::cerr << "Usage: ERA <filename>" << std::endl;
 				}
 			}
 			else if (commandKeyword == "PIP")
 			{
 				if (iss >> fileToCopy >> fileToCopyDest)
 				{
-					ifstream source(fileToCopy, ios::binary);
-					ofstream dest(fileToCopyDest, ios::binary);
+					std::ifstream source(fileToCopy, std::ios::binary);
+					std::ofstream dest(fileToCopyDest, std::ios::binary);
 
 					if (source.is_open() && dest.is_open())
 					{
 						dest << source.rdbuf();
-						cout << "File copied successfully to " << fileToCopyDest << "!" << endl;
+						std::cout << "File copied successfully to " << fileToCopyDest << "!" << std::endl;
 					}
 					else
 					{
-						cerr << "Error: Could not perform PIP (check file paths)." << endl;
+						std::cerr << "Error: Could not perform PIP (check file paths)." << std::endl;
 					}
 				}
 				else
 				{
-					cerr << "Usage: PIP <source> <destination>" << endl;
+					std::cerr << "Usage: PIP <source> <destination>" << std::endl;
 				}
 			}
 			else if (commandKeyword == "MODE")
 			{
-				string target;
+				std::string target;
 				if (!(iss >> target))
 				{
 					system("mode");
@@ -191,41 +186,41 @@ break;
 				else
 				{
 					for (auto &c : target)
-						c = toupper(c);
+						c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
 
-					if (target.find("CON") != string::npos)
+					if (target.find("CON") != std::string::npos)
 					{
-						system(fullCommand.c_str());
-						cout << "System display/console settings updated." << endl;
+						system("mode CON");
+						std::cout << "System display/console settings updated." << std::endl;
 					}
 					else
 					{
 						chosenModeSettings.deviceName = target;
-						string param;
+						std::string param;
 						while (iss >> param)
 						{
 							for (auto &c : param)
-								c = toupper(c);
+								c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
 							if (param.find("BAUD=") == 0)
-								chosenModeSettings.speed = stoi(param.substr(5));
-							if (param.find("PARITY=") == 0)
+								chosenModeSettings.speed = std::stoi(param.substr(5));
+							if (param.find("PARITY=") == 0 && param.length() >= 8)
 								chosenModeSettings.parity = param[7];
 							if (param.find("STOP=") == 0)
-								chosenModeSettings.stopBits = stoi(param.substr(5));
+								chosenModeSettings.stopBits = std::stoi(param.substr(5));
 						}
-						cout << "Local settings for " << target << " updated." << endl;
-						printModeSettings();
+						std::cout << "Local settings for " << target << " updated." << std::endl;
+						printModeSettings(chosenModeSettings);
 					}
 				}
 			}
 			else
 			{
-				cerr << "Unknown command! Use ERA, PIP or MODE." << endl;
+				std::cerr << "Unknown command! Use ERA, PIP or MODE." << std::endl;
 			}
 		}
 		break;
 		case (5):
-			cout << "Goodbye, have a great one!" << endl;
+			std::cout << "Goodbye, have a great one!" << std::endl;
 			break;
 		}
 	} while (commandChosen != 5);

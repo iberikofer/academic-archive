@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -18,7 +18,7 @@ namespace _3
         }
 
         public string NewName => txtAdminName.Text;
-        public double NewPrice => double.TryParse(txtAdminPrice.Text, out double p) ? p : 0;
+        public decimal NewPrice => decimal.TryParse(txtAdminPrice.Text, out decimal p) ? p : 0m;
         public string NewAscii => txtAdminAscii.Text;
 
         private void btnAddAdmin_Click(object sender, EventArgs e)
@@ -52,7 +52,7 @@ namespace _3
                 return;
             }
 
-            if (!double.TryParse(txtAdminPrice.Text, out _))
+            if (!decimal.TryParse(txtAdminPrice.Text, out _))
             {
                 MessageBox.Show("Please enter a valid numeric price!", "Type Error",
                                 MessageBoxButtons.OK, MessageBoxIcon.Warning);

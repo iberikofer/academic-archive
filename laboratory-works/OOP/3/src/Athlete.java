@@ -1,9 +1,11 @@
+import java.util.Objects;
+
 public class Athlete implements Cloneable, Comparable<Athlete> {
-private String name;
-private int age;
-private double weight;
-private double energyLvl;
-private Equipment equipment;
+    private String name;
+    private int age;
+    private double weight;
+    private double energyLvl;
+    private Equipment equipment;
 
     public String getName() {
         return name;
@@ -36,13 +38,7 @@ private Equipment equipment;
         this.equipment = equipment;
     }
 
-    static {
-    }
-
-    {
-    }
-
-    public  Athlete() {
+    public Athlete() {
         this("Gym bro", 20, 100.0, 100.0, new Equipment("Exercise band", 5, "kg"));
     }
 
@@ -60,7 +56,7 @@ private Equipment equipment;
     }
 
     public void train() {
-        if (this.energyLvl >= 5){
+        if (this.energyLvl >= 5) {
             this.energyLvl -= 5;
 
             double weightLoss = java.util.concurrent.ThreadLocalRandom.current().nextDouble(5, 10);
@@ -73,7 +69,7 @@ private Equipment equipment;
     }
 
     public void eat() {
-        if (this.energyLvl < 100){
+        if (this.energyLvl < 100) {
             this.energyLvl = Math.min(this.energyLvl + 2.5, 100.0);
 
             double weightGain = java.util.concurrent.ThreadLocalRandom.current().nextDouble(1, 5);
@@ -86,16 +82,7 @@ private Equipment equipment;
     }
 
     public void rest() {
-        if (this.energyLvl <= 100){
-            this.energyLvl = Math.min(this.energyLvl + 2.5, 100.0);
-
-            double weightGain = java.util.concurrent.ThreadLocalRandom.current().nextDouble(1, 5);
-            this.weight += weightGain;
-
-            System.out.println(name + " has recovered. Energy: " + energyLvl + "%, Weight: " + String.format("%.2f", weight));
-        } else {
-            System.out.println(name + " has fully recovered. Energy: !" + energyLvl);
-        }
+        eat();
     }
 
     public void takeSelfie() {
@@ -105,7 +92,6 @@ private Equipment equipment;
             this.energyLvl -= 1.0;
             System.out.println(name + " looks pumped up. Energy: !" + energyLvl);
         }
-
     }
 
     public void athletePrint() {
@@ -117,30 +103,36 @@ private Equipment equipment;
             System.out.printf("Age: %d years old | Weight: %.2f kg | Energy: %.1f%% | Equipment: None\n",
                     age, weight, energyLvl);
         }
-
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) return false;
         if (this == obj) return true;
-
+        if (obj == null || getClass() != obj.getClass()) return false;
         Athlete other = (Athlete) obj;
-
-        return this.name.equals(other.name) && this.age == other.age && this.weight == other.weight;
+        return age == other.age &&
+                Double.compare(other.weight, weight) == 0 &&
+                Objects.equals(name, other.name);
     }
 
     @Override
-    public int compareTo(Athlete other) { return this.name.compareToIgnoreCase(other.name); }
+    public int hashCode() {
+        return Objects.hash(name, age, weight);
+    }
+
+    @Override
+    public int compareTo(Athlete other) {
+        if (other == null || other.name == null) return 1;
+        if (this.name == null) return -1;
+        return this.name.compareToIgnoreCase(other.name);
+    }
 
     @Override
     public Object clone() throws CloneNotSupportedException {
         Athlete cloned = (Athlete) super.clone();
-
         if (this.equipment != null) {
             cloned.setEquipment((Equipment) this.equipment.clone());
         }
-
         return cloned;
     }
 
@@ -153,6 +145,6 @@ private Equipment equipment;
 
     @Override
     public String toString() {
-        return "Age: " + age + " years old | Weight: " + weight + " kg | Energy: " + energyLvl + "% | Equipment: " + equipment.toString() + "\n";
+        return "Age: " + age + " years old | Weight: " + weight + " kg | Energy: " + energyLvl + "% | Equipment: " + (equipment != null ? equipment.toString() : "None") + "\n";
     }
 }

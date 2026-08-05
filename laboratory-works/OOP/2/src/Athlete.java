@@ -1,8 +1,10 @@
+import java.util.Objects;
+
 public class Athlete {
-private String name;
-private int age;
-private double weight;
-private double energyLvl;
+    private String name;
+    private int age;
+    private double weight;
+    private double energyLvl;
 
     public String getName() {
         return name;
@@ -44,7 +46,7 @@ private double energyLvl;
         System.out.println("=== Non-static initialization block executed ===");
     }
 
-    public  Athlete() {
+    public Athlete() {
         this("Gym bro", 20, 100.0, 100.0);
         System.out.println("=== Default Constructor without arguments was called (Delegation) ===");
     }
@@ -55,17 +57,11 @@ private double energyLvl;
         this.weight = weight;
         this.energyLvl = energyLvl;
 
-        System.out.println(
-                "=== Athlete Constructor was called ==="
-//                + "- Name:" + name + "\n" +
-//                "- Age: " + age +"\n" +
-//                "- Weight: " + weight + "\n" +
-//                "- Energy level: " + energyLvl + "\n"
-        );
+        System.out.println("=== Athlete Constructor was called ===");
     }
 
     public void train() {
-        if (this.energyLvl >= 5){
+        if (this.energyLvl >= 5) {
             this.energyLvl -= 5;
 
             double weightLoss = java.util.concurrent.ThreadLocalRandom.current().nextDouble(5, 10);
@@ -78,7 +74,7 @@ private double energyLvl;
     }
 
     public void eat() {
-        if (this.energyLvl < 100){
+        if (this.energyLvl < 100) {
             this.energyLvl = Math.min(this.energyLvl + 2.5, 100.0);
 
             double weightGain = java.util.concurrent.ThreadLocalRandom.current().nextDouble(1, 5);
@@ -91,16 +87,7 @@ private double energyLvl;
     }
 
     public void rest() {
-        if (this.energyLvl <= 100){
-            this.energyLvl = Math.min(this.energyLvl + 2.5, 100.0);
-
-            double weightGain = java.util.concurrent.ThreadLocalRandom.current().nextDouble(1, 5);
-            this.weight += weightGain;
-
-            System.out.println(name + " відновився. Енергія: " + energyLvl + "%, Вага: " + String.format("%.2f", weight));
-        } else {
-            System.out.println(name + " повністю відновився!");
-        }
+        eat();
     }
 
     public void takeSelfie() {
@@ -110,7 +97,6 @@ private double energyLvl;
             this.energyLvl -= 1.0;
             System.out.println(name + " виглядає круто!");
         }
-
     }
 
     public void athletePrint() {
@@ -121,15 +107,17 @@ private double energyLvl;
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) return false;
         if (this == obj) return true;
-
+        if (obj == null || getClass() != obj.getClass()) return false;
         Athlete other = (Athlete) obj;
+        return age == other.age &&
+                Double.compare(other.weight, weight) == 0 &&
+                Objects.equals(name, other.name);
+    }
 
-        if (this.name.equals(other.name) && this.age == other.age && this.weight == other.weight)
-            return true;
-
-        return false;
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, age, weight);
     }
 
     @Override

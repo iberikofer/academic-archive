@@ -1,0 +1,9 @@
+SpeechRecognition
+pyttsx3
+google-generativeai
+gTTS
+pygame
+
+
+# pip install -r requirements.txt
+# python jarvis.py

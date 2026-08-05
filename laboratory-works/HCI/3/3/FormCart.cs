@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -44,7 +44,7 @@ namespace _3
                 listCartItems.Items.Add($"{item.Name,-20} (${item.Price}) x{item.Qty} = {item.Total}$   (Double-click to remove)");
             }
 
-            double totalSum = _cart.Sum(p => p.Price);
+            decimal totalSum = _cart.Sum(p => p.Price);
             lblTotal.Text = $"Total Amount: {totalSum}$";
             lblTotal.ForeColor = Color.DarkBlue;
         }
@@ -73,7 +73,7 @@ namespace _3
             if (res == DialogResult.Yes)
             {
                 string items = string.Join(", ", _cart.Select(p => p.Name));
-                double total = _cart.Sum(p => p.Price);
+                decimal total = _cart.Sum(p => p.Price);
                 string orderRecord = $"[{DateTime.Now.ToShortTimeString()}] User: {_userName} | Total: {total}$ | Items: {items}";
 
                 _history.Add(orderRecord);

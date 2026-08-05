@@ -68,16 +68,16 @@ namespace _3
             }
         }
 
-        List<Product> catalog = new List<Product>();
-        List<Product> cart = new List<Product>();
-        public List<string> orderHistory = new List<string>(); 
-        public string currentUser = "Guest";
+        private List<Product> catalog = new List<Product>();
+        private List<Product> cart = new List<Product>();
+        public List<string> OrderHistory { get; private set; } = new List<string>(); 
+        public string CurrentUser { get; set; } = "Guest";
         public FormShop()
         {
             InitializeComponent();
             btnCart.Visible = false;
 
-            catalog.Add(new Product("Cyber Laptop", 1500,
+            catalog.Add(new Product("Cyber Laptop", 1500m,
                 "  __________  \n" +
                 " |          | \n" +
                 " |   ASCII  | \n" +
@@ -85,14 +85,14 @@ namespace _3
                 " /QWERTYUIOP\\ \n" +
                 " /____________\\ "));
 
-            catalog.Add(new Product("Retro Phone", 500,
+            catalog.Add(new Product("Retro Phone", 500m,
                 "  .----.  \n" +
                 "  | =) |  \n" +
                 "  |____|  \n" +
                 "  |::::|  \n" +
                 "  '----'  "));
 
-            catalog.Add(new Product("Cyber Sword", 750,
+            catalog.Add(new Product("Cyber Sword", 750m,
                 "      /\\      \n" +
                 "     /  \\     \n" +
                 "    /  \\ \\    \n" +
@@ -106,35 +106,35 @@ namespace _3
                 "      ||      \n" +
                 "      I__I      "));
 
-            catalog.Add(new Product("Neural Implant", 3200,
+            catalog.Add(new Product("Neural Implant", 3200m,
                 "    ______    \n" +
                 "    /      \\    \n" +
                 "   | [INC] |   \n" +
                 "    \\______/    \n" +
                 "     /    \\     "));
 
-            catalog.Add(new Product("AI robot", 2100,
+            catalog.Add(new Product("AI robot", 2100m,
                 "    .----.    \n" +
                 "  /  _  _  \\  \n" +
                 " (  (o)(o)  ) \n" +
                 "  \\   w   /  \n" +
                 "   '------'   "));
 
-            catalog.Add(new Product("ASCII Drone", 1200,
+            catalog.Add(new Product("ASCII Drone", 1200m,
                 " [o]------[o] \n" +
                 "     \\  /     \n" +
                 "      ][      \n" +
                 "     /  \\     \n" +
                 " [o]------[o] "));
 
-            catalog.Add(new Product("Holowatch", 450,
+            catalog.Add(new Product("Holowatch", 450m,
                 "    .----.    \n" +
                 "   |  14  |   \n" +
                 "   |  ::  |   \n" +
                 "   |  88  |   \n" +
                 "    '----'    "));
 
-            catalog.Add(new Product("Retro Console", 300,
+            catalog.Add(new Product("Retro Console", 300m,
                 "  _________  \n" +
                 " |  _   _  | \n" +
                 " | | | | | | \n" +
@@ -146,20 +146,20 @@ namespace _3
                 " | |_| |_| | \n" +
                 " |_________| "));
 
-            catalog.Add(new Product("VR Goggles", 800,
+            catalog.Add(new Product("VR Goggles", 800m,
                 "   .-------.   \n" +
                 "  /   VR    \\  \n" +
                 " |  [=---=]  | \n" +
                 "  \\_________/  "));
 
-            catalog.Add(new Product("Cyber Eye", 1200,
+            catalog.Add(new Product("Cyber Eye", 1200m,
                 "    .----.    \n" +
                 "   /  __  \\   \n" +
                 "  | ( * ) |  \n" +
                 "   \\  --  /   \n" +
                 "    '----'    "));
 
-            catalog.Add(new Product("Data Core", 3500,
+            catalog.Add(new Product("Data Core", 3500m,
                 "  ________  \n" +
                 "  |       |  \n" +
                 "  |  / \\  |  \n" +
@@ -167,26 +167,26 @@ namespace _3
                 "  |  \\ /  |  \n" +
                 "   |_______|   "));
 
-            catalog.Add(new Product("Plasma Pistol", 2500,
+            catalog.Add(new Product("Plasma Pistol", 2500m,
                 "            _    \n" +
                 "___________||___\n" +
                 "  |_|_|_|_|_|_|____\\  \n" +
                 "            | |     \n" +
                 "            |_|     "));
 
-            catalog.Add(new Product("Energy Crystal", 1800,
+            catalog.Add(new Product("Energy Crystal", 1800m,
                 "     / \\     \n" +
                 "    | o |    \n" +
                 "    | o |    \n" +
                 "     \\ /     ")); 
 
-            catalog.Add(new Product("Nano-Bot", 600,
+            catalog.Add(new Product("Nano-Bot", 600m,
                 "     _o_      \n" +
                 "    / | \\     \n" +
                 "    \\_|_/     \n" +
                 "     ' '      "));
 
-            catalog.Add(new Product("Hover Disc", 2200,
+            catalog.Add(new Product("Hover Disc", 2200m,
                 "   .------.   \n" +
                 "   /        \\   \n" +
                 "  (  #####  )  \n" +
@@ -195,7 +195,7 @@ namespace _3
                 "    ^  ^  ^    \n" +
                 "    ------------------    "));
 
-            catalog.Add(new Product("Smart Helmet", 1700,
+            catalog.Add(new Product("Smart Helmet", 1700m,
                 "     .---.     \n" +
                 "    / / \\ \\    \n" +
                 "   | [---] |   \n" +
@@ -227,7 +227,7 @@ namespace _3
                 btnCart.Visible = false;
                 cart.Clear();
                 MessageBox.Show("You have been logged out.", "Account status", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                currentUser = "Guest";
+                CurrentUser = "Guest";
                 return;
             }
 
@@ -240,7 +240,7 @@ namespace _3
                 btnRegister.Text = "Logout: " + userName;
                 btnCart.Visible = true;
                 MessageBox.Show("Welcome, " + userName + "!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                currentUser = userName;
+                CurrentUser = userName;
             }
         }
 
@@ -253,7 +253,7 @@ namespace _3
                 return;
             }
 
-            FormCart cartWindow = new FormCart(cart, currentUser, orderHistory);
+            FormCart cartWindow = new FormCart(cart, CurrentUser, OrderHistory);
             cartWindow.ShowDialog();
 
             ShowProducts();
@@ -268,7 +268,7 @@ namespace _3
 
                 while (stayInDashboard)
                 {
-                    FormDashboard dashboard = new FormDashboard(orderHistory);
+                    FormDashboard dashboard = new FormDashboard(OrderHistory);
                     DialogResult dashResult = dashboard.ShowDialog();
 
                     if (dashResult == DialogResult.Yes)
