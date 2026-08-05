@@ -8,15 +8,15 @@
 
 ## 📚 Overview & Table of Contents
 
-| Lab # | 📌 Topic | 📖 README | 📖 UA PDF |
-| :---: | :--- | :---: | :---: |
-| **01** | [Sets & Basic Operations](./1) | [EN README](./1/README.md) | [UA PDF](./1/ЛР1_Множини_Основні_поняття.pdf) |
-| **02** | [Binary Relations & Properties](./2) | [EN README](./2/README.md) | [UA PDF](./2/ЛР2_Відношення_Основні_поняття_та_властивості.pdf) |
-| **03** | [Recursive Algorithms & Tower of Hanoi](./3) | [EN README](./3/README.md) | [UA PDF](./3/ЛР3_Алгоритми_Рекурсія.pdf) |
-| **04** | [Minimization of Boolean Logic Functions](./4) | [EN README](./4/README.md) | [UA PDF](./4/ЛР4_Мінімізація_логічних_функцій.pdf) |
-| **05** | [Fundamentals of Graph Theory](./5) | [EN README](./5/README.md) | [UA PDF](./5/ЛР5_Основні_поняття_теорії_графів.pdf) |
-| **06** | [Matrix Representations of Graphs](./6) | [EN README](./6/README.md) | [UA PDF](./6/ЛР6_Матричні_способи_представлення_графів.pdf) |
-| **07** | [Shortest Path Algorithms in Graphs](./7) | [EN README](./7/README.md) | [UA PDF](./7/ЛР7_Пошук_найкоротших_шляхів_у_графах.pdf) |
+| Lab # | 📌 Topic | 💻 Source Code | 📖 README | 📖 UA PDF |
+| :---: | :--- | :---: | :---: | :---: |
+| [**01**](./1/main.py) | [Sets & Basic Operations](./1) | [CODE](./1/main.py) | [EN README](./1/README.md) | [UA PDF](./1/ЛР1_Множини_Основні_поняття.pdf) |
+| [**02**](./2/main.py) | [Binary Relations & Properties](./2) | [CODE](./2/main.py) | [EN README](./2/README.md) | [UA PDF](./2/ЛР2_Відношення_Основні_поняття_та_властивості.pdf) |
+| [**03**](./3/main.py) | [Recursive Algorithms & Tower of Hanoi](./3) | [CODE](./3/main.py) | [EN README](./3/README.md) | [UA PDF](./3/ЛР3_Алгоритми_Рекурсія.pdf) |
+| [**04**](./4/main.py) | [Minimization of Boolean Logic Functions](./4) | [CODE](./4/main.py) | [EN README](./4/README.md) | [UA PDF](./4/ЛР4_Мінімізація_логічних_функцій.pdf) |
+| [**05**](./5/main.py) | [Fundamentals of Graph Theory](./5) | [CODE](./5/main.py) | [EN README](./5/README.md) | [UA PDF](./5/ЛР5_Основні_поняття_теорії_графів.pdf) |
+| [**06**](./6/main.py) | [Matrix Representations of Graphs](./6) | [CODE](./6/main.py) | [EN README](./6/README.md) | [UA PDF](./6/ЛР6_Матричні_способи_представлення_графів.pdf) |
+| [**07**](./7/main.py) | [Shortest Path Algorithms in Graphs](./7) | [CODE](./7/main.py) | [EN README](./7/README.md) | [UA PDF](./7/ЛР7_Пошук_найкоротших_шляхів_у_графах.pdf) |
 
 ---
 
