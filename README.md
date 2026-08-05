@@ -25,13 +25,13 @@ academic-archive/
 
 Contains 7 complete laboratory works with Python source code, interactive GUIs (Tkinter, Matplotlib, NetworkX), LaTeX theory summaries, extracted visual assets, and dual-language PDF guidelines:
 
-- **Lab 1:** Sets & Basic Operations ([📖 EN README](./laboratory-works/CDM/1/README.md) | [EN PDF](./laboratory-works/CDM/1/Lab1_Sets_Basic_Concepts_EN.pdf) | [UA PDF](./laboratory-works/CDM/1/ЛР1_Множини_Основні_поняття.pdf))
-- **Lab 2:** Binary Relations & Properties ([📖 EN README](./laboratory-works/CDM/2/README.md) | [EN PDF](./laboratory-works/CDM/2/Lab2_Relations_Basic_Concepts_EN.pdf) | [UA PDF](./laboratory-works/CDM/2/ЛР2_Відношення_Основні_поняття_та_властивості.pdf))
-- **Lab 3:** Recursive Algorithms & Tower of Hanoi ([📖 EN README](./laboratory-works/CDM/3/README.md) | [EN PDF](./laboratory-works/CDM/3/Lab3_Algorithms_Recursion_EN.pdf) | [UA PDF](./laboratory-works/CDM/3/ЛР3_Алгоритми_Рекурсія.pdf))
-- **Lab 4:** Minimization of Logic Functions ([📖 EN README](./laboratory-works/CDM/4/README.md) | [EN PDF](./laboratory-works/CDM/4/Lab4_Logic_Functions_Minimization_EN.pdf) | [UA PDF](./laboratory-works/CDM/4/ЛР4_Мінімізація_логічних_функцій.pdf))
-- **Lab 5:** Fundamentals of Graph Theory ([📖 EN README](./laboratory-works/CDM/5/README.md) | [EN PDF](./laboratory-works/CDM/5/Lab5_Graph_Theory_Basic_Concepts_EN.pdf) | [UA PDF](./laboratory-works/CDM/5/ЛР5_Основні_поняття_теорії_графів.pdf))
-- **Lab 6:** Matrix Representations of Graphs ([📖 EN README](./laboratory-works/CDM/6/README.md) | [EN PDF](./laboratory-works/CDM/6/Lab6_Graph_Matrix_Representations_EN.pdf) | [UA PDF](./laboratory-works/CDM/6/ЛР6_Матричні_способи_представлення_графів.pdf))
-- **Lab 7:** Shortest Path Algorithms ([📖 EN README](./laboratory-works/CDM/7/README.md) | [EN PDF](./laboratory-works/CDM/7/Lab7_Shortest_Path_Algorithms_EN.pdf) | [UA PDF](./laboratory-works/CDM/7/ЛР7_Пошук_найкоротших_шляхів_у_графах.pdf))
+- **Lab 1:** Sets & Basic Operations ([📖 EN README](./laboratory-works/CDM/1/README.md) | [UA PDF](./laboratory-works/CDM/1/ЛР1_Множини_Основні_поняття.pdf))
+- **Lab 2:** Binary Relations & Properties ([📖 EN README](./laboratory-works/CDM/2/README.md) | [UA PDF](./laboratory-works/CDM/2/ЛР2_Відношення_Основні_поняття_та_властивості.pdf))
+- **Lab 3:** Recursive Algorithms & Tower of Hanoi ([📖 EN README](./laboratory-works/CDM/3/README.md) | [UA PDF](./laboratory-works/CDM/3/ЛР3_Алгоритми_Рекурсія.pdf))
+- **Lab 4:** Minimization of Logic Functions ([📖 EN README](./laboratory-works/CDM/4/README.md) | [UA PDF](./laboratory-works/CDM/4/ЛР4_Мінімізація_логічних_функцій.pdf))
+- **Lab 5:** Fundamentals of Graph Theory ([📖 EN README](./laboratory-works/CDM/5/README.md) | [UA PDF](./laboratory-works/CDM/5/ЛР5_Основні_поняття_теорії_графів.pdf))
+- **Lab 6:** Matrix Representations of Graphs ([📖 EN README](./laboratory-works/CDM/6/README.md) | [UA PDF](./laboratory-works/CDM/6/ЛР6_Матричні_способи_представлення_графів.pdf))
+- **Lab 7:** Shortest Path Algorithms ([📖 EN README](./laboratory-works/CDM/7/README.md) | [UA PDF](./laboratory-works/CDM/7/ЛР7_Пошук_найкоротших_шляхів_у_графах.pdf))
 
 ---
 

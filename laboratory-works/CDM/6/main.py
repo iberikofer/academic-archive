@@ -76,9 +76,9 @@ class GraphVisualizer:
             G = nx.Graph(adj_matrix)
             
         pos = nx.spring_layout(G, seed=42)
-        nx.draw(G, pos, with_labels=True, node_color='#76b900', 
-                node_size=800, font_weight='bold', font_size=12, 
-                font_color='white', arrows=(graph_type != "undirected"), arrowsize=20)
+        nx.draw_networkx(G, pos, with_labels=True, node_color='#76b900', 
+                        node_size=800, font_weight='bold', font_size=12, 
+                        font_color='white', arrows=(graph_type != "undirected"), arrowsize=20)
                 
         plt.title(f"Візуалізація графа ({graph_type})")
         plt.axis('off')
