@@ -55,10 +55,34 @@ Contains 8 complete laboratory works in C/C++ with source code, Ukrainian report
 
 ---
 
+### 🖥️ [3. Human-Computer Interaction (`laboratory-works/HCI`)](./laboratory-works/HCI/README.md)
+
+Contains 5 complete laboratory works across C++, C# WinForms, React 19 web application, and Python voice assistant with dual-language guidelines:
+
+- **[Lab 1–2](./laboratory-works/HCI/1-2/main.cpp):** MS-DOS CLI Command Emulator ([CODE](./laboratory-works/HCI/1-2/main.cpp) | [EN README](./laboratory-works/HCI/1-2/README.md) | [UA PDF](./laboratory-works/HCI/ЛР_Людино-Машинна_Взаємодія_Методичні_вказівки.pdf))
+- **[Lab 3](./laboratory-works/HCI/3/3/FormShop.cs):** ASCII CyberShop Desktop App (C# WinForms) ([CODE](./laboratory-works/HCI/3/3/FormShop.cs) | [EN README](./laboratory-works/HCI/3/README.md) | [UA PDF](./laboratory-works/HCI/ЛР_Людино-Машинна_Взаємодія_Методичні_вказівки.pdf))
+- **[Lab 4](./laboratory-works/HCI/4/src/App.jsx):** ASCII CyberShop Modern Web Application (React + Vite) ([CODE](./laboratory-works/HCI/4/src/App.jsx) | [EN README](./laboratory-works/HCI/4/README.md) | [UA PDF](./laboratory-works/HCI/ЛР_Людино-Машинна_Взаємодія_Методичні_вказівки.pdf))
+- **[Lab 5](./laboratory-works/HCI/5/jarvis.py):** J.A.R.V.I.S. Voice Assistant Terminal (Python + AI) ([CODE](./laboratory-works/HCI/5/jarvis.py) | [EN README](./laboratory-works/HCI/5/README.md) | [UA PDF](./laboratory-works/HCI/ЛР_Людино-Машинна_Взаємодія_Методичні_вказівки.pdf))
+
+---
+
+### ☕ [4. Object-Oriented Programming (`laboratory-works/OOP`)](./laboratory-works/OOP/README.md)
+
+Contains 6 complete laboratory works in Java with JavaFX graphical interfaces, custom modal dialogs, inheritance architectures, and binary serialization:
+
+- **[Lab 1](./laboratory-works/OOP/1/src/Main.java):** Java Syntax & Prime Number Search Algorithm ([CODE](./laboratory-works/OOP/1/src/Main.java) | [EN README](./laboratory-works/OOP/1/README.md) | [UA PDF](./laboratory-works/OOP/1/ЛР1_Синтаксис_Java_та_алгоритми.pdf))
+- **[Lab 2](./laboratory-works/OOP/2/src/Main.java):** Class Design, Encapsulation, & Equals/HashCode Contract ([CODE](./laboratory-works/OOP/2/src/Main.java) | [EN README](./laboratory-works/OOP/2/README.md) | [UA PDF](./laboratory-works/OOP/2/ЛР2_Класи_конструктори_та_поля.pdf))
+- **[Lab 3](./laboratory-works/OOP/3/src/Main.java):** Object Composition, Deep Copying, Sorting & Search ([CODE](./laboratory-works/OOP/3/src/Main.java) | [EN README](./laboratory-works/OOP/3/README.md) | [UA PDF](./laboratory-works/OOP/3/ЛР3_Композиція_клонування_та_сотування.pdf))
+- **[Lab 4](./laboratory-works/OOP/4/src/main/java/gymworld/GymWorld.java):** JavaFX GUI & Custom Dialog Windows ([CODE](./laboratory-works/OOP/4/src/main/java/gymworld/GymWorld.java) | [EN README](./laboratory-works/OOP/4/README.md) | [UA PDF](./laboratory-works/OOP/4/ЛР4_Графічний_інтерфейс_JavaFX.pdf))
+- **[Lab 5](./laboratory-works/OOP/5/src/main/java/gymworld/GymWorld.java):** JavaFX Inheritance, Minimap, & Multi-Criteria Filtering ([CODE](./laboratory-works/OOP/5/src/main/java/gymworld/GymWorld.java) | [EN README](./laboratory-works/OOP/5/README.md) | [UA PDF](./laboratory-works/OOP/5/ЛР5_Успадкування_та_поліморфізм.pdf))
+- **[Lab 6](./laboratory-works/OOP/6/src/main/java/gymworld/GymWorld.java):** Object Serialization & System State Persistence ([CODE](./laboratory-works/OOP/6/src/main/java/gymworld/GymWorld.java) | [EN README](./laboratory-works/OOP/6/README.md) | [UA PDF](./laboratory-works/OOP/6/ЛР6_Серіалізація_обєктів.pdf))
+
+---
+
 ## 🛠️ Stack & Technologies
 
 - **Languages:** C / C++, Python, Java, C#, JavaScript
-- **Frameworks & Libraries:** Tkinter, Matplotlib, NetworkX, SymPy, NumPy, ReportLab, python-docx
+- **Frameworks & Libraries:** Tkinter, Matplotlib, NetworkX, SymPy, NumPy, ReportLab, python-docx, JavaFX, React 19, Vite, WinForms (.NET)
 - **Documentation:** Markdown, LaTeX, Word DOCX, PDF Guidelines
 
 ---
@@ -118,8 +142,32 @@ academic-archive/
 
 ---
 
+### 🖥️ [3. Людино-машинна взаємодія (`laboratory-works/HCI`)](./laboratory-works/HCI/README.md)
+
+Містить 5 виконаних лабораторних робіт на C++, C# WinForms, React 19 та Python із графічними інтерфейсами, голосовим асистентом і методичними вказівками у форматі PDF:
+
+- **[ЛР 1–2](./laboratory-works/HCI/1-2/main.cpp):** Емулятор командного рядка MS-DOS ([КОД](./laboratory-works/HCI/1-2/main.cpp) | [УКР PDF](./laboratory-works/HCI/ЛР_Людино-Машинна_Взаємодія_Методичні_вказівки.pdf) | [АНГЛ README](./laboratory-works/HCI/1-2/README.md))
+- **[ЛР 3](./laboratory-works/HCI/3/3/FormShop.cs):** Десктопний застосунок ASCII CyberShop (C# WinForms) ([КОД](./laboratory-works/HCI/3/3/FormShop.cs) | [УКР PDF](./laboratory-works/HCI/ЛР_Людино-Машинна_Взаємодія_Методичні_вказівки.pdf) | [АНГЛ README](./laboratory-works/HCI/3/README.md))
+- **[ЛР 4](./laboratory-works/HCI/4/src/App.jsx):** Сучасний вебзастосунок ASCII CyberShop (React + Vite) ([КОД](./laboratory-works/HCI/4/src/App.jsx) | [УКР PDF](./laboratory-works/HCI/ЛР_Людино-Машинна_Взаємодія_Методичні_вказівки.pdf) | [АНГЛ README](./laboratory-works/HCI/4/README.md))
+- **[ЛР 5](./laboratory-works/HCI/5/jarvis.py):** Голосовий асистент J.A.R.V.I.S. (Python + AI) ([КОД](./laboratory-works/HCI/5/jarvis.py) | [УКР PDF](./laboratory-works/HCI/ЛР_Людино-Машинна_Взаємодія_Методичні_вказівки.pdf) | [АНГЛ README](./laboratory-works/HCI/5/README.md))
+
+---
+
+### ☕ [4. Об'єктно-орієнтоване програмування (`laboratory-works/OOP`)](./laboratory-works/OOP/README.md)
+
+Містить 6 виконаних лабораторних робіт на Java із графічним інтерфейсом JavaFX, модальними діалоговими вікнами, ієрархією успадкування, серіалізацією об'єктів та методичними вказівками у форматі PDF:
+
+- **[ЛР 1](./laboratory-works/OOP/1/src/Main.java):** Синтаксис Java та алгоритм пошуку простих чисел ([КОД](./laboratory-works/OOP/1/src/Main.java) | [УКР PDF](./laboratory-works/OOP/1/ЛР1_Синтаксис_Java_та_алгоритми.pdf) | [АНГЛ README](./laboratory-works/OOP/1/README.md))
+- **[ЛР 2](./laboratory-works/OOP/2/src/Main.java):** Проєктування класів, інкапсуляція та контракт Equals/HashCode ([КОД](./laboratory-works/OOP/2/src/Main.java) | [УКР PDF](./laboratory-works/OOP/2/ЛР2_Класи_конструктори_та_поля.pdf) | [АНГЛ README](./laboratory-works/OOP/2/README.md))
+- **[ЛР 3](./laboratory-works/OOP/3/src/Main.java):** Композиція об'єктів, глибоке копіювання, сортування та пошук ([КОД](./laboratory-works/OOP/3/src/Main.java) | [УКР PDF](./laboratory-works/OOP/3/ЛР3_Композиція_клонування_та_сотування.pdf) | [АНГЛ README](./laboratory-works/OOP/3/README.md))
+- **[ЛР 4](./laboratory-works/OOP/4/src/main/java/gymworld/GymWorld.java):** Графічний інтерфейс JavaFX та діалогові вікна ([КОД](./laboratory-works/OOP/4/src/main/java/gymworld/GymWorld.java) | [УКР PDF](./laboratory-works/OOP/4/ЛР4_Графічний_інтерфейс_JavaFX.pdf) | [АНГЛ README](./laboratory-works/OOP/4/README.md))
+- **[ЛР 5](./laboratory-works/OOP/5/src/main/java/gymworld/GymWorld.java):** Успадкування JavaFX, радар-мінімапа та багатокритеріальна фільтрація ([КОД](./laboratory-works/OOP/5/src/main/java/gymworld/GymWorld.java) | [УКР PDF](./laboratory-works/OOP/5/ЛР5_Успадкування_та_поліморфізм.pdf) | [АНГЛ README](./laboratory-works/OOP/5/README.md))
+- **[ЛР 6](./laboratory-works/OOP/6/src/main/java/gymworld/GymWorld.java):** Серіалізація об'єктів та збереження стану системи ([КОД](./laboratory-works/OOP/6/src/main/java/gymworld/GymWorld.java) | [УКР PDF](./laboratory-works/OOP/6/ЛР6_Серіалізація_обєктів.pdf) | [АНГЛ README](./laboratory-works/OOP/6/README.md))
+
+---
+
 ## 🛠️ Стек та технології
 
 - **Мови програмування:** C / C++, Python, Java, C#, JavaScript
-- **Фреймворки та бібліотеки:** Tkinter, Matplotlib, NetworkX, SymPy, NumPy, ReportLab, python-docx
+- **Фреймворки та бібліотеки:** Tkinter, Matplotlib, NetworkX, SymPy, NumPy, ReportLab, python-docx, JavaFX, React 19, Vite, WinForms (.NET)
 - **Документація:** Markdown, LaTeX, Word DOCX, PDF вказівки
