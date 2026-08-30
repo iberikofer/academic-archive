@@ -8,7 +8,7 @@
 
 ## 📚 Overview & Table of Contents
 
-| Lab # | 📌 Topic | 💻 Source Code | 📖 README | 📖 UA PDF |
+| Lab # | 📌 Topic | 💻 Source Code | 📖 README | 📖 PDF |
 | :---: | :--- | :---: | :---: | :---: |
 | [**01**](./1/main.py) | [Sets & Basic Operations](./1) | [CODE](./1/main.py) | [EN README](./1/README.md) | [UA PDF](./1/ЛР1_Множини_Основні_поняття.pdf) |
 | [**02**](./2/main.py) | [Binary Relations & Properties](./2) | [CODE](./2/main.py) | [EN README](./2/README.md) | [UA PDF](./2/ЛР2_Відношення_Основні_поняття_та_властивості.pdf) |
