@@ -6,7 +6,7 @@
 
 ## 📚 Overview & Table of Contents
 
-| Lab # | 📌 Topic | 💻 Source Code | 📖 README | 📖 UA Report (DOCX) |
+| Lab # | 📌 Topic | 💻 Source Code | 📖 README | 📖 DOCX |
 | :---: | :--- | :---: | :---: | :---: |
 | [**01**](./1/main.c) | [Basic Data Types & Variables](./1) | [CODE](./1/main.c) | [EN README](./1/README.md) | [UA Report (DOCX)](./1/Звіт_ЛР1_Базові_типи_даних_та_змінні.docx) |
 | [**02**](./2/main.cpp) | [Control Flow & Loops](./2) | [CODE](./2/main.cpp) | [EN README](./2/README.md) | [UA Report (DOCX)](./2/Звіт_ЛР2_Циклічні_конструкції_та_перебір.docx) |
