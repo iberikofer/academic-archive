@@ -19,7 +19,7 @@ academic-archive/
 │   ├── PF/                # Programming Fundamentals
 │   ├── HCI/               # Human-Computer Interaction
 │   └── OOP/               # Object-Oriented Programming
-└── CourseProject2025/     # Term paper / Coursework
+└── JavaCourseProject2025/     # Term paper / Coursework
 ```
 
 ---
@@ -82,7 +82,7 @@ academic-archive/
 │   ├── PF/                # Основи програмування
 │   ├── HCI/               # Людино-машинна взаємодія
 │   └── OOP/               # Об'єктно-орієнтоване програмування
-└── CourseProject2025/     # Курсова робота
+└── JavaCourseProject2025/     # Курсова робота
 ```
 
 ---
