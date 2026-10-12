@@ -18,8 +18,11 @@ academic-archive/
 │   ├── CDM/               # Computer & Discrete Mathematics
 │   ├── PF/                # Programming Fundamentals
 │   ├── HCI/               # Human-Computer Interaction
-│   └── OOP/               # Object-Oriented Programming
-└── JavaCourseProject2025/ # Term paper / Coursework
+│   ├── OOP/               # Object-Oriented Programming
+│   └── DSA/               # Data Structures & Algorithms
+└── course-projects/       # Term papers / Course projects
+    ├── DSA-cpp/           # DSA Course Project (C++)
+    └── OOP-java/          # OOP Course Project (Java)
 ```
 
 ---
@@ -42,16 +45,16 @@ Contains 7 complete laboratory works with Python source code, interactive GUIs (
 
 ### 💻 [2. Programming Fundamentals (`laboratory-works/PF`)](./laboratory-works/PF/README.md)
 
-Contains 8 complete laboratory works in C/C++ with source code, Ukrainian report documents (DOCX), and dual-language lab guidelines:
+Contains 8 complete laboratory works in C/C++ with source code, Ukrainian report documents (PDF), and dual-language lab guidelines:
 
-- **[Lab 1](./laboratory-works/PF/1/main.c):** Basic Data Types & Variables ([CODE](./laboratory-works/PF/1/main.c) | [EN README](./laboratory-works/PF/1/README.md) | [UA DOCX](./laboratory-works/PF/1/Звіт_ЛР1_Базові_типи_даних_та_змінні.docx))
-- **[Lab 2](./laboratory-works/PF/2/main.cpp):** Control Flow & Loops ([CODE](./laboratory-works/PF/2/main.cpp) | [EN README](./laboratory-works/PF/2/README.md) | [UA DOCX](./laboratory-works/PF/2/Звіт_ЛР2_Циклічні_конструкції_та_перебір.docx))
-- **[Lab 3](./laboratory-works/PF/3/main.cpp):** One-Dimensional Arrays ([CODE](./laboratory-works/PF/3/main.cpp) | [EN README](./laboratory-works/PF/3/README.md) | [UA DOCX](./laboratory-works/PF/3/Звіт_ЛР3_Одновимірні_масиви_та_пошук.docx))
-- **[Lab 4](./laboratory-works/PF/4/main.cpp):** Functions & Parameters ([CODE](./laboratory-works/PF/4/main.cpp) | [EN README](./laboratory-works/PF/4/README.md) | [UA DOCX](./laboratory-works/PF/4/Звіт_ЛР4_Функції_та_параметри.docx))
-- **[Lab 5](./laboratory-works/PF/5/main.cpp):** Multidimensional Arrays & Matrices ([CODE](./laboratory-works/PF/5/main.cpp) | [EN README](./laboratory-works/PF/5/README.md) | [UA DOCX](./laboratory-works/PF/5/Звіт_ЛР5_Багатовимірні_масиви_та_матриці.docx))
-- **[Lab 6](./laboratory-works/PF/6/main.cpp):** String Processing & Char Arrays ([CODE](./laboratory-works/PF/6/main.cpp) | [EN README](./laboratory-works/PF/6/README.md) | [UA DOCX](./laboratory-works/PF/6/Звіт_ЛР6_Обробка_рядків_та_символів.docx))
-- **[Lab 7](./laboratory-works/PF/7/main.cpp):** Structures & Enumerations ([CODE](./laboratory-works/PF/7/main.cpp) | [EN README](./laboratory-works/PF/7/README.md) | [UA DOCX](./laboratory-works/PF/7/Звіт_ЛР7_Структури_та_переліковні_типи.docx))
-- **[Lab 8](./laboratory-works/PF/8/main.cpp):** File Input/Output ([CODE](./laboratory-works/PF/8/main.cpp) | [EN README](./laboratory-works/PF/8/README.md) | [UA DOCX](./laboratory-works/PF/8/Звіт_ЛР8_Файлове_введення_виведення.docx))
+- **[Lab 1](./laboratory-works/PF/1/main.c):** Basic Data Types & Variables ([CODE](./laboratory-works/PF/1/main.c) | [EN README](./laboratory-works/PF/1/README.md) | [UA PDF](./laboratory-works/PF/1/Звіт_ЛР1_Базові_типи_даних_та_змінні.pdf))
+- **[Lab 2](./laboratory-works/PF/2/main.cpp):** Control Flow & Loops ([CODE](./laboratory-works/PF/2/main.cpp) | [EN README](./laboratory-works/PF/2/README.md) | [UA PDF](./laboratory-works/PF/2/Звіт_ЛР2_Циклічні_конструкції_та_перебір.pdf))
+- **[Lab 3](./laboratory-works/PF/3/main.cpp):** One-Dimensional Arrays ([CODE](./laboratory-works/PF/3/main.cpp) | [EN README](./laboratory-works/PF/3/README.md) | [UA PDF](./laboratory-works/PF/3/Звіт_ЛР3_Одновимірні_масиви_та_пошук.pdf))
+- **[Lab 4](./laboratory-works/PF/4/main.cpp):** Functions & Parameters ([CODE](./laboratory-works/PF/4/main.cpp) | [EN README](./laboratory-works/PF/4/README.md) | [UA PDF](./laboratory-works/PF/4/Звіт_ЛР4_Функції_та_параметри.pdf))
+- **[Lab 5](./laboratory-works/PF/5/main.cpp):** Multidimensional Arrays & Matrices ([CODE](./laboratory-works/PF/5/main.cpp) | [EN README](./laboratory-works/PF/5/README.md) | [UA PDF](./laboratory-works/PF/5/Звіт_ЛР5_Багатовимірні_масиви_та_матриці.pdf))
+- **[Lab 6](./laboratory-works/PF/6/main.cpp):** String Processing & Char Arrays ([CODE](./laboratory-works/PF/6/main.cpp) | [EN README](./laboratory-works/PF/6/README.md) | [UA PDF](./laboratory-works/PF/6/Звіт_ЛР6_Обробка_рядків_та_символів.pdf))
+- **[Lab 7](./laboratory-works/PF/7/main.cpp):** Structures & Enumerations ([CODE](./laboratory-works/PF/7/main.cpp) | [EN README](./laboratory-works/PF/7/README.md) | [UA PDF](./laboratory-works/PF/7/Звіт_ЛР7_Структури_та_переліковні_типи.pdf))
+- **[Lab 8](./laboratory-works/PF/8/main.cpp):** File Input/Output ([CODE](./laboratory-works/PF/8/main.cpp) | [EN README](./laboratory-works/PF/8/README.md) | [UA PDF](./laboratory-works/PF/8/Звіт_ЛР8_Файлове_введення_виведення.pdf))
 
 ---
 
@@ -79,11 +82,25 @@ Contains 6 complete laboratory works in Java with JavaFX graphical interfaces, c
 
 ---
 
+### 🌲 [5. Data Structures & Algorithms (`laboratory-works/DSA`)](./laboratory-works/DSA/README.md)
+
+Contains 7 complete laboratory works in C/C++ covering pointer arithmetic, linear and non-linear data structures, sorting benchmarks, hashing, trees, and graph algorithms:
+
+- **[Lab 1](./laboratory-works/DSA/1/main.c):** One-Dimensional Arrays & Pointers ([CODE](./laboratory-works/DSA/1/main.c) | [EN README](./laboratory-works/DSA/1/README.md) | [UA PDF](./laboratory-works/DSA/1/task.pdf))
+- **[Lab 2](./laboratory-works/DSA/2):** Multidimensional Arrays & Matrices ([DIR](./laboratory-works/DSA/2) | [EN README](./laboratory-works/DSA/2/README.md))
+- **[Lab 3](./laboratory-works/DSA/3/main.c):** Linear Structures: Stacks, Queues, Deques & Lists ([CODE](./laboratory-works/DSA/3/main.c) | [EN README](./laboratory-works/DSA/3/README.md) | [UA PDF](./laboratory-works/DSA/3/task.pdf))
+- **[Lab 4](./laboratory-works/DSA/4/main.cpp):** Sorting Algorithms & Complexity Analysis ([CODE](./laboratory-works/DSA/4/main.cpp) | [EN README](./laboratory-works/DSA/4/README.md) | [UA PDF](./laboratory-works/DSA/4/task.pdf))
+- **[Lab 5](./laboratory-works/DSA/5):** Hash Functions & Hash Tables ([DIR](./laboratory-works/DSA/5) | [EN README](./laboratory-works/DSA/5/README.md) | [UA PDF](./laboratory-works/DSA/5/task.pdf))
+- **[Lab 6](./laboratory-works/DSA/6):** Binary Search Trees & Search Optimization ([DIR](./laboratory-works/DSA/6) | [EN README](./laboratory-works/DSA/6/README.md) | [UA PDF](./laboratory-works/DSA/6/task.pdf))
+- **[Lab 7](./laboratory-works/DSA/7):** Graph Algorithms & Problem Solving ([DIR](./laboratory-works/DSA/7) | [EN README](./laboratory-works/DSA/7/README.md) | [UA PDF](./laboratory-works/DSA/7/task.pdf))
+
+---
+
 ## 🛠️ Stack & Technologies
 
 - **Languages:** C / C++, Python, Java, C#, JavaScript
 - **Frameworks & Libraries:** Tkinter, Matplotlib, NetworkX, SymPy, NumPy, ReportLab, python-docx, JavaFX, React 19, Vite, WinForms (.NET)
-- **Documentation:** Markdown, LaTeX, Word DOCX, PDF Guidelines
+- **Documentation:** Markdown, LaTeX, PDF Reports & Guidelines
 
 ---
 
@@ -105,8 +122,11 @@ academic-archive/
 │   ├── CDM/               # Дискретна математика
 │   ├── PF/                # Основи програмування
 │   ├── HCI/               # Людино-машинна взаємодія
-│   └── OOP/               # Об'єктно-орієнтоване програмування
-└── JavaCourseProject2025/ # Курсова робота
+│   ├── OOP/               # Об'єктно-орієнтоване програмування
+│   └── DSA/               # Алгоритми та структури даних
+└── course-projects/       # Курсові роботи
+    ├── DSA-cpp/           # Курсова робота з АСД (C++)
+    └── OOP-java/          # Курсова робота з ООП (Java)
 ```
 
 ---
@@ -129,16 +149,16 @@ academic-archive/
 
 ### 💻 [2. Основи програмування (`laboratory-works/PF`)](./laboratory-works/PF/README.md)
 
-Містить 8 виконаних лабораторних робіт на C/C++ із вихідним кодом, звітами у форматі DOCX та методичними матеріалами:
+Містить 8 виконаних лабораторних робіт на C/C++ із вихідним кодом, звітами у форматі PDF та методичними матеріалами:
 
-- **[ЛР 1](./laboratory-works/PF/1/main.c):** Базові типи даних та змінні ([КОД](./laboratory-works/PF/1/main.c) | [УКР DOCX](./laboratory-works/PF/1/Звіт_ЛР1_Базові_типи_даних_та_змінні.docx) | [АНГЛ README](./laboratory-works/PF/1/README.md))
-- **[ЛР 2](./laboratory-works/PF/2/main.cpp):** Циклічні конструкції та перебір ([КОД](./laboratory-works/PF/2/main.cpp) | [УКР DOCX](./laboratory-works/PF/2/Звіт_ЛР2_Циклічні_конструкції_та_перебір.docx) | [АНГЛ README](./laboratory-works/PF/2/README.md))
-- **[ЛР 3](./laboratory-works/PF/3/main.cpp):** Одновимірні масиви та пошук ([КОД](./laboratory-works/PF/3/main.cpp) | [УКР DOCX](./laboratory-works/PF/3/Звіт_ЛР3_Одновимірні_масиви_та_пошук.docx) | [АНГЛ README](./laboratory-works/PF/3/README.md))
-- **[ЛР 4](./laboratory-works/PF/4/main.cpp):** Функції та параметри ([КОД](./laboratory-works/PF/4/main.cpp) | [УКР DOCX](./laboratory-works/PF/4/Звіт_ЛР4_Функції_та_параметри.docx) | [АНГЛ README](./laboratory-works/PF/4/README.md))
-- **[ЛР 5](./laboratory-works/PF/5/main.cpp):** Багатовимірні масиви та матриці ([КОД](./laboratory-works/PF/5/main.cpp) | [УКР DOCX](./laboratory-works/PF/5/Звіт_ЛР5_Багатовимірні_масиви_та_матриці.docx) | [АНГЛ README](./laboratory-works/PF/5/README.md))
-- **[ЛР 6](./laboratory-works/PF/6/main.cpp):** Обробка рядків та символів ([КОД](./laboratory-works/PF/6/main.cpp) | [УКР DOCX](./laboratory-works/PF/6/Звіт_ЛР6_Обробка_рядків_та_символів.docx) | [АНГЛ README](./laboratory-works/PF/6/README.md))
-- **[ЛР 7](./laboratory-works/PF/7/main.cpp):** Структури та переліковні типи ([КОД](./laboratory-works/PF/7/main.cpp) | [УКР DOCX](./laboratory-works/PF/7/Звіт_ЛР7_Структури_та_переліковні_типи.docx) | [АНГЛ README](./laboratory-works/PF/7/README.md))
-- **[ЛР 8](./laboratory-works/PF/8/main.cpp):** Файлове введення/виведення ([КОД](./laboratory-works/PF/8/main.cpp) | [УКР DOCX](./laboratory-works/PF/8/Звіт_ЛР8_Файлове_введення_виведення.docx) | [АНГЛ README](./laboratory-works/PF/8/README.md))
+- **[ЛР 1](./laboratory-works/PF/1/main.c):** Базові типи даних та змінні ([КОД](./laboratory-works/PF/1/main.c) | [УКР PDF](./laboratory-works/PF/1/Звіт_ЛР1_Базові_типи_даних_та_змінні.pdf) | [АНГЛ README](./laboratory-works/PF/1/README.md))
+- **[ЛР 2](./laboratory-works/PF/2/main.cpp):** Циклічні конструкції та перебір ([КОД](./laboratory-works/PF/2/main.cpp) | [УКР PDF](./laboratory-works/PF/2/Звіт_ЛР2_Циклічні_конструкції_та_перебір.pdf) | [АНГЛ README](./laboratory-works/PF/2/README.md))
+- **[ЛР 3](./laboratory-works/PF/3/main.cpp):** Одновимірні масиви та пошук ([КОД](./laboratory-works/PF/3/main.cpp) | [УКР PDF](./laboratory-works/PF/3/Звіт_ЛР3_Одновимірні_масиви_та_пошук.pdf) | [АНГЛ README](./laboratory-works/PF/3/README.md))
+- **[ЛР 4](./laboratory-works/PF/4/main.cpp):** Функції та параметри ([КОД](./laboratory-works/PF/4/main.cpp) | [УКР PDF](./laboratory-works/PF/4/Звіт_ЛР4_Функції_та_параметри.pdf) | [АНГЛ README](./laboratory-works/PF/4/README.md))
+- **[ЛР 5](./laboratory-works/PF/5/main.cpp):** Багатовимірні масиви та матриці ([КОД](./laboratory-works/PF/5/main.cpp) | [УКР PDF](./laboratory-works/PF/5/Звіт_ЛР5_Багатовимірні_масиви_та_матриці.pdf) | [АНГЛ README](./laboratory-works/PF/5/README.md))
+- **[ЛР 6](./laboratory-works/PF/6/main.cpp):** Обробка рядків та символів ([КОД](./laboratory-works/PF/6/main.cpp) | [УКР PDF](./laboratory-works/PF/6/Звіт_ЛР6_Обробка_рядків_та_символів.pdf) | [АНГЛ README](./laboratory-works/PF/6/README.md))
+- **[ЛР 7](./laboratory-works/PF/7/main.cpp):** Структури та переліковні типи ([КОД](./laboratory-works/PF/7/main.cpp) | [УКР PDF](./laboratory-works/PF/7/Звіт_ЛР7_Структури_та_переліковні_типи.pdf) | [АНГЛ README](./laboratory-works/PF/7/README.md))
+- **[ЛР 8](./laboratory-works/PF/8/main.cpp):** Файлове введення/виведення ([КОД](./laboratory-works/PF/8/main.cpp) | [УКР PDF](./laboratory-works/PF/8/Звіт_ЛР8_Файлове_введення_виведення.pdf) | [АНГЛ README](./laboratory-works/PF/8/README.md))
 
 ---
 
@@ -166,8 +186,22 @@ academic-archive/
 
 ---
 
+### 🌲 [5. Алгоритми та структури даних (`laboratory-works/DSA`)](./laboratory-works/DSA/README.md)
+
+Містить 7 виконаних лабораторних робіт на C/C++ із дослідженням базових структур даних, покажчиків, алгоритмів сортування, хешування, бінарних дерев пошуку та графів:
+
+- **[ЛР 1](./laboratory-works/DSA/1/main.c):** Одновимірні масиви та робота з покажчиками ([КОД](./laboratory-works/DSA/1/main.c) | [УКР PDF](./laboratory-works/DSA/1/task.pdf) | [АНГЛ README](./laboratory-works/DSA/1/README.md))
+- **[ЛР 2](./laboratory-works/DSA/2):** Багатовимірні масиви та матриці ([ПАПКА](./laboratory-works/DSA/2) | [АНГЛ README](./laboratory-works/DSA/2/README.md))
+- **[ЛР 3](./laboratory-works/DSA/3/main.c):** Лінійні структури: стек, дек, черга та списки ([КОД](./laboratory-works/DSA/3/main.c) | [УКР PDF](./laboratory-works/DSA/3/task.pdf) | [АНГЛ README](./laboratory-works/DSA/3/README.md))
+- **[ЛР 4](./laboratory-works/DSA/4/main.cpp):** Алгоритми сортування та аналіз складності ([КОД](./laboratory-works/DSA/4/main.cpp) | [УКР PDF](./laboratory-works/DSA/4/task.pdf) | [АНГЛ README](./laboratory-works/DSA/4/README.md))
+- **[ЛР 5](./laboratory-works/DSA/5):** Хеш-функції та хеш-таблиці ([ПАПКА](./laboratory-works/DSA/5) | [УКР PDF](./laboratory-works/DSA/5/task.pdf) | [АНГЛ README](./laboratory-works/DSA/5/README.md))
+- **[ЛР 6](./laboratory-works/DSA/6):** Бінарні дерева пошуку та оптимізація пошуку ([ПАПКА](./laboratory-works/DSA/6) | [УКР PDF](./laboratory-works/DSA/6/task.pdf) | [АНГЛ README](./laboratory-works/DSA/6/README.md))
+- **[ЛР 7](./laboratory-works/DSA/7):** Задачі на графах та алгоритми обходу ([ПАПКА](./laboratory-works/DSA/7) | [УКР PDF](./laboratory-works/DSA/7/task.pdf) | [АНГЛ README](./laboratory-works/DSA/7/README.md))
+
+---
+
 ## 🛠️ Стек та технології
 
 - **Мови програмування:** C / C++, Python, Java, C#, JavaScript
 - **Фреймворки та бібліотеки:** Tkinter, Matplotlib, NetworkX, SymPy, NumPy, ReportLab, python-docx, JavaFX, React 19, Vite, WinForms (.NET)
-- **Документація:** Markdown, LaTeX, Word DOCX, PDF вказівки
+- **Документація:** Markdown, LaTeX, PDF звіти та методичні вказівки

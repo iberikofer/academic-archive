@@ -16,7 +16,7 @@
 ## 💻 Code & Reports / Код та звіти
 
 - **Main Code:** [`main.cpp`](./main.cpp)
-- **Ukrainian Report (DOCX):** [UA `Звіт_ЛР4_Функції_та_параметри.docx`](./Звіт_ЛР4_Функції_та_параметри.docx)
+- **Ukrainian Report (PDF):** [UA `Звіт_ЛР4_Функції_та_параметри.pdf`](./Звіт_ЛР4_Функції_та_параметри.pdf)
 
 ---
 

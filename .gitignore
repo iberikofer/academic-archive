@@ -116,3 +116,10 @@ JavaCourseProject2025/*.docx
 JavaCourseProject2025/assets/*.docx
 JavaCourseProject2025/assets/*.zip
 JavaCourseProject2025/assets/*.pdf
+# DSA C++ Course Project
+compile_commands.json
+compile_flags.txt
+.clangd
+**/.clangd
+**/imgui.ini
+course-projects/DSA-cpp/benchmark_results.csv
