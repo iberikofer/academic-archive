@@ -220,8 +220,10 @@ void recalculateSimulation(map::Maze &maze, core::Config &config,
   algorithms::routing::TSPSolver tsp(pathfinder.get());
   auto plan = tsp.solveRoute(maze, selectedItems, config.routeMode);
 
-  if (config.initialEnergy < plan.totalEnergyCost) {
-    config.initialEnergy = plan.totalEnergyCost + 100;
+  // Dynamic tactical energy reserve: 22% surplus (at least 120) for turns, mud terrain, and detour flexibility
+  int energyReserve = std::max(120, static_cast<int>(std::round(plan.totalEnergyCost * 0.22f)));
+  if (config.initialEnergy < plan.totalEnergyCost + energyReserve) {
+    config.initialEnergy = plan.totalEnergyCost + energyReserve;
   }
 
   engine.initPlan(plan, config.initialEnergy, cap);
@@ -301,7 +303,8 @@ int main(int argc, char *argv[]) {
   map::BSPGenerator generator(config);
   generator.generate(maze);
 
-  int initialCap = std::max(10, maze.getTotalItemWeight() / 2);
+  // Smart scaling for backpack capacity: ~52% of total scrap weight guarantees ~18 items capacity on 30x30, scaling smoothly with maze size
+  int initialCap = std::clamp(static_cast<int>(std::round(maze.getTotalItemWeight() * 0.52f)), 25, 450);
   config.manualBackpackCapacity = initialCap;
 
   simulation::SimulationEngine engine(maze, config);
@@ -341,6 +344,8 @@ int main(int argc, char *argv[]) {
     std::cout << "========================================================\n\n"
               << std::flush;
 
+
+
     std::cout << "[STRESS TEST]: Testing labyrinth generation & simulation at "
                  "sizes 20, 30, 40, 62, 80, 100...\n";
     for (int sz : {20, 30, 40, 62, 80, 100}) {
@@ -348,13 +353,18 @@ int main(int argc, char *argv[]) {
       config.mapHeight = sz;
       generator.setConfig(config);
       generator.generate(maze);
+      config.manualBackpackCapacity = std::clamp(static_cast<int>(std::round(maze.getTotalItemWeight() * 0.52f)), 25, 450);
+      recalculateSimulation(maze, config, engine, 0, 0);
       std::cout << "  - Size " << sz << "x" << sz
                 << ": Rooms=" << maze.getRooms().size() << ", Start=("
                 << maze.getStartPoint().x << "," << maze.getStartPoint().y
                 << "), Exit=(" << maze.getExitPoint().x << ","
                 << maze.getExitPoint().y
-                << "), Items=" << maze.getItems().size() << " [OK]\n";
-      recalculateSimulation(maze, config, engine, 0, 0);
+                << "), Items=" << maze.getItems().size()
+                << ", Weight=" << maze.getTotalItemWeight() << "kg"
+                << ", Cap=" << config.manualBackpackCapacity << "kg"
+                << ", RouteItems=" << (engine.getPlan().visitOrder.size() > 2 ? engine.getPlan().visitOrder.size() - 2 : 0)
+                << " [OK]\n";
     }
     std::cout << "[INFO]: All sizes (including 62 and 100) verified without "
                  "errors. Exiting cleanly.\n";
@@ -750,6 +760,7 @@ int main(int argc, char *argv[]) {
   constexpr float EXTRA_REACH = 16.0f * ui::ProceduralRenderer::TILE_SIZE + 140.0f;
   float initMaxScanR = std::hypot(initMazeWorldW * 0.5f, initMazeWorldH * 0.5f) + EXTRA_REACH;
   transition.startStartupScan(centerOrigin, initMaxScanR);
+  renderer.setWaitingForDrop(true);
 
   auto grabCursor = loadGrabCursor();
   auto defaultCursor = sf::Cursor::createFromSystem(sf::Cursor::Type::Arrow);
@@ -767,7 +778,26 @@ int main(int argc, char *argv[]) {
     float windowH = static_cast<float>(window.getSize().y);
     bool hasFocus = window.hasFocus();
 #ifdef _WIN32
-    if (!hasFocus && hwnd && GetForegroundWindow() == hwnd) {
+    if (hwnd) {
+      bool isFg = (GetForegroundWindow() == hwnd);
+      if (hasFocus && !isFg) {
+        hasFocus = false;
+        camera.stopFollowing();
+        camera.cancelDrag();
+        s_spaceDown = false;
+        s_spaceRepeatCount = 0;
+      } else if (!hasFocus && isFg) {
+        hasFocus = true;
+      }
+    }
+#else
+    if (hasFocus && !window.hasFocus()) {
+      hasFocus = false;
+      camera.stopFollowing();
+      camera.cancelDrag();
+      s_spaceDown = false;
+      s_spaceRepeatCount = 0;
+    } else if (!hasFocus && window.hasFocus()) {
       hasFocus = true;
     }
 #endif
@@ -781,20 +811,11 @@ int main(int argc, char *argv[]) {
       if (event->is<sf::Event::FocusLost>()) {
         hasFocus = false;
         camera.stopFollowing();
+        camera.cancelDrag();
         s_spaceDown = false;
         s_spaceRepeatCount = 0;
       } else if (event->is<sf::Event::FocusGained>()) {
         hasFocus = true;
-      }
-
-      if (event->is<sf::Event::MouseButtonPressed>()) {
-        hasFocus = true;
-#ifdef _WIN32
-        if (hwnd) {
-          SetFocus(hwnd);
-          SetActiveWindow(hwnd);
-        }
-#endif
       }
 
       if (const auto *resized = event->getIf<sf::Event::Resized>()) {
@@ -804,7 +825,26 @@ int main(int argc, char *argv[]) {
                          static_cast<float>(resized->size.y)})));
       }
 
-      // Forward event to ImGui
+      if (event->is<sf::Event::MouseButtonPressed>()) {
+        if (!hasFocus) {
+          hasFocus = true;
+#ifdef _WIN32
+          if (hwnd) {
+            SetFocus(hwnd);
+            SetActiveWindow(hwnd);
+          }
+#endif
+          // Consume focus click so it doesn't trigger UI elements or camera drag when activating window
+          continue;
+        }
+      }
+
+      // If the game window does not have focus, completely ignore any key, mouse, wheel, or text input!
+      if (!hasFocus) {
+        continue;
+      }
+
+      // Forward event to ImGui only when focused!
       ImGui::SFML::ProcessEvent(window, *event);
 
       if (const auto *key = event->getIf<sf::Event::KeyPressed>()) {
@@ -1026,17 +1066,46 @@ int main(int argc, char *argv[]) {
     if (dtSeconds > 0.15f)
       dtSeconds = 0.15f; // Cap delta time on minimize/restore
 
+    bool wasCompletedBefore = engine.isCompleted();
     engine.update(dtSeconds);
+    if (!wasCompletedBefore && engine.isCompleted()) {
+      if (engine.getAgent().getStatus() == simulation::AgentStatus::Success) {
+        if (engine.getExtraCollectedCount() > 0) {
+          char noticeBuf[160];
+          std::snprintf(noticeBuf, sizeof(noticeBuf),
+                        "Евакуація успішна! Зібрано %zu од. (+%zu понад план: на шляху лежав брухт, який помістився у рюкзак)!",
+                        engine.getCollectedItemIds().size(), engine.getExtraCollectedCount());
+          uiState.statusNotice = noticeBuf;
+        } else {
+          uiState.statusNotice = "Евакуація успішна! Всі заплановані предмети доставлено на базу!";
+        }
+      }
+    }
+    if ((!engine.isPaused() || engine.getCurrentStepIndex() > 0) &&
+        (renderer.isWaitingForDrop() || renderer.isParachuting())) {
+      renderer.finishParachuteDrop();
+      if (transition.isParachuting()) {
+        transition.phase = ui::GenerationTransitionPhase::None;
+      }
+    }
     ImGui::SFML::Update(window, sf::seconds(dtSeconds));
 
-    // Force ImGui mouse state synchronization to guarantee UI responsiveness
-    sf::Vector2i mousePixel = sf::Mouse::getPosition(window);
+    // Force ImGui mouse state synchronization only when window has focus
+    sf::Vector2i mousePixel = hasFocus ? sf::Mouse::getPosition(window) : sf::Vector2i(-9999, -9999);
     ImGuiIO &imIo = ImGui::GetIO();
-    imIo.MousePos = ImVec2(static_cast<float>(mousePixel.x), static_cast<float>(mousePixel.y));
-    for (int i = 0; i < 3; ++i) {
-      imIo.MouseDown[i] = sf::Mouse::isButtonPressed(static_cast<sf::Mouse::Button>(i));
+    if (!hasFocus) {
+      imIo.AppFocusLost = true;
+      imIo.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
+      for (int i = 0; i < 5; ++i) {
+        imIo.MouseDown[i] = false;
+      }
+    } else {
+      imIo.AppFocusLost = false;
+      imIo.MousePos = ImVec2(static_cast<float>(mousePixel.x), static_cast<float>(mousePixel.y));
+      for (int i = 0; i < 3; ++i) {
+        imIo.MouseDown[i] = sf::Mouse::isButtonPressed(static_cast<sf::Mouse::Button>(i));
+      }
     }
-    imIo.AppFocusLost = false;
 
     bool isDraggingCamera = camera.isDragging();
     if (isDraggingCamera && grabCursor.has_value()) {
@@ -1052,6 +1121,7 @@ int main(int argc, char *argv[]) {
       if (transition.timer >= transition.fadeOutDuration) {
         // Old maze is fully faded out to dark blue! Perform generation now:
         renderer.resetAnimation();
+        renderer.setWaitingForDrop(true);
         if (transition.pendingUseSpecifiedSeed) {
           config.randomSeed = transition.pendingSpecifiedSeedValue;
           uiState.statusNotice = "Лабіринт відтворено за власним сідом!";
@@ -1062,6 +1132,7 @@ int main(int argc, char *argv[]) {
         }
         generator.setConfig(config);
         generator.generate(maze);
+        config.manualBackpackCapacity = std::clamp(static_cast<int>(std::round(maze.getTotalItemWeight() * 0.52f)), 25, 450);
         recalculateSimulation(maze, config, engine, uiState.knapsackAlgoIndex,
                               uiState.pathfinderAlgoIndex);
 
@@ -1130,11 +1201,24 @@ int main(int argc, char *argv[]) {
     } else if (transition.isCameraZooming()) {
       transition.timer += dtSeconds;
       if (transition.timer >= transition.cameraZoomDuration) {
-        transition.phase = ui::GenerationTransitionPhase::None;
+        sf::Vector2f agentWorld{
+            (engine.getAgent().getPosition().x + 0.5f) * ui::ProceduralRenderer::TILE_SIZE,
+            (engine.getAgent().getPosition().y + 0.5f) * ui::ProceduralRenderer::TILE_SIZE
+        };
+        renderer.startParachuteDrop(agentWorld, camera.getView().getSize().y,
+                                    camera.getView().getCenter().y);
+        transition.phase = ui::GenerationTransitionPhase::ParachuteDrop;
         transition.timer = 0.0f;
         if (config.cameraFollowAgent) {
           uiState.requestCenterCameraOnAgent = true;
         }
+      }
+    } else if (transition.isParachuting()) {
+      transition.timer += dtSeconds;
+      if (transition.timer >= transition.parachuteDuration || !renderer.isParachuting()) {
+        renderer.finishParachuteDrop();
+        transition.phase = ui::GenerationTransitionPhase::None;
+        transition.timer = 0.0f;
       }
     }
 
@@ -1142,6 +1226,7 @@ int main(int argc, char *argv[]) {
       uiState.triggerRegeneration = false;
       guiOverlay.setSidebarCollapsed(true);
       if (!transition.isTransitionActive()) {
+        renderer.setWaitingForDrop(true);
         transition.startFadeOut(uiState.useSpecifiedSeed, uiState.specifiedSeedValue);
         uiState.useSpecifiedSeed = false;
       }
@@ -1209,7 +1294,7 @@ int main(int argc, char *argv[]) {
       camera.zoomTo(uiState.targetCameraZoom, 8.5f);
     }
     guiOverlay.renderMinimapLegend(config, maze, engine, camera, window,
-                                   windowW, windowH);
+                                   renderer, windowW, windowH);
     guiOverlay.renderMapTopControls(uiState, config, windowW, windowH);
 
     // Zoom badge state on minimap screen

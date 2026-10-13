@@ -752,10 +752,8 @@ void BSPGenerator::spawnResources(Maze& maze) {
     const auto& templates = core::getLethalScrapTemplates();
     if (templates.empty()) return;
 
-    // Minimum 10 items per 10 cells of map size (e.g. 20->20, 30->30, 40->40, 62->62, 100->100)
-    int tens = std::max(2, config_.mapWidth / 10);
-    int minItems = tens * 10;
-    int targetItemCount = std::max(minItems, config_.mapWidth);
+    // Smart scaling: at 30x30 default is 30 items, scaling gracefully with map dimensions (18-20 for 20x20, 30 for 30x30, 43 for 40x40, ~70 for 62x62, ~120 for 100x100)
+    int targetItemCount = std::max(20, static_cast<int>(30.0f + (config_.mapWidth - 30) * 1.30f));
 
     const auto& rooms = maze.getRooms();
     std::vector<int> roomItemCounts(rooms.size(), 0);
@@ -773,7 +771,9 @@ void BSPGenerator::spawnResources(Maze& maze) {
         int area = r.width * r.height;
         if (area < 25) return 1;
         if (area < 45) return 2;
-        return 3;
+        if (area < 75) return 3;
+        if (area < 120) return 4;
+        return 5;
     };
 
     const auto& startPos = maze.getStartPoint();
@@ -871,10 +871,21 @@ void BSPGenerator::spawnResources(Maze& maze) {
     int toSpawn = static_cast<int>(chosenPositions.size());
     items.reserve(toSpawn);
 
+    std::vector<int> lightIndices, medIndices, heavyIndices;
+    for (size_t idx = 0; idx < templates.size(); ++idx) {
+        if (templates[idx].category == core::ItemCategory::LightScrap) {
+            lightIndices.push_back(static_cast<int>(idx));
+        } else if (templates[idx].category == core::ItemCategory::MediumScrap) {
+            medIndices.push_back(static_cast<int>(idx));
+        } else {
+            heavyIndices.push_back(static_cast<int>(idx));
+        }
+    }
+
     std::uniform_real_distribution<float> catDist(0.0f, 1.0f);
-    std::uniform_int_distribution<int> lightIdxDist(0, 9);
-    std::uniform_int_distribution<int> medIdxDist(10, 19);
-    std::uniform_int_distribution<int> heavyIdxDist(20, 29);
+    std::uniform_int_distribution<size_t> lightIdxDist(0, lightIndices.empty() ? 0 : lightIndices.size() - 1);
+    std::uniform_int_distribution<size_t> medIdxDist(0, medIndices.empty() ? 0 : medIndices.size() - 1);
+    std::uniform_int_distribution<size_t> heavyIdxDist(0, heavyIndices.empty() ? 0 : heavyIndices.size() - 1);
     std::uniform_int_distribution<int> weightDeltaDist(-1, 1);
     std::uniform_int_distribution<int> valueDeltaDist(-5, 5);
 
@@ -884,15 +895,17 @@ void BSPGenerator::spawnResources(Maze& maze) {
 
         float roll = catDist(rng_);
         int tmplIdx = 0;
-        if (roll < 0.45f) {
+        if (roll < 0.45f && !lightIndices.empty()) {
             // 45% Light scrap (cheap, light, high frequency)
-            tmplIdx = lightIdxDist(rng_);
-        } else if (roll < 0.80f) {
+            tmplIdx = lightIndices[lightIdxDist(rng_)];
+        } else if (roll < 0.80f && !medIndices.empty()) {
             // 35% Medium scrap (balanced)
-            tmplIdx = medIdxDist(rng_);
-        } else {
+            tmplIdx = medIndices[medIdxDist(rng_)];
+        } else if (!heavyIndices.empty()) {
             // 20% Heavy scrap (heavy, very valuable, rarer)
-            tmplIdx = heavyIdxDist(rng_);
+            tmplIdx = heavyIndices[heavyIdxDist(rng_)];
+        } else {
+            tmplIdx = 0;
         }
 
         const auto& tmpl = templates[tmplIdx];

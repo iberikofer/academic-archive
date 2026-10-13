@@ -130,12 +130,28 @@ public:
         auto& cell = maze_.at(nextPos);
         if (cell.hasResource()) {
             int rId = cell.getResourceId();
-            bool isPlanned = plannedItemIds_.empty() || (plannedItemIds_.find(rId) != plannedItemIds_.end());
-            if (isPlanned && std::find(collectedItemIds_.begin(), collectedItemIds_.end(), rId) == collectedItemIds_.end()) {
+            if (std::find(collectedItemIds_.begin(), collectedItemIds_.end(), rId) == collectedItemIds_.end()) {
                 auto itemOpt = maze_.getItemById(rId);
-                if (itemOpt.has_value() && agent_.getBackpack().canFit(*itemOpt)) {
-                    agent_.getBackpack().addItem(*itemOpt);
-                    collectedItemIds_.push_back(rId);
+                if (itemOpt.has_value()) {
+                    bool isPlanned = (plannedItemIds_.find(rId) != plannedItemIds_.end());
+                    int curWeight = agent_.getBackpack().getCurrentWeight();
+                    int maxCap = agent_.getBackpack().getMaxCapacity();
+
+                    if (isPlanned) {
+                        // Planned items: prioritized collection (guaranteed by knapsack reservation)
+                        if (agent_.getBackpack().canFit(*itemOpt)) {
+                            agent_.getBackpack().addItem(*itemOpt);
+                            collectedItemIds_.push_back(rId);
+                        }
+                    } else {
+                        // Opportunistic pickup: only pick up unplanned corridor loot if it does NOT
+                        // encroach on capacity reserved for yet-to-be-visited planned waypoints
+                        int remPlanned = getRemainingPlannedWeight();
+                        if (curWeight + remPlanned + itemOpt->weight <= maxCap) {
+                            agent_.getBackpack().addItem(*itemOpt);
+                            collectedItemIds_.push_back(rId);
+                        }
+                    }
                 }
             }
         }
@@ -186,6 +202,7 @@ public:
         }
 
         isCompleted_ = false;
+        // Keep isPaused_ true so the user can inspect the restored historical frame without auto-advancing
         return true;
     }
 
@@ -234,12 +251,39 @@ public:
 
     [[nodiscard]] const std::vector<int>& getCollectedItemIds() const noexcept { return collectedItemIds_; }
 
+    [[nodiscard]] bool isItemPlanned(int itemId) const noexcept {
+        return plannedItemIds_.find(itemId) != plannedItemIds_.end();
+    }
+
+    [[nodiscard]] size_t getExtraCollectedCount() const noexcept {
+        size_t extra = 0;
+        for (int id : collectedItemIds_) {
+            if (plannedItemIds_.find(id) == plannedItemIds_.end()) {
+                ++extra;
+            }
+        }
+        return extra;
+    }
+
     void replenishEnergy(int amount) {
         agent_.replenishEnergy(amount);
         if (agent_.getStatus() == AgentStatus::Exhausted) {
             agent_.setStatus(AgentStatus::Collecting);
             isCompleted_ = false;
         }
+    }
+
+    [[nodiscard]] int getRemainingPlannedWeight() const {
+        int rem = 0;
+        for (int pId : plannedItemIds_) {
+            if (std::find(collectedItemIds_.begin(), collectedItemIds_.end(), pId) == collectedItemIds_.end()) {
+                auto opt = maze_.getItemById(pId);
+                if (opt.has_value()) {
+                    rem += opt->weight;
+                }
+            }
+        }
+        return rem;
     }
 
 private:
@@ -259,15 +303,16 @@ private:
     void checkScenarioA1Safety() {
         if (!config_.energyLimitEnabled) return;
 
-        // Calculate approximate distance to target exit/start
+        // Calculate realistic lower bound distance to target exit/start taking into account maze winding and mud
         core::Point dest = (config_.routeMode == core::RouteMode::PointAToPointB) ?
                            maze_.getExitPoint() : maze_.getStartPoint();
 
         int dx = std::abs(agent_.getPosition().x - dest.x);
         int dy = std::abs(agent_.getPosition().y - dest.y);
-        int minEnergyToSafety = (dx + dy) * 10;
+        // Factor in corridor tortuosity (~2.5x) and terrain penalties
+        int minEnergyToSafety = (dx + dy) * 25 + 60;
 
-        if (agent_.getCurrentEnergy() <= minEnergyToSafety + 30) {
+        if (agent_.getCurrentEnergy() <= minEnergyToSafety) {
             emergencyEvacuationTriggered_ = true;
             agent_.setStatus(AgentStatus::Evacuating);
         }

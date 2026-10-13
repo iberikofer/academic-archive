@@ -35,14 +35,15 @@ public:
         Waypoint startWp{maze.getStartPoint(), -1, "Start (Airlock)", 0, 0};
         waypoints.push_back(startWp);
 
-        // Select at most top 18 highest value items to ensure fast real-time TSP tour
+        // Dynamic waypoint cap based on labyrinth dimensions (18 at 30x30, scaling gracefully up to 45 on 100x100)
+        size_t maxWaypoints = static_cast<size_t>(std::clamp(18 + static_cast<int>((maze.getWidth() - 30) * 0.35f), 12, 45));
         std::vector<core::Item> itemsToRoute = targetItems;
-        if (itemsToRoute.size() > 18) {
-            std::partial_sort(itemsToRoute.begin(), itemsToRoute.begin() + 18, itemsToRoute.end(),
+        if (itemsToRoute.size() > maxWaypoints) {
+            std::partial_sort(itemsToRoute.begin(), itemsToRoute.begin() + maxWaypoints, itemsToRoute.end(),
                 [](const core::Item& a, const core::Item& b) {
                     return a.value > b.value;
                 });
-            itemsToRoute.resize(18);
+            itemsToRoute.resize(maxWaypoints);
         }
 
         for (const auto& item : itemsToRoute) {
@@ -103,18 +104,28 @@ public:
 
         size_t current = 0;
         for (size_t step = 1; step < n - 1; ++step) {
-            size_t nextBest = 0;
-            int bestCost = 9999999;
+            size_t nextBest = SIZE_MAX;
+            int bestCost = 9000000;
             for (size_t j = 1; j < n - 1; ++j) {
                 if (!visited[j] && dist[current][j] < bestCost) {
                     bestCost = dist[current][j];
                     nextBest = j;
                 }
             }
-            if (nextBest != 0) {
+            if (nextBest != SIZE_MAX) {
                 tour.push_back(nextBest);
                 visited[nextBest] = true;
                 current = nextBest;
+            } else {
+                // If unreachable from current, append first unvisited waypoint to ensure complete tour
+                for (size_t j = 1; j < n - 1; ++j) {
+                    if (!visited[j]) {
+                        tour.push_back(j);
+                        visited[j] = true;
+                        current = j;
+                        break;
+                    }
+                }
             }
         }
         tour.push_back(n - 1); // Append fixed destination
@@ -140,6 +151,14 @@ public:
             improved = false;
             for (size_t i = 1; i < tour.size() - 2; ++i) {
                 for (size_t k = i + 1; k < tour.size() - 1; ++k) {
+                    // Guard against disconnected/infinite cost edges (>= 9000000)
+                    if (dist[tour[i - 1]][tour[k]] >= 9000000 ||
+                        dist[tour[i]][tour[k + 1]] >= 9000000 ||
+                        dist[tour[i - 1]][tour[i]] >= 9000000 ||
+                        dist[tour[k]][tour[k + 1]] >= 9000000) {
+                        continue;
+                    }
+
                     int delta = (dist[tour[i - 1]][tour[k]] + dist[tour[i]][tour[k + 1]])
                               - (dist[tour[i - 1]][tour[i]] + dist[tour[k]][tour[k + 1]]);
 

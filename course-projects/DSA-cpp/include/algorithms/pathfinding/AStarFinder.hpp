@@ -3,6 +3,7 @@
 #include "IPathfinder.hpp"
 #include <queue>
 #include <unordered_map>
+#include <unordered_set>
 #include <cmath>
 #include <algorithm>
 
@@ -57,6 +58,7 @@ public:
         std::priority_queue<Node, std::vector<Node>, std::greater<Node>> openSet;
         std::unordered_map<core::Point, int> gScore;
         std::unordered_map<core::Point, core::Point> cameFrom;
+        std::unordered_set<core::Point> closedSet;
 
         gScore[start] = 0;
         openSet.push({start, calculateOctileDistance(start, goal)});
@@ -64,6 +66,12 @@ public:
         while (!openSet.empty()) {
             Node current = openSet.top();
             openSet.pop();
+
+            // Skip already closed / stale entries
+            if (closedSet.contains(current.point)) {
+                continue;
+            }
+            closedSet.insert(current.point);
 
             result.visitedNodes.push_back(current.point);
 
@@ -84,6 +92,10 @@ public:
 
             auto neighbors = maze.getNeighbors(current.point);
             for (const auto& nb : neighbors) {
+                if (closedSet.contains(nb.point)) {
+                    continue;
+                }
+
                 int tentativeG = gScore[current.point] + nb.energyCost;
 
                 auto it = gScore.find(nb.point);

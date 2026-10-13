@@ -207,17 +207,17 @@ public:
           continue; // Blocked: clipping a wall corner, doorway frame, or squeezing past wall
         }
 
-        // 3. Mud corner barrier: cannot jump/cheat diagonally across mud corners from dry floor to dry floor,
-        // nor squeeze diagonally between mud cells.
+        // 3. Mud corner barrier: cannot jump/cheat diagonally across mud corners,
+        // nor squeeze diagonally past mud cells unless moving entirely within mud pool.
         auto side1Type = at(current.x + dir.dx, current.y).getType();
         auto side2Type = at(current.x, current.y + dir.dy).getType();
-        if (currType != core::CellType::Mud && nextType != core::CellType::Mud) {
-          if (side1Type == core::CellType::Mud || side2Type == core::CellType::Mud) {
-            continue; // Cannot cut corner across a mud cell
+        if (side1Type == core::CellType::Mud || side2Type == core::CellType::Mud) {
+          if (currType != core::CellType::Mud || nextType != core::CellType::Mud) {
+            continue; // Cannot cut corner across a mud cell entering or leaving mud
           }
-        }
-        if (side1Type == core::CellType::Mud && side2Type == core::CellType::Mud) {
-          continue; // Cannot squeeze between two mud cells
+          if (side1Type == core::CellType::Mud && side2Type == core::CellType::Mud) {
+            continue; // Cannot squeeze between two separate mud cells diagonally
+          }
         }
       }
 

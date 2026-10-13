@@ -21,7 +21,7 @@ struct Config {
 
     // Backpack parameters
     bool autoBackpackCapacity = true; // Automatically ~50% of total spawned item weight
-    int manualBackpackCapacity = 45;  // User slider fallback/manual override (10..200 kg)
+    int manualBackpackCapacity = 55;  // User slider fallback/manual override (10..500 kg)
 
     // Generation parameters
     unsigned int randomSeed = 1337;
@@ -43,7 +43,7 @@ struct Config {
     // Compute dynamic recommended energy based on labyrinth dimensions
     int getRecommendedEnergy() const noexcept {
         // Generous scaling factor ensuring agent can cross the maze and return/evacuate
-        return (mapWidth + mapHeight) * 12;
+        return (mapWidth + mapHeight) * 15;
     }
 
     void clampSettings() noexcept {
@@ -51,7 +51,7 @@ struct Config {
         mapHeight = std::clamp(mapHeight, minMapDimension, maxMapDimension);
         minRoomSize = std::clamp(minRoomSize, 4, 8);
         maxRoomSize = std::clamp(maxRoomSize, minRoomSize + 2, 16);
-        manualBackpackCapacity = std::clamp(manualBackpackCapacity, 10, 200);
+        manualBackpackCapacity = std::clamp(manualBackpackCapacity, 10, 500);
         speedMultiplier = std::clamp(speedMultiplier, 0.5f, 4.0f);
         uiScale = std::clamp(uiScale, 0.75f, 1.50f);
         minimapScale = std::clamp(minimapScale, 0.70f, 1.30f);

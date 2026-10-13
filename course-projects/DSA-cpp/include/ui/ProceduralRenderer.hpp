@@ -35,7 +35,8 @@ enum class GenerationTransitionPhase {
   PostSonarPause,
   RouteTracing,
   PostRoutePause,
-  CameraZoomingToAgent
+  CameraZoomingToAgent,
+  ParachuteDrop
 };
 
 struct GenerationTransition {
@@ -47,6 +48,7 @@ struct GenerationTransition {
   float routeTracingDuration = 4.20f;
   float postRoutePauseDuration = 0.50f;
   float cameraZoomDuration = 0.50f;
+  float parachuteDuration = 5.60f;
 
   sf::Vector2f scanOrigin{0.0f, 0.0f};
   float maxRadius = 1200.0f;
@@ -88,7 +90,8 @@ struct GenerationTransition {
     if (isRecalculatingRoute)
       return false;
     return phase != GenerationTransitionPhase::None &&
-           phase != GenerationTransitionPhase::CameraZoomingToAgent;
+           phase != GenerationTransitionPhase::CameraZoomingToAgent &&
+           phase != GenerationTransitionPhase::ParachuteDrop;
   }
 
   [[nodiscard]] bool isFadingOut() const noexcept {
@@ -113,6 +116,10 @@ struct GenerationTransition {
 
   [[nodiscard]] bool isCameraZooming() const noexcept {
     return phase == GenerationTransitionPhase::CameraZoomingToAgent;
+  }
+
+  [[nodiscard]] bool isParachuting() const noexcept {
+    return phase == GenerationTransitionPhase::ParachuteDrop;
   }
 
   [[nodiscard]] float getFadeAlpha() const noexcept {
@@ -148,6 +155,7 @@ struct GenerationTransition {
     }
     if (phase == GenerationTransitionPhase::PostRoutePause ||
         phase == GenerationTransitionPhase::CameraZoomingToAgent ||
+        phase == GenerationTransitionPhase::ParachuteDrop ||
         phase == GenerationTransitionPhase::None) {
       return 1.0f;
     }
@@ -155,9 +163,109 @@ struct GenerationTransition {
   }
 };
 
+struct ParachuteDropAnimation {
+  bool active = false;
+  float timer = 0.0f;
+  float descentDuration = 4.8f;
+  float landingDuration = 0.8f;
+  sf::Vector2f landingPos{0.0f, 0.0f};
+  float startDropY = -500.0f;
+  bool isLanded = false;
+  float currentRotationDeg = 0.0f;
+  sf::Vector2f currentAgentPos{0.0f, 0.0f};
+  sf::Vector2f currentParachutePos{0.0f, 0.0f};
+  float currentAltitudeScale = 1.0f;
+  float currentParachuteScale = 1.0f;
+  float currentParachuteAlpha = 255.0f;
+
+  void start(sf::Vector2f target, float viewHeight, float cameraCenterY = -1e9f) {
+    active = true;
+    timer = 0.0f;
+    landingPos = target;
+    float effectiveCenterY = (cameraCenterY > -1e8f) ? cameraCenterY : target.y;
+    float topOfScreen = effectiveCenterY - viewHeight * 0.5f;
+    // Set startDropY so the parachutist emerges directly from the top screen border at 3.0x scale.
+    // Agent height at 3x is 90px (center to boots = +45px). Top of screen is topOfScreen.
+    // Starting at (topOfScreen - 48px) places boots just 3px above the visible screen boundary.
+    float targetDrop = landingPos.y - (topOfScreen - 48.0f);
+    float minDrop = std::max(viewHeight * 0.45f, 320.0f);
+    float dropDistance = std::max(minDrop, targetDrop);
+    startDropY = target.y - dropDistance;
+    isLanded = false;
+    currentRotationDeg = 0.0f;
+    currentAltitudeScale = 3.0f;
+    currentAgentPos = {target.x, startDropY};
+    currentParachutePos = currentAgentPos;
+    currentParachuteScale = 1.0f;
+    currentParachuteAlpha = 255.0f;
+  }
+
+  void finish() {
+    active = false;
+    isLanded = true;
+    currentRotationDeg = 0.0f;
+    currentAltitudeScale = 1.0f;
+    currentAgentPos = landingPos;
+    currentParachutePos = landingPos;
+    currentParachuteScale = 0.0f;
+    currentParachuteAlpha = 0.0f;
+  }
+
+  void update(float dt) {
+    if (!active)
+      return;
+    timer += dt;
+    float totalDur = descentDuration + landingDuration;
+    if (timer >= totalDur) {
+      finish();
+      return;
+    }
+
+    if (timer < descentDuration) {
+      float p = std::clamp(timer / descentDuration, 0.0f, 1.0f);
+      float pEase = p * (2.0f - p);
+      float curY = startDropY + (landingPos.y - startDropY) * pEase;
+
+      // 3D perspective altitude scale: begins 3x enlarged at the top of the screen,
+      // and smoothly shrinks down to 1.0x (normal labyrinth tile size) on touchdown.
+      currentAltitudeScale = 1.0f + 2.0f * (1.0f - pEase);
+
+      constexpr float PI_VAL = 3.14159265f;
+      float swayFreq = 3.5f * 2.0f * PI_VAL;
+      float amp = 32.0f * (0.6f + 0.4f * currentAltitudeScale) * (1.0f - p);
+      float curX = landingPos.x + amp * std::sin(p * swayFreq);
+      float angleDeg = 13.0f * (1.0f - p) * std::cos(p * swayFreq);
+
+      currentAgentPos = {curX, curY};
+      currentParachutePos = currentAgentPos;
+      currentRotationDeg = angleDeg;
+      currentParachuteScale = 1.0f;
+      currentParachuteAlpha = 255.0f;
+      isLanded = false;
+    } else {
+      float tLand = timer - descentDuration;
+      float u = std::clamp(tLand / landingDuration, 0.0f, 1.0f);
+
+      currentAltitudeScale = 1.0f;
+      currentAgentPos = landingPos;
+      currentParachutePos = landingPos;
+      currentRotationDeg = 0.0f;
+      isLanded = true;
+
+      // Parachute collapses smoothly into center of agent
+      currentParachuteScale = (1.0f - u) * (1.0f - u);
+      currentParachuteAlpha = (1.0f - u) * 255.0f;
+    }
+  }
+};
+
 class ProceduralRenderer {
 public:
   static constexpr float TILE_SIZE = 36.0f;
+
+  ProceduralRenderer() {
+    loadTextures();
+  }
 
   void resetAnimation() {
     visualAgentInitialized_ = false;
@@ -170,10 +278,55 @@ public:
     catalogHoverAlpha_ = 0.0f;
     lastActiveCatalogItemName_.clear();
     lastActiveCatalogCategory_ = -1;
+    parachuteDrop_.finish();
+    isWaitingForDrop_ = false;
+    lastStepStartPos_ = {0.0f, 0.0f};
+    lastStepTargetPos_ = {0.0f, 0.0f};
+    currentStepHopY_ = 0.0f;
+    currentStepSquashX_ = 1.0f;
+    currentStepSquashY_ = 1.0f;
+    victoryHopY_ = 0.0f;
+    victoryScaleX_ = 1.0f;
+    victoryScaleY_ = 1.0f;
   }
 
   [[nodiscard]] sf::Vector2f getVisualAgentPos() const noexcept {
+    if (parachuteDrop_.active) {
+      return parachuteDrop_.currentAgentPos;
+    }
     return visualAgentPos_;
+  }
+
+  void setWaitingForDrop(bool waiting) noexcept {
+    isWaitingForDrop_ = waiting;
+  }
+
+  [[nodiscard]] bool isWaitingForDrop() const noexcept {
+    return isWaitingForDrop_;
+  }
+
+  [[nodiscard]] bool isParachuting() const noexcept {
+    return parachuteDrop_.active;
+  }
+
+  void startParachuteDrop(sf::Vector2f landingTarget, float viewHeight = 800.0f,
+                          float cameraCenterY = -1e9f) {
+    loadTextures();
+    isWaitingForDrop_ = false;
+    parachuteDrop_.start(landingTarget, viewHeight, cameraCenterY);
+  }
+
+  void finishParachuteDrop() {
+    isWaitingForDrop_ = false;
+    parachuteDrop_.finish();
+  }
+
+  [[nodiscard]] bool hasAgentTexture() const noexcept {
+    return hasAgentTexture_;
+  }
+
+  [[nodiscard]] const sf::Texture& getAgentTexture() const noexcept {
+    return agentTexture_;
   }
 
   void update(float dt, const simulation::SimulationEngine &engine,
@@ -183,30 +336,94 @@ public:
     if (routeCompletionTimer_ > 0.0f) {
       routeCompletionTimer_ = std::max(0.0f, routeCompletionTimer_ - dt);
     }
+    parachuteDrop_.update(dt);
     const auto &agent = engine.getAgent();
 
-    // 1. Smooth agent movement interpolation
+    // 1. Smooth agent movement interpolation and step hopping
     sf::Vector2f targetPos{agent.getPosition().x * TILE_SIZE + TILE_SIZE * 0.5f,
                            agent.getPosition().y * TILE_SIZE +
                                TILE_SIZE * 0.5f};
 
     if (!visualAgentInitialized_) {
       visualAgentPos_ = targetPos;
+      lastStepStartPos_ = targetPos;
+      lastStepTargetPos_ = targetPos;
       visualAgentInitialized_ = true;
+      currentStepHopY_ = 0.0f;
+      currentStepSquashX_ = 1.0f;
+      currentStepSquashY_ = 1.0f;
     } else {
       float dist = std::hypot(targetPos.x - visualAgentPos_.x,
                               targetPos.y - visualAgentPos_.y);
       if (dist > TILE_SIZE * 3.5f) {
         // Instant snap on long jumps / resets
         visualAgentPos_ = targetPos;
-      } else if (dist > 0.05f) {
-        float speedMul = engine.getSpeedMultiplier();
-        float lerpRate = 14.0f * std::clamp(speedMul, 0.8f, 5.0f);
-        float factor = 1.0f - std::exp(-lerpRate * dt);
-        visualAgentPos_ += (targetPos - visualAgentPos_) * factor;
+        lastStepStartPos_ = targetPos;
+        lastStepTargetPos_ = targetPos;
+        currentStepHopY_ = 0.0f;
+        currentStepSquashX_ = 1.0f;
+        currentStepSquashY_ = 1.0f;
       } else {
-        visualAgentPos_ = targetPos;
+        if (std::hypot(targetPos.x - lastStepTargetPos_.x,
+                       targetPos.y - lastStepTargetPos_.y) > 0.5f) {
+          // Detected a new step in progress!
+          lastStepStartPos_ = visualAgentPos_;
+          lastStepTargetPos_ = targetPos;
+        }
+
+        if (dist > 0.05f) {
+          float speedMul = engine.getSpeedMultiplier();
+          float lerpRate = 14.0f * std::clamp(speedMul, 0.8f, 5.0f);
+          float factor = 1.0f - std::exp(-lerpRate * dt);
+          visualAgentPos_ += (targetPos - visualAgentPos_) * factor;
+
+          // Parabolic hop calculation during active step
+          float stepDistTotal =
+              std::hypot(lastStepTargetPos_.x - lastStepStartPos_.x,
+                         lastStepTargetPos_.y - lastStepStartPos_.y);
+          float stepDistRemain =
+              std::hypot(lastStepTargetPos_.x - visualAgentPos_.x,
+                         lastStepTargetPos_.y - visualAgentPos_.y);
+          float stepProgress = (stepDistTotal > 1.0f)
+                                   ? std::clamp(1.0f - (stepDistRemain / stepDistTotal),
+                                                0.0f, 1.0f)
+                                   : 1.0f;
+
+          float hopSine = std::sin(stepProgress * 3.14159265f);
+          currentStepHopY_ = -hopSine * 9.5f;
+          currentStepSquashX_ = 1.0f - hopSine * 0.12f;
+          currentStepSquashY_ = 1.0f + hopSine * 0.14f;
+        } else {
+          visualAgentPos_ = targetPos;
+          currentStepHopY_ = 0.0f;
+          currentStepSquashX_ = 1.0f;
+          currentStepSquashY_ = 1.0f;
+        }
       }
+    }
+
+    // 1b. Static victory jump at the finish line (when arrived at destination with Success status)
+    if (agent.getStatus() == simulation::AgentStatus::Success &&
+        !parachuteDrop_.active) {
+      constexpr float JUMP_PERIOD = 0.62f;
+      float jumpPhase = std::fmod(animTime_, JUMP_PERIOD) / JUMP_PERIOD;
+      if (jumpPhase < 0.68f) {
+        float airT = jumpPhase / 0.68f;
+        float airArc = std::sin(airT * 3.14159265f);
+        victoryHopY_ = -airArc * 14.0f;
+        victoryScaleY_ = 1.0f + airArc * 0.15f;
+        victoryScaleX_ = 1.0f - airArc * 0.12f;
+      } else {
+        float groundT = (jumpPhase - 0.68f) / 0.32f;
+        float squash = std::sin(groundT * 3.14159265f);
+        victoryHopY_ = 0.0f;
+        victoryScaleY_ = 1.0f - squash * 0.16f;
+        victoryScaleX_ = 1.0f + squash * 0.14f;
+      }
+    } else {
+      victoryHopY_ = 0.0f;
+      victoryScaleX_ = 1.0f;
+      victoryScaleY_ = 1.0f;
     }
 
     // 2. Track item pickup events
@@ -2365,6 +2582,84 @@ public:
       }
     }
 
+    if (isWaitingForDrop_) {
+      return; // Agent is descending from sky, not on the pad yet
+    }
+
+    if (parachuteDrop_.active) {
+      // 0. Dynamic ground shadow projected onto the landing pad
+      float pNorm = std::clamp(
+          (parachuteDrop_.currentAgentPos.y - parachuteDrop_.startDropY) /
+              std::max(1.0f, parachuteDrop_.landingPos.y - parachuteDrop_.startDropY),
+          0.0f, 1.0f);
+      float shadowAlpha = 25.0f + 65.0f * pNorm;
+      float shadowRx = (9.0f + 4.0f * (1.0f - pNorm)) * (0.6f + 0.4f * parachuteDrop_.currentAltitudeScale);
+      float shadowRy = shadowRx * 0.45f;
+      sf::CircleShape groundShadow(shadowRx);
+      groundShadow.setScale({1.0f, shadowRy / shadowRx});
+      groundShadow.setOrigin({shadowRx, shadowRx});
+      groundShadow.setPosition({parachuteDrop_.currentAgentPos.x, parachuteDrop_.landingPos.y + 12.0f});
+      groundShadow.setFillColor(sf::Color(0, 0, 0, static_cast<uint8_t>(shadowAlpha)));
+      target.draw(groundShadow);
+
+      // 1. Draw parachute BEHIND the agent (origin pinned to character chest/center)
+      if (hasParachuteTexture_ && parachuteDrop_.currentParachuteScale > 0.005f) {
+        sf::Sprite paraSprite(parachuteTexture_);
+        sf::Vector2u pTex = parachuteTexture_.getSize();
+        float paraW = 46.0f;
+        float paraH = 44.0f;
+        // Origin placed at the harness convergence point at the base of the ropes
+        paraSprite.setOrigin({pTex.x * 0.5f, pTex.y * 0.90f});
+        paraSprite.setScale({(paraW / static_cast<float>(pTex.x)) *
+                                 parachuteDrop_.currentAltitudeScale *
+                                 parachuteDrop_.currentParachuteScale,
+                             (paraH / static_cast<float>(pTex.y)) *
+                                 parachuteDrop_.currentAltitudeScale *
+                                 parachuteDrop_.currentParachuteScale});
+        paraSprite.setPosition(parachuteDrop_.currentAgentPos);
+        paraSprite.setRotation(sf::degrees(parachuteDrop_.currentRotationDeg));
+        paraSprite.setColor(sf::Color(
+            255, 255, 255,
+            static_cast<uint8_t>(std::clamp(parachuteDrop_.currentParachuteAlpha, 0.0f, 255.0f))));
+        target.draw(paraSprite);
+      }
+
+      // If landed on the ground, draw tactical aura
+      if (parachuteDrop_.isLanded) {
+        float auraPulse = 0.5f + 0.5f * std::sin(animTime_ * 6.0f);
+        float auraRadius = 14.0f + auraPulse * 2.5f;
+        sf::CircleShape aura(auraRadius);
+        aura.setOrigin({auraRadius, auraRadius});
+        aura.setPosition(parachuteDrop_.currentAgentPos);
+        aura.setFillColor(
+            sf::Color(255, 160, 0, static_cast<uint8_t>(85 + 45 * auraPulse)));
+        target.draw(aura);
+      }
+
+      // 2. Draw agent sprite with perspective altitude scale
+      if (hasAgentTexture_) {
+        sf::Sprite agentSprite(agentTexture_);
+        sf::Vector2u aTex = agentTexture_.getSize();
+        float aTargetH = 30.0f * parachuteDrop_.currentAltitudeScale;
+        float aScale = aTargetH / static_cast<float>(aTex.y);
+        agentSprite.setOrigin({aTex.x * 0.5f, aTex.y * 0.5f});
+        agentSprite.setScale({aScale, aScale});
+        agentSprite.setPosition(parachuteDrop_.currentAgentPos);
+        agentSprite.setRotation(sf::degrees(parachuteDrop_.currentRotationDeg));
+        target.draw(agentSprite);
+      } else {
+        float r = 11.0f * parachuteDrop_.currentAltitudeScale;
+        sf::CircleShape body(r);
+        body.setOrigin({r, r});
+        body.setPosition(parachuteDrop_.currentAgentPos);
+        body.setFillColor(sf::Color(255, 200, 40));
+        body.setOutlineThickness(2.5f * parachuteDrop_.currentAltitudeScale);
+        body.setOutlineColor(sf::Color(255, 255, 255));
+        target.draw(body);
+      }
+      return;
+    }
+
     // 1. EXTRACTION BEACON ANIMATION (Triggered when agent successfully
     // evacuated to exit)
     if (agent.getStatus() == simulation::AgentStatus::Success) {
@@ -2424,14 +2719,46 @@ public:
     }
     target.draw(aura);
 
-    // 3. Core agent hazmat body
-    sf::CircleShape body(11.0f);
-    body.setOrigin({11.0f, 11.0f});
-    body.setPosition({cx, cy});
-    body.setFillColor(sf::Color(255, 200, 40));
-    body.setOutlineThickness(2.5f);
-    body.setOutlineColor(sf::Color(255, 255, 255));
-    target.draw(body);
+    // Dynamic ground shadow beneath hopping or victory-jumping agent
+    float totalHop = currentStepHopY_ + victoryHopY_;
+    if (totalHop < -0.5f) {
+      float airHeight = -totalHop;
+      float sFrac = std::clamp(airHeight / 16.0f, 0.0f, 1.0f);
+      float sRx = 9.5f * (1.0f - sFrac * 0.35f);
+      float sRy = sRx * 0.40f;
+      sf::CircleShape hopShadow(sRx);
+      hopShadow.setScale({1.0f, sRy / sRx});
+      hopShadow.setOrigin({sRx, sRx});
+      hopShadow.setPosition({cx, cy + 12.0f});
+      hopShadow.setFillColor(
+          sf::Color(0, 0, 0, static_cast<uint8_t>(90 - 45 * sFrac)));
+      target.draw(hopShadow);
+    }
+
+    // 3. Core agent hazmat body (elevated by hopY and shaped by squash/stretch)
+    float effScaleX = currentStepSquashX_ * victoryScaleX_;
+    float effScaleY = currentStepSquashY_ * victoryScaleY_;
+    sf::Vector2f agentRenderPos{cx, cy + totalHop};
+
+    if (hasAgentTexture_) {
+      sf::Sprite agentSprite(agentTexture_);
+      sf::Vector2u aTex = agentTexture_.getSize();
+      float aTargetH = 30.0f;
+      float baseScale = aTargetH / static_cast<float>(aTex.y);
+      agentSprite.setOrigin({aTex.x * 0.5f, aTex.y * 0.5f});
+      agentSprite.setScale({baseScale * effScaleX, baseScale * effScaleY});
+      agentSprite.setPosition(agentRenderPos);
+      target.draw(agentSprite);
+    } else {
+      sf::CircleShape body(11.0f);
+      body.setOrigin({11.0f, 11.0f});
+      body.setScale({effScaleX, effScaleY});
+      body.setPosition(agentRenderPos);
+      body.setFillColor(sf::Color(255, 200, 40));
+      body.setOutlineThickness(2.5f);
+      body.setOutlineColor(sf::Color(255, 255, 255));
+      target.draw(body);
+    }
   }
 
   void renderPickupEffects(sf::RenderTarget &target, float scanRadius = -1.0f,
@@ -2655,6 +2982,45 @@ private:
   std::vector<float> cachedDistances_;
   float routeCompletionTimer_ = 0.0f;
   bool wasRouteCompleted_ = false;
+
+  sf::Vector2f lastStepStartPos_{0.0f, 0.0f};
+  sf::Vector2f lastStepTargetPos_{0.0f, 0.0f};
+  float currentStepHopY_ = 0.0f;
+  float currentStepSquashX_ = 1.0f;
+  float currentStepSquashY_ = 1.0f;
+  float victoryHopY_ = 0.0f;
+  float victoryScaleX_ = 1.0f;
+  float victoryScaleY_ = 1.0f;
+
+  ParachuteDropAnimation parachuteDrop_;
+  bool isWaitingForDrop_ = false;
+  sf::Texture agentTexture_;
+  sf::Texture parachuteTexture_;
+  bool hasAgentTexture_ = false;
+  bool hasParachuteTexture_ = false;
+
+  void loadTextures() {
+    if (!hasAgentTexture_) {
+      hasAgentTexture_ =
+          agentTexture_.loadFromFile("assets/agent.png") ||
+          agentTexture_.loadFromFile("../assets/agent.png") ||
+          agentTexture_.loadFromFile("build/assets/agent.png") ||
+          agentTexture_.loadFromFile("course-projects/DSA-cpp/assets/agent.png");
+      if (hasAgentTexture_) {
+        agentTexture_.setSmooth(true);
+      }
+    }
+    if (!hasParachuteTexture_) {
+      hasParachuteTexture_ =
+          parachuteTexture_.loadFromFile("assets/parachute.png") ||
+          parachuteTexture_.loadFromFile("../assets/parachute.png") ||
+          parachuteTexture_.loadFromFile("build/assets/parachute.png") ||
+          parachuteTexture_.loadFromFile("course-projects/DSA-cpp/assets/parachute.png");
+      if (hasParachuteTexture_) {
+        parachuteTexture_.setSmooth(true);
+      }
+    }
+  }
 
   sf::VertexArray baseTileQuads_{sf::PrimitiveType::Triangles};
   sf::VertexArray pingQuads_{sf::PrimitiveType::Triangles};

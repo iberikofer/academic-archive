@@ -1075,8 +1075,7 @@ public:
 
     // 3. LMB release -> stops dragging
     if (const auto *mouseBtn = event.getIf<sf::Event::MouseButtonReleased>()) {
-      if (mouseBtn->button == sf::Mouse::Button::Left ||
-          mouseBtn->button == sf::Mouse::Button::Right) {
+      if (mouseBtn->button == sf::Mouse::Button::Left) {
         isDragging_ = false;
       }
     }

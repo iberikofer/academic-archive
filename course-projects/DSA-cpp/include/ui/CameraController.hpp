@@ -42,7 +42,7 @@ public:
         }
 
         if (const auto* mouseBtn = event.getIf<sf::Event::MouseButtonReleased>()) {
-            if (mouseBtn->button == sf::Mouse::Button::Left || mouseBtn->button == sf::Mouse::Button::Right) {
+            if (mouseBtn->button == sf::Mouse::Button::Left) {
                 isDragging_ = false;
             }
         }
@@ -90,6 +90,10 @@ public:
 
     void stopFollowing() noexcept {
         isFollowing_ = false;
+    }
+
+    void cancelDrag() noexcept {
+        isDragging_ = false;
     }
 
     void zoomTo(float targetZoom, float smoothness = 8.5f) {
