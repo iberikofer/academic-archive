@@ -1,4 +1,4 @@
-<!-- markdownlint-disable MD033 -->
+<!-- markdownlint-disable MD033 MD041 -->
 
 <h2 align="center" id="english-version">English version</h2>
 

@@ -117,9 +117,16 @@ JavaCourseProject2025/assets/*.docx
 JavaCourseProject2025/assets/*.zip
 JavaCourseProject2025/assets/*.pdf
 # DSA C++ Course Project
+course-projects/DSA-cpp/external/
+course-projects/DSA-cpp/build/
+course-projects/DSA-cpp/.cache/
+course-projects/DSA-cpp/*.csv
 compile_commands.json
 compile_flags.txt
 .clangd
 **/.clangd
+.cache/
+**/.cache/
 **/imgui.ini
-course-projects/DSA-cpp/benchmark_results.csv
+CMakeUserPresets.json
+cmake-build-*/
