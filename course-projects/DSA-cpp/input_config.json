@@ -1,0 +1,27 @@
+{
+    "agent": {
+        "backpack_capacity_kg": 55,
+        "company_quota_credits": 1000,
+        "energy_limit_enabled": true,
+        "initial_energy": 600,
+        "route_mode": "PointAToPointB"
+    },
+    "algorithms": {
+        "knapsack_algo_index": 0,
+        "knapsack_algorithm": "0/1 Knapsack DP",
+        "pathfinder_algo_index": 0,
+        "pathfinder_algorithm": "A* (Octile)"
+    },
+    "description": "Конфігураційний файл параметрів місії Lethal Company (DSA Course Project)",
+    "last_modified": "2026-10-14 11:21:11",
+    "map": {
+        "extra_passage_chance": 0.25,
+        "height": 30,
+        "max_room_size": 12,
+        "min_room_size": 4,
+        "mud_spawn_chance": 0.07999999821186066,
+        "seed": 1337,
+        "width": 30
+    },
+    "version": "1.0"
+}

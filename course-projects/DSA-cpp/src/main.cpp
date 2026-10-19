@@ -122,6 +122,7 @@ void ForceForegroundAndTop(HWND hwnd) {
 #include "core/Backpack.hpp"
 #include "core/Config.hpp"
 #include "io/CsvExporter.hpp"
+#include "io/JsonHandler.hpp"
 #include "map/BSPGenerator.hpp"
 #include "map/Maze.hpp"
 #include "simulation/SimulationEngine.hpp"
@@ -299,21 +300,29 @@ int main(int argc, char *argv[]) {
     config.randomSeed = static_cast<unsigned int>(
         std::chrono::high_resolution_clock::now().time_since_epoch().count());
   }
+
+  // Ensure default input_config.json exists on disk
+  io::JsonHandler::ensureDefaultInputConfig("input_config.json", config);
+
   map::Maze maze;
   map::BSPGenerator generator(config);
   generator.generate(maze);
 
-  // Smart scaling for backpack capacity: ~52% of total scrap weight guarantees ~18 items capacity on 30x30, scaling smoothly with maze size
+  // Smart scaling for backpack capacity & quota: ~52% of total scrap weight guarantees ~18 items capacity on 30x30, scaling smoothly with maze size
   int initialCap = std::clamp(static_cast<int>(std::round(maze.getTotalItemWeight() * 0.52f)), 25, 450);
   config.manualBackpackCapacity = initialCap;
+  config.companyQuota = std::max(200, static_cast<int>(std::round(maze.getTotalItemValue() * 0.50f)));
 
   simulation::SimulationEngine engine(maze, config);
 
   auto benchmarkRows = runBatchBenchmark(maze, config);
   recalculateSimulation(maze, config, engine, 0, 0);
 
-  // Export initial benchmark metrics to CSV
+  // Export initial benchmark metrics to CSV & mission report to JSON
   io::CsvExporter::exportToCsv("benchmark_results.csv", benchmarkRows);
+  io::JsonHandler::exportRouteReport("report_route.json", maze, config,
+                                     engine.getPlan(), engine, benchmarkRows,
+                                     0, 0);
 
   if (testOnly) {
     std::cout << "========================================================\n"
@@ -503,17 +512,29 @@ int main(int argc, char *argv[]) {
 
   ImGuiIO &io = ImGui::GetIO();
   io.Fonts->Clear();
+
+  static const ImWchar customGlyphRanges[] = {
+      0x0020, 0x00FF, // Basic Latin + Latin Supplement
+      0x0400, 0x052F, // Cyrillic + Cyrillic Supplement
+      0x2000, 0x206F, // General Punctuation (em-dash, bullets, etc.)
+      0x2190, 0x21FF, // Arrows (←, ↑, →, ↓, etc.)
+      0x25A0, 0x25FF, // Geometric Shapes (▲, ▼, etc.)
+      0x2DE0, 0x2DFF, // Cyrillic Extended-A
+      0xA640, 0xA69F, // Cyrillic Extended-B
+      0,
+  };
+
   ImFontConfig fontCfg;
   fontCfg.OversampleH = 3;
   fontCfg.OversampleV = 2;
   fontCfg.PixelSnapH = false;
   io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/tahoma.ttf", 26.0f, &fontCfg,
-                               io.Fonts->GetGlyphRangesCyrillic());
+                               customGlyphRanges);
 
   ImFontConfig titleFontCfg = fontCfg;
   ImFont *titleFont = io.Fonts->AddFontFromFileTTF(
       "C:/Windows/Fonts/tahoma.ttf", 46.0f, &titleFontCfg,
-      io.Fonts->GetGlyphRangesCyrillic());
+      customGlyphRanges);
 
   if (!ImGui::SFML::UpdateFontTexture()) {
     std::cerr << "[ERROR]: Failed to update font texture!\n";
@@ -736,6 +757,7 @@ int main(int argc, char *argv[]) {
   uiState.appliedKnapsackAlgoIndex = 0;
   uiState.appliedPathfinderAlgoIndex = 0;
   uiState.appliedBackpackCapacity = config.manualBackpackCapacity;
+  uiState.appliedCompanyQuota = config.companyQuota;
   uiState.appliedRouteMode = config.routeMode;
   uiState.appliedInitialEnergy = config.initialEnergy;
   uiState.appliedEnergyLimitEnabled = config.energyLimitEnabled;
@@ -1069,15 +1091,25 @@ int main(int argc, char *argv[]) {
     bool wasCompletedBefore = engine.isCompleted();
     engine.update(dtSeconds);
     if (!wasCompletedBefore && engine.isCompleted()) {
+      io::JsonHandler::exportRouteReport("report_route.json", maze, config,
+                                         engine.getPlan(), engine, benchmarkRows,
+                                         uiState.appliedKnapsackAlgoIndex,
+                                         uiState.appliedPathfinderAlgoIndex);
       if (engine.getAgent().getStatus() == simulation::AgentStatus::Success) {
+        int finalVal = engine.getAgent().getBackpack().getCurrentValue();
+        int quota = config.companyQuota;
         if (engine.getExtraCollectedCount() > 0) {
-          char noticeBuf[160];
+          char noticeBuf[220];
           std::snprintf(noticeBuf, sizeof(noticeBuf),
-                        "Евакуація успішна! Зібрано %zu од. (+%zu понад план: на шляху лежав брухт, який помістився у рюкзак)!",
-                        engine.getCollectedItemIds().size(), engine.getExtraCollectedCount());
+                        "Евакуація успішна! Зібрано %d/%d грн (%zu од., +%zu попутно: брухт лежав на шляху і помістився у рюкзак)!",
+                        finalVal, quota, engine.getCollectedItemIds().size(), engine.getExtraCollectedCount());
           uiState.statusNotice = noticeBuf;
         } else {
-          uiState.statusNotice = "Евакуація успішна! Всі заплановані предмети доставлено на базу!";
+          char noticeBuf[180];
+          std::snprintf(noticeBuf, sizeof(noticeBuf),
+                        "Евакуація успішна! Зібрано %d/%d грн (%s). Всі заплановані предмети доставлено на базу!",
+                        finalVal, quota, (finalVal >= quota ? "Квоту виконано!" : "Квоту не досягнуто!"));
+          uiState.statusNotice = noticeBuf;
         }
       }
     }
@@ -1133,6 +1165,7 @@ int main(int argc, char *argv[]) {
         generator.setConfig(config);
         generator.generate(maze);
         config.manualBackpackCapacity = std::clamp(static_cast<int>(std::round(maze.getTotalItemWeight() * 0.52f)), 25, 450);
+        config.companyQuota = std::max(200, static_cast<int>(std::round(maze.getTotalItemValue() * 0.50f)));
         recalculateSimulation(maze, config, engine, uiState.knapsackAlgoIndex,
                               uiState.pathfinderAlgoIndex);
 
@@ -1147,6 +1180,7 @@ int main(int argc, char *argv[]) {
         uiState.appliedKnapsackAlgoIndex = uiState.knapsackAlgoIndex;
         uiState.appliedPathfinderAlgoIndex = uiState.pathfinderAlgoIndex;
         uiState.appliedBackpackCapacity = config.manualBackpackCapacity;
+        uiState.appliedCompanyQuota = config.companyQuota;
         uiState.appliedRouteMode = config.routeMode;
         uiState.appliedInitialEnergy = config.initialEnergy;
         uiState.appliedEnergyLimitEnabled = config.energyLimitEnabled;
@@ -1241,10 +1275,17 @@ int main(int argc, char *argv[]) {
       uiState.appliedKnapsackAlgoIndex = uiState.knapsackAlgoIndex;
       uiState.appliedPathfinderAlgoIndex = uiState.pathfinderAlgoIndex;
       uiState.appliedBackpackCapacity = config.manualBackpackCapacity;
+      uiState.appliedCompanyQuota = config.companyQuota;
       uiState.appliedRouteMode = config.routeMode;
       uiState.appliedInitialEnergy = config.initialEnergy;
       uiState.appliedEnergyLimitEnabled = config.energyLimitEnabled;
       uiState.statusNotice = "Маршрут перераховано за обраними алгоритмами!";
+
+      // Keep report_route.json synchronized
+      io::JsonHandler::exportRouteReport("report_route.json", maze, config,
+                                         engine.getPlan(), engine, benchmarkRows,
+                                         uiState.appliedKnapsackAlgoIndex,
+                                         uiState.appliedPathfinderAlgoIndex);
 
       // Start animated line tracing without locking camera or UI
       transition.startRouteTracingOnly(2.80f);
@@ -1263,6 +1304,45 @@ int main(int argc, char *argv[]) {
         uiState.statusNotice = "Звіт збережено у 'benchmark_results.csv'!";
       } else {
         uiState.statusNotice = "Помилка при збереженні файлу CSV!";
+      }
+    }
+
+    if (uiState.triggerExportReportJson) {
+      uiState.triggerExportReportJson = false;
+      if (io::JsonHandler::exportRouteReport("report_route.json", maze, config,
+                                            engine.getPlan(), engine, benchmarkRows,
+                                            uiState.appliedKnapsackAlgoIndex,
+                                            uiState.appliedPathfinderAlgoIndex)) {
+        uiState.statusNotice = "Повний звіт успішно збережено у 'report_route.json'!";
+      } else {
+        uiState.statusNotice = "Помилка при збереженні файлу 'report_route.json'!";
+      }
+    }
+
+    if (uiState.triggerSaveConfigJson) {
+      uiState.triggerSaveConfigJson = false;
+      if (io::JsonHandler::saveInputConfig("input_config.json", config,
+                                          uiState.knapsackAlgoIndex,
+                                          uiState.pathfinderAlgoIndex)) {
+        uiState.statusNotice = "Параметри місії збережено у 'input_config.json'!";
+      } else {
+        uiState.statusNotice = "Помилка при збереженні 'input_config.json'!";
+      }
+    }
+
+    if (uiState.triggerImportJson) {
+      uiState.triggerImportJson = false;
+      std::string err;
+      if (io::JsonHandler::loadInputConfig("input_config.json", config,
+                                          uiState.knapsackAlgoIndex,
+                                          uiState.pathfinderAlgoIndex,
+                                          err)) {
+        uiState.useSpecifiedSeed = true;
+        uiState.specifiedSeedValue = config.randomSeed;
+        uiState.triggerRegeneration = true;
+        uiState.statusNotice = "Конфіг успішно імпортовано з 'input_config.json'!";
+      } else {
+        uiState.statusNotice = "Помилка імпорту JSON: " + err;
       }
     }
 

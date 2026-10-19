@@ -19,6 +19,9 @@ struct Config {
     // Route Mode: Point A to B (Exit) or Round Trip (Return to Start)
     RouteMode routeMode = RouteMode::PointAToPointB;
 
+    // Company quota (minimum value in currency / UAH required to succeed)
+    int companyQuota = 1000;
+
     // Backpack parameters
     bool autoBackpackCapacity = true; // Automatically ~50% of total spawned item weight
     int manualBackpackCapacity = 55;  // User slider fallback/manual override (10..500 kg)
@@ -52,6 +55,7 @@ struct Config {
         minRoomSize = std::clamp(minRoomSize, 4, 8);
         maxRoomSize = std::clamp(maxRoomSize, minRoomSize + 2, 16);
         manualBackpackCapacity = std::clamp(manualBackpackCapacity, 10, 500);
+        companyQuota = std::clamp(companyQuota, 50, 50000);
         speedMultiplier = std::clamp(speedMultiplier, 0.5f, 4.0f);
         uiScale = std::clamp(uiScale, 0.75f, 1.50f);
         minimapScale = std::clamp(minimapScale, 0.70f, 1.30f);

@@ -15,7 +15,7 @@
 | [**03**](./3/src/Main.java) | [Object Composition, Deep Copying, Sorting & Search](./3) | [CODE](./3/src/Main.java) | [EN README](./3/README.md) | [UA PDF](./3/ЛР3_Композиція_клонування_та_сотування.pdf) |
 | [**04**](./4/src/main/java/gymworld/GymWorld.java) | [JavaFX GUI & Custom Dialog Windows](./4) | [CODE](./4/src/main/java/gymworld/GymWorld.java) | [EN README](./4/README.md) | [UA PDF](./4/ЛР4_Графічний_інтерфейс_JavaFX.pdf) |
 | [**05**](./5/src/main/java/gymworld/GymWorld.java) | [JavaFX Inheritance, Minimap, & Multi-Criteria Filtering](./5) | [CODE](./5/src/main/java/gymworld/GymWorld.java) | [EN README](./5/README.md) | [UA PDF](./5/ЛР5_Успадкування_та_поліморфізм.pdf) |
-| [**06**](./6/src/main/java/gymworld/GymWorld.java) | [Object Serialization & System State Persistence](./6) | [CODE](./6/src/main/java/gymworld/GymWorld.java) | [EN README](./6/README.md) | [UA PDF](./6/ЛР6_Серіалізація_обєктів.pdf) |
+| [**06**](./6) | [Object Serialization & System State Persistence](./6) | [CODE (Course Project)](../../course-projects/OOP-java) | [EN README](./6/README.md) | [UA PDF](./6/ЛР6_Серіалізація_обєктів.pdf) |
 
 ---
 

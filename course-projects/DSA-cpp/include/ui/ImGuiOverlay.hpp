@@ -27,6 +27,9 @@ public:
     bool triggerRecalculate = false;
     bool triggerBatchBenchmark = false;
     bool triggerExportCsv = false;
+    bool triggerImportJson = false;
+    bool triggerSaveConfigJson = false;
+    bool triggerExportReportJson = false;
     std::string statusNotice;
 
     // Custom seed configuration
@@ -41,7 +44,12 @@ public:
     int appliedBackpackCapacity = 0;
     core::RouteMode appliedRouteMode = core::RouteMode::PointAToPointB;
     int appliedInitialEnergy = 600;
+    int appliedCompanyQuota = 0;
     bool appliedEnergyLimitEnabled = true;
+
+    // Real-time slider coupling feedback
+    std::string sliderAutoAdjustNotice;
+    float sliderAutoAdjustTimer = 0.0f;
 
     // Camera & display commands
     bool requestCenterCameraOnAgent = false;
@@ -208,18 +216,15 @@ public:
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.5f * uiScale);
 
     // Deep high-contrast dark maroon background to make the blue border pop
-    ImGui::PushStyleColor(ImGuiCol_Header,
-                          ImVec4(0.36f, 0.11f, 0.19f, 0.98f));
+    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.36f, 0.11f, 0.19f, 0.98f));
     ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
                           ImVec4(0.50f, 0.15f, 0.25f, 1.00f));
     ImGui::PushStyleColor(ImGuiCol_HeaderActive,
                           ImVec4(0.62f, 0.18f, 0.30f, 1.00f));
     // Vibrant electric cyan/blue border
-    ImGui::PushStyleColor(ImGuiCol_Border,
-                          ImVec4(0.00f, 0.85f, 1.00f, 0.95f));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.00f, 0.85f, 1.00f, 0.95f));
     // Crisp white-cyan text
-    ImGui::PushStyleColor(ImGuiCol_Text,
-                          ImVec4(0.96f, 0.99f, 1.00f, 1.00f));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.96f, 0.99f, 1.00f, 1.00f));
 
     ImGuiTreeNodeFlags flags =
         ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_SpanAvailWidth;
@@ -236,17 +241,16 @@ public:
     bool isHovered = ImGui::IsItemHovered();
 
     // 1. Crisp electric cyan/blue outer border
-    ImU32 borderCol = isHovered ? IM_COL32(90, 235, 255, 255)
-                                : IM_COL32(0, 210, 255, 240);
+    ImU32 borderCol =
+        isHovered ? IM_COL32(90, 235, 255, 255) : IM_COL32(0, 210, 255, 240);
     drawList->AddRect(pMin, pMax, borderCol, 4.0f * uiScale, 0, 1.5f * uiScale);
 
     // 2. High-visibility glowing cyan accent stripe on the left edge
-    ImU32 stripeCol = isHovered ? IM_COL32(140, 248, 255, 255)
-                                : IM_COL32(0, 225, 255, 255);
-    drawList->AddLine(
-        ImVec2(pMin.x + 3.0f * uiScale, pMin.y + 2.0f * uiScale),
-        ImVec2(pMin.x + 3.0f * uiScale, pMax.y - 2.0f * uiScale),
-        stripeCol, 4.5f * uiScale);
+    ImU32 stripeCol =
+        isHovered ? IM_COL32(140, 248, 255, 255) : IM_COL32(0, 225, 255, 255);
+    drawList->AddLine(ImVec2(pMin.x + 3.0f * uiScale, pMin.y + 2.0f * uiScale),
+                      ImVec2(pMin.x + 3.0f * uiScale, pMax.y - 2.0f * uiScale),
+                      stripeCol, 4.5f * uiScale);
 
     ImGui::PopStyleColor(5);
     ImGui::PopStyleVar(3);
@@ -312,9 +316,13 @@ public:
     ImGui::Begin("Керування та аналітика##Sidebar", nullptr, flags);
     ImGui::SetScrollX(0.0f);
 
+    if (state.sliderAutoAdjustTimer > 0.0f) {
+      state.sliderAutoAdjustTimer -= ImGui::GetIO().DeltaTime;
+    }
+
     // 1. Display and camera settings
-    if (renderSectionHeader("1.  Відображення та камера (Огляд)",
-                            config.uiScale, true)) {
+    if (renderSectionHeader("1.  Відображення та огляд", config.uiScale,
+                            true)) {
       ImGui::Spacing();
 
       // Zoom Scale mixer slider
@@ -407,7 +415,8 @@ public:
       if (state.isTransitionActive) {
         ImGui::BeginDisabled(true);
       }
-      if (ImGui::Checkbox("Прив'язка камери до агента", &config.cameraFollowAgent)) {
+      if (ImGui::Checkbox("Прив'язка камери до агента",
+                          &config.cameraFollowAgent)) {
         if (config.cameraFollowAgent) {
           state.requestCenterCameraOnAgent = true;
         } else {
@@ -419,7 +428,8 @@ public:
       }
       if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
         if (state.isTransitionActive) {
-          ImGui::SetTooltip("Центрування недоступне під час генерації та трасування маршруту.");
+          ImGui::SetTooltip("Центрування недоступне під час генерації та "
+                            "трасування маршруту.");
         } else {
           ImGui::SetTooltip("Якщо увімкнено: камера автоматично слідує за "
                             "робітником при кожному його кроці.\n"
@@ -468,7 +478,8 @@ public:
       ImGui::TextDisabled("- [ЛКМ] - панорамування карти");
       ImGui::TextDisabled("- [Колесо миші] - масштабування в точку курсора");
       ImGui::TextDisabled("- [ЛКМ на міні-карті] - перехід або панорамування");
-      ImGui::TextDisabled("- [Колесо на міні-карті] - масштабування загальної карти");
+      ImGui::TextDisabled(
+          "- [Колесо на міні-карті] - масштабування загальної карти");
       ImGui::TextDisabled("- [F11] - увімкнути / вимкнути повний екран");
       ImGui::Spacing();
     }
@@ -476,8 +487,8 @@ public:
     ImGui::Dummy(ImVec2(0.0f, 12.0f * config.uiScale));
 
     // 2. Maze configuration
-    if (renderSectionHeader("2.  Налаштування лабіринту (BSP)",
-                            config.uiScale, true)) {
+    if (renderSectionHeader("2.  Налаштування лабіринту BSP", config.uiScale,
+                            true)) {
       ImGui::Spacing();
 
       ImGui::Checkbox("Власний сід", &state.customSeedEnabled);
@@ -554,30 +565,6 @@ public:
       }
       config.mapHeight = config.mapWidth; // Square grid
 
-      ImGui::Spacing();
-
-      bool energyChanged = (config.initialEnergy != state.appliedInitialEnergy);
-      beginChangedWidgetBorder(energyChanged);
-      ImGui::SliderInt("Запас енергії", &config.initialEnergy, 100, 3000);
-      endChangedWidgetBorder(energyChanged);
-      if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip(
-            "Початковий запас енергії робітника. Витрата: 10 прямо, 14 по "
-            "діагоналі, +15 у багнюці, помножено на вагу вантажу.");
-      }
-
-      if (ImGui::Button(" [+] Підігнати енергію під поточний маршрут",
-                        ImVec2(-1, std::max(26.0f * config.uiScale,
-                                            ImGui::GetFrameHeight())))) {
-        config.initialEnergy = std::max(config.initialEnergy,
-                                        engine.getPlan().totalEnergyCost + 100);
-      }
-      if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Автоматично встановити запас енергії, достатній для "
-                          "повного проходження розрахованого маршруту "
-                          "(вартість шляху + 100 од. запасу).");
-      }
-
       auto triggerLabyrinthGeneration = [&]() {
         if (state.isTransitionActive)
           return;
@@ -612,7 +599,7 @@ public:
         sidebarCollapsed_ = true;
       };
 
-      bool mazeNeedsRegenerate = (mazeSizeChanged || energyChanged);
+      bool mazeNeedsRegenerate = mazeSizeChanged;
       if (mazeNeedsRegenerate) {
         ImGui::Spacing();
         std::string regenText = "Змінено:";
@@ -622,12 +609,6 @@ public:
                    maze.getWidth(), maze.getWidth(), config.mapWidth,
                    config.mapWidth);
           regenText += szBuf;
-        }
-        if (energyChanged) {
-          char eBuf[64];
-          snprintf(eBuf, sizeof(eBuf), " енергія (%d -> %d);",
-                   state.appliedInitialEnergy, config.initialEnergy);
-          regenText += eBuf;
         }
         regenText += " Потрібна генерація:";
         ImGui::TextColored(ImVec4(1.0f, 0.78f, 0.20f, 1.0f), "%s",
@@ -791,8 +772,8 @@ public:
     ImGui::Dummy(ImVec2(0.0f, 12.0f * config.uiScale));
 
     // 3. Knapsack and algorithm selection
-    if (renderSectionHeader("3.  Рюкзак та вибір алгоритмів",
-                            config.uiScale, true)) {
+    if (renderSectionHeader("3.  Керування експедицією", config.uiScale,
+                            true)) {
       ImGui::Spacing();
 
       auto beginChangedWidgetBorder = [](bool changed) {
@@ -809,23 +790,150 @@ public:
         }
       };
 
+      const auto &items = maze.getItems();
+      int totalMazeWeight = std::max(20, maze.getTotalItemWeight());
+
+      // Helper: calculate maximum scrap value that fits within capacity
+      auto calcMaxValForCap = [&items](int cap) -> int {
+        if (cap <= 0 || items.empty())
+          return 0;
+        std::vector<const core::Item *> ptrs;
+        ptrs.reserve(items.size());
+        for (const auto &it : items)
+          ptrs.push_back(&it);
+        std::sort(ptrs.begin(), ptrs.end(),
+                  [](const core::Item *a, const core::Item *b) {
+                    return a->getValueDensity() > b->getValueDensity();
+                  });
+        int curW = 0, curV = 0;
+        for (const auto *it : ptrs) {
+          if (curW + it->weight <= cap) {
+            curW += it->weight;
+            curV += it->value;
+          }
+        }
+        return curV;
+      };
+
+      // Helper: calculate minimum capacity required to collect at least
+      // targetQuota
+      auto calcMinCapForQuota = [&items](int quota) -> int {
+        if (quota <= 0 || items.empty())
+          return 10;
+        std::vector<const core::Item *> ptrs;
+        ptrs.reserve(items.size());
+        for (const auto &it : items)
+          ptrs.push_back(&it);
+        std::sort(ptrs.begin(), ptrs.end(),
+                  [](const core::Item *a, const core::Item *b) {
+                    return a->getValueDensity() > b->getValueDensity();
+                  });
+        int curW = 0, curV = 0;
+        for (const auto *it : ptrs) {
+          curW += it->weight;
+          curV += it->value;
+          if (curV >= quota) {
+            return std::max(10, curW);
+          }
+        }
+        return std::max(10, curW);
+      };
+
+      // 1. Quota Slider (First in Section 3)
+      // Maximum achievable quota depends directly on the current backpack capacity
+      int maxQuotaForCurCap = calcMaxValForCap(config.manualBackpackCapacity);
+      int qSliderMin = 50;
+      int qSliderMax = std::max(100, maxQuotaForCurCap);
+
+      // Natural hard clamp: quota can never exceed what current backpack capacity can hold
+      if (config.companyQuota > qSliderMax) {
+        config.companyQuota = qSliderMax;
+      }
+      if (config.companyQuota < qSliderMin) {
+        config.companyQuota = qSliderMin;
+      }
+
+      bool quotaChanged = (config.companyQuota != state.appliedCompanyQuota);
+      ImGui::Text("Квота Компанії (грн):");
+      beginChangedWidgetBorder(quotaChanged);
+      ImGui::SetNextItemWidth(-1.0f);
+      ImGui::SliderInt("##CompanyQuota", &config.companyQuota, qSliderMin,
+                           qSliderMax);
+      endChangedWidgetBorder(quotaChanged);
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip(
+            "Мінімальна фінансова вимога Компанії за місію (від %d до %d грн).\n"
+            "Максимальна квота обмежена місткістю рюкзака (%d грн для %d кг).\n"
+            "Щоб виставити більшу квоту, збільшіть місткість рюкзака нижче.",
+            qSliderMin, qSliderMax, maxQuotaForCurCap, config.manualBackpackCapacity);
+      }
+
+      // 2. Energy Slider (Directly after Quota)
+      ImGui::Spacing();
+      ImGui::Text("Запас енергії:");
+      bool energyChanged = (config.initialEnergy != state.appliedInitialEnergy);
+      beginChangedWidgetBorder(energyChanged);
+      ImGui::SetNextItemWidth(-1.0f);
+      ImGui::SliderInt("##InitialEnergy", &config.initialEnergy, 100, 4000);
+      endChangedWidgetBorder(energyChanged);
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip(
+            "Початковий запас енергії робітника. Витрата: 10 прямо, 14 по "
+            "діагоналі, +15 у багнюці, помножено на вагу вантажу.");
+      }
+
+      // 3. Auto-fit Energy Button
+      if (ImGui::Button(" [+] Підігнати енергію під поточний маршрут",
+                        ImVec2(-1, std::max(26.0f * config.uiScale,
+                                            ImGui::GetFrameHeight())))) {
+        int safeReserve =
+            std::max(120, static_cast<int>(std::round(
+                              engine.getPlan().totalEnergyCost * 0.22f)));
+        config.initialEnergy =
+            std::max(config.initialEnergy,
+                     engine.getPlan().totalEnergyCost + safeReserve);
+      }
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Автоматично встановити запас енергії, достатній для "
+                          "повного проходження розрахованого маршруту "
+                          "(вартість шляху + 22%% запасу).");
+      }
+
+      // 4. Backpack Capacity Slider (Directly after Energy)
+      ImGui::Spacing();
+      ImGui::Text("Місткість рюкзака (кг):");
+      int minCapNeededForQuota = calcMinCapForQuota(config.companyQuota);
+      int capSliderMin = 10;
+      int capSliderMax = std::max(500, totalMazeWeight);
       bool capacityChanged =
           (config.manualBackpackCapacity != state.appliedBackpackCapacity);
       beginChangedWidgetBorder(capacityChanged);
-      ImGui::SliderInt("Місткість рюкзака (кг)", &config.manualBackpackCapacity,
-                       10, 500);
+      ImGui::SetNextItemWidth(-1.0f);
+      if (ImGui::SliderInt("##ManualBackpackCapacity",
+                           &config.manualBackpackCapacity, capSliderMin,
+                           capSliderMax)) {
+        // When capacity is reduced, immediately clamp quota so it never exceeds new capacity
+        int newMaxVal = calcMaxValForCap(config.manualBackpackCapacity);
+        if (config.companyQuota > newMaxVal) {
+          config.companyQuota = std::max(50, newMaxVal);
+        }
+      }
       endChangedWidgetBorder(capacityChanged);
       if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Максимальна вантажопідйомність робітника (обмеження "
-                          "для задачі про рюкзак).");
+        ImGui::SetTooltip("Максимальна вантажопідйомність робітника (від 10 до %d кг).\n"
+                          "Для поточної квоти (%d грн) потрібно щонайменше %d кг.",
+                          capSliderMax, config.companyQuota, minCapNeededForQuota);
       }
 
+      ImGui::Spacing();
+      ImGui::Text("Алгоритм рюкзака:");
       const char *knapsackNames[] = {"0/1 Динамічне програмування (Точний)",
                                      "Жадібний за питомою цінністю (V/W)"};
       bool knapsackAlgoChanged =
           (state.knapsackAlgoIndex != state.appliedKnapsackAlgoIndex);
       beginChangedWidgetBorder(knapsackAlgoChanged);
-      ImGui::Combo("Алгоритм рюкзака", &state.knapsackAlgoIndex, knapsackNames,
+      ImGui::SetNextItemWidth(-1.0f);
+      ImGui::Combo("##KnapsackAlgo", &state.knapsackAlgoIndex, knapsackNames,
                    IM_ARRAYSIZE(knapsackNames));
       endChangedWidgetBorder(knapsackAlgoChanged);
       if (ImGui::IsItemHovered()) {
@@ -834,6 +942,8 @@ public:
             "евристика за співвідношенням ціна/вага.");
       }
 
+      ImGui::Spacing();
+      ImGui::Text("Пошук шляху:");
       const char *pathfinderNames[] = {
           "A* (Октагональна евристика, 8 напрямків)",
           "Алгоритм Дейкстри (Найменша енергія)",
@@ -841,8 +951,9 @@ public:
       bool pathAlgoChanged =
           (state.pathfinderAlgoIndex != state.appliedPathfinderAlgoIndex);
       beginChangedWidgetBorder(pathAlgoChanged);
-      ImGui::Combo("Пошук шляху", &state.pathfinderAlgoIndex, pathfinderNames,
-                   IM_ARRAYSIZE(pathfinderNames));
+      ImGui::SetNextItemWidth(-1.0f);
+      ImGui::Combo("##PathfinderAlgo", &state.pathfinderAlgoIndex,
+                   pathfinderNames, IM_ARRAYSIZE(pathfinderNames));
       endChangedWidgetBorder(pathAlgoChanged);
       if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip(
@@ -896,6 +1007,8 @@ public:
           (state.knapsackAlgoIndex != state.appliedKnapsackAlgoIndex ||
            state.pathfinderAlgoIndex != state.appliedPathfinderAlgoIndex ||
            config.manualBackpackCapacity != state.appliedBackpackCapacity ||
+           config.companyQuota != state.appliedCompanyQuota ||
+           config.initialEnergy != state.appliedInitialEnergy ||
            config.routeMode != state.appliedRouteMode || energyLimitChanged);
 
       if (planNeedsRecalculate) {
@@ -905,8 +1018,12 @@ public:
           changedText += " рюкзак;";
         if (state.pathfinderAlgoIndex != state.appliedPathfinderAlgoIndex)
           changedText += " пошук шляху;";
+        if (config.companyQuota != state.appliedCompanyQuota)
+          changedText += " квота;";
         if (config.manualBackpackCapacity != state.appliedBackpackCapacity)
           changedText += " місткість;";
+        if (config.initialEnergy != state.appliedInitialEnergy)
+          changedText += " енергія;";
         if (config.routeMode != state.appliedRouteMode)
           changedText += " режим евакуації;";
         if (energyLimitChanged)
@@ -932,6 +1049,13 @@ public:
         if (ImGui::Button(" ПЕРЕРАХУВАТИ ОПТИМАЛЬНИЙ ПЛАН",
                           ImVec2(-1, std::max(34.0f * config.uiScale,
                                               ImGui::GetFrameHeight())))) {
+          state.appliedKnapsackAlgoIndex = state.knapsackAlgoIndex;
+          state.appliedPathfinderAlgoIndex = state.pathfinderAlgoIndex;
+          state.appliedBackpackCapacity = config.manualBackpackCapacity;
+          state.appliedCompanyQuota = config.companyQuota;
+          state.appliedInitialEnergy = config.initialEnergy;
+          state.appliedRouteMode = config.routeMode;
+          state.appliedEnergyLimitEnabled = config.energyLimitEnabled;
           state.triggerRecalculate = true;
         }
         if (ImGui::IsItemHovered()) {
@@ -966,14 +1090,49 @@ public:
               targets, curPlan.totalSteps, curPlan.totalEnergyCost);
         }
       }
+
+      ImGui::Spacing();
+      ImGui::Separator();
+      ImGui::Spacing();
+
+      ImGui::TextColored(ImVec4(0.40f, 0.85f, 1.0f, 1.0f), "JSON Конфігурація та Звітність:");
+
+      float jsonBtnW = (ImGui::GetContentRegionAvail().x - 8.0f) * 0.5f;
+      float jsonBtnH = std::max(28.0f * config.uiScale, ImGui::GetFrameHeight());
+
+      if (ImGui::Button(" ↓ Завантажити input_config.json", ImVec2(jsonBtnW, jsonBtnH))) {
+        state.triggerImportJson = true;
+      }
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Завантажити та застосувати параметри карти, робітника\n"
+                          "та обраних алгоритмів із файлу 'input_config.json'.");
+      }
+
+      ImGui::SameLine();
+      if (ImGui::Button(" ↓ Зберегти конфіг у JSON", ImVec2(jsonBtnW, jsonBtnH))) {
+        state.triggerSaveConfigJson = true;
+      }
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Зберегти поточні налаштування місії, розміри карти, сід,\n"
+                          "квоту та алгоритми у файл 'input_config.json'.");
+      }
+
+      ImGui::Spacing();
+      if (ImGui::Button(" ↓ Експортувати report_route.json", ImVec2(-1, jsonBtnH))) {
+        state.triggerExportReportJson = true;
+      }
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Експортувати повний структурований звіт оптимізації рюкзака,\n"
+                          "маршруту TSP, координат траєкторії та бенчмарків у 'report_route.json'.");
+      }
+
       ImGui::Spacing();
     }
 
     ImGui::Dummy(ImVec2(0.0f, 12.0f * config.uiScale));
 
     // 4. Simulation playback controls
-    if (renderSectionHeader("4.  Керування симуляцією (Плеєр)",
-                            config.uiScale, true)) {
+    if (renderSectionHeader("4.  Керування симуляцією", config.uiScale, true)) {
       ImGui::Spacing();
       auto &agent = engine.getAgent();
 
@@ -1028,14 +1187,44 @@ public:
                           "цінностей у гривнях.");
       }
 
+      ImGui::Spacing();
+      int curValue = agent.getBackpack().getCurrentValue();
+      int targetQuota = config.companyQuota;
+      float quotaFraction =
+          std::clamp(static_cast<float>(curValue) /
+                         static_cast<float>(std::max(1, targetQuota)),
+                     0.0f, 1.0f);
+      char quotaBuf[64];
+      if (curValue >= targetQuota) {
+        snprintf(quotaBuf, sizeof(quotaBuf), "Квота: %d / %d грн [ВИКОНАНО!]",
+                 curValue, targetQuota);
+        ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
+                              ImVec4(0.18f, 0.85f, 0.42f, 1.0f));
+      } else {
+        snprintf(quotaBuf, sizeof(quotaBuf), "Квота: %d / %d грн (%d%%)",
+                 curValue, targetQuota,
+                 static_cast<int>(quotaFraction * 100.0f));
+        ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
+                              ImVec4(1.00f, 0.72f, 0.18f, 1.0f));
+      }
+      ImGui::ProgressBar(quotaFraction, ImVec2(-1, barH), quotaBuf);
+      ImGui::PopStyleColor();
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip(
+            "Виконання мінімальної квоти Компанії (потрібно %d грн).\n"
+            "Вартість зростає в момент кожного підібраного предмета.",
+            targetQuota);
+      }
+
       if (engine.getExtraCollectedCount() > 0) {
         ImGui::Spacing();
         ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.30f, 1.0f),
                            "[+] Попутно зібрано: +%zu од. брухту",
                            engine.getExtraCollectedCount());
         if (ImGui::IsItemHovered()) {
-          ImGui::SetTooltip("На шляху агента лежав брухт, який помістився у рюкзак,\n"
-                            "тому агент зібрав більше, ніж планувалося спочатку.");
+          ImGui::SetTooltip(
+              "На шляху агента лежав брухт, який помістився у рюкзак,\n"
+              "тому агент зібрав більше, ніж планувалося спочатку.");
         }
       }
 
@@ -1149,8 +1338,7 @@ public:
     ImGui::Dummy(ImVec2(0.0f, 12.0f * config.uiScale));
 
     // 5. Benchmark analytics
-    if (renderSectionHeader("5.  Порівняльний аналіз",
-                            config.uiScale, true)) {
+    if (renderSectionHeader("5.  Порівняльний аналіз", config.uiScale, true)) {
       ImGui::Spacing();
       if (ImGui::Button(" Запустити повний аналіз (усі 6)",
                         ImVec2(-1, std::max(30.0f * config.uiScale,
@@ -1225,13 +1413,24 @@ public:
       }
 
       if (ImGui::Button(" Експорт таблиці у CSV файл",
-                        ImVec2(-1, std::max(32.0f * config.uiScale,
+                        ImVec2(-1, std::max(30.0f * config.uiScale,
                                             ImGui::GetFrameHeight())))) {
         state.triggerExportCsv = true;
       }
       if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip("Експортувати результати вимірювання продуктивності "
                           "алгоритмів у файл benchmark_results.csv.");
+      }
+
+      ImGui::Spacing();
+      if (ImGui::Button(" Експорт повного звіту у JSON файл",
+                        ImVec2(-1, std::max(30.0f * config.uiScale,
+                                            ImGui::GetFrameHeight())))) {
+        state.triggerExportReportJson = true;
+      }
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Експортувати результати вимірювання, параметри карти та "
+                          "траєкторію робітника у файл report_route.json.");
       }
 
       if (!state.statusNotice.empty()) {
@@ -1418,7 +1617,8 @@ public:
         drawList->PathLineTo(pBotHandle);
         drawList->PathBezierCubicCurveTo(pBotCp1, pBotCp2, pBotWall, 24);
 
-        // Water-tight monotone quad strip fill: strictly bounded between handleX and each curve point
+        // Water-tight monotone quad strip fill: strictly bounded between
+        // handleX and each curve point
         int nPts = drawList->_Path.Size;
         if (nPts >= 2) {
           const ImVec2 uv = ImGui::GetFontTexUvWhitePixel();
@@ -1545,8 +1745,7 @@ public:
         ImGui::TextDisabled("- Налаштування UI, тем оформлення та масштабу");
         ImGui::Spacing();
 
-        if (ImGui::Button("Зрозуміло",
-                          ImVec2(-1.0f, 26.0f * uiScale))) {
+        if (ImGui::Button("Зрозуміло", ImVec2(-1.0f, 26.0f * uiScale))) {
           startupHintDismissed_ = true;
         }
 
@@ -1568,16 +1767,15 @@ public:
 
   void renderTopCenteredItemTooltip(const core::Item &it,
                                     const sf::RenderWindow &window,
-                                    const sf::View &view,
-                                    float windowWidth, float windowHeight,
+                                    const sf::View &view, float windowWidth,
+                                    float windowHeight,
                                     bool isOpportunistic = false) {
     // Top-center world coordinate of the item's cell
     sf::Vector2f cellTopCenterWorld{
         (it.position.x + 0.5f) * ProceduralRenderer::TILE_SIZE,
         it.position.y * ProceduralRenderer::TILE_SIZE};
 
-    sf::Vector2i screenPos =
-        window.mapCoordsToPixel(cellTopCenterWorld, view);
+    sf::Vector2i screenPos = window.mapCoordsToPixel(cellTopCenterWorld, view);
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10.0f, 8.0f));
@@ -1589,24 +1787,28 @@ public:
         ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
         ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
 
-    float posX = std::clamp(static_cast<float>(screenPos.x), 16.0f, windowWidth - 16.0f);
-    float posY = std::clamp(static_cast<float>(screenPos.y) - 8.0f, 16.0f, windowHeight - 16.0f);
+    float posX =
+        std::clamp(static_cast<float>(screenPos.x), 16.0f, windowWidth - 16.0f);
+    float posY = std::clamp(static_cast<float>(screenPos.y) - 8.0f, 16.0f,
+                            windowHeight - 16.0f);
 
-    // Pivot (0.5f, 1.0f) anchors the horizontal center and bottom of the tooltip exactly above the top of the cell
-    ImGui::SetNextWindowPos(ImVec2(posX, posY), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
+    // Pivot (0.5f, 1.0f) anchors the horizontal center and bottom of the
+    // tooltip exactly above the top of the cell
+    ImGui::SetNextWindowPos(ImVec2(posX, posY), ImGuiCond_Always,
+                            ImVec2(0.5f, 1.0f));
 
     if (ImGui::Begin("##TacticalSpotlightTooltip", nullptr, tipFlags)) {
       ImGui::PushTextWrapPos(std::min(460.0f, windowWidth - 32.0f));
 
       if (it.category == core::ItemCategory::LightScrap) {
-        ImGui::TextColored(ImVec4(0.0f, 0.9f, 1.0f, 1.0f),
-                           "Дрібний брухт: %s", it.name.c_str());
+        ImGui::TextColored(ImVec4(0.0f, 0.9f, 1.0f, 1.0f), "Дрібний брухт: %s",
+                           it.name.c_str());
       } else if (it.category == core::ItemCategory::MediumScrap) {
         ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f),
                            "Побутовий брухт: %s", it.name.c_str());
       } else {
-        ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.35f, 1.0f),
-                           "Важкий брухт: %s", it.name.c_str());
+        ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.35f, 1.0f), "Важкий брухт: %s",
+                           it.name.c_str());
       }
       ImGui::Separator();
       ImGui::TextColored(ImVec4(0.35f, 0.95f, 0.55f, 1.0f),
@@ -1807,81 +2009,148 @@ public:
           ImGui::Spacing();
         };
 
-        // 1. Шлюз (Старт) - реальна клітинка з лабіринту
-        drawLegendItem("Шлюз (Старт)",
-                       "Початкова точка, звідки робітник починає місію (люк шлюзу з маяком)",
-                       [&colA](ImDrawList *dl, ImVec2 p, float s) {
-                         dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s), colA(28, 26, 32, 255), 2.0f);
-                         dl->AddRectFilled(ImVec2(p.x + 2, p.y + 2), ImVec2(p.x + s - 2, p.y + s - 2),
-                                           colA(240, 135, 18, 255), 2.0f);
-                         dl->AddRect(ImVec2(p.x + 2, p.y + 2), ImVec2(p.x + s - 2, p.y + s - 2),
-                                     colA(255, 210, 90, 255), 2.0f, 0, 1.2f);
-                         dl->AddCircle(ImVec2(p.x + s * 0.5f, p.y + s * 0.5f), s * 0.22f,
-                                       colA(255, 240, 140, 255), 0, 1.2f);
-                         // 4 кутові маячки
-                         dl->AddRectFilled(ImVec2(p.x + 2, p.y + 2), ImVec2(p.x + 4.5f, p.y + 4.5f), colA(255, 220, 60, 255));
-                         dl->AddRectFilled(ImVec2(p.x + s - 4.5f, p.y + 2), ImVec2(p.x + s - 2, p.y + 4.5f), colA(255, 220, 60, 255));
-                         dl->AddRectFilled(ImVec2(p.x + 2, p.y + s - 4.5f), ImVec2(p.x + 4.5f, p.y + s - 2), colA(255, 220, 60, 255));
-                         dl->AddRectFilled(ImVec2(p.x + s - 4.5f, p.y + s - 4.5f), ImVec2(p.x + s - 2, p.y + s - 2), colA(255, 220, 60, 255));
-                       });
+        drawLegendItem(
+            "Робітник (Агент)",
+            "Автономний робітник у захисному костюмі Lethal Company",
+            [&colA, &renderer](ImDrawList *dl, ImVec2 p, float s) {
+              ImVec2 center(p.x + s * 0.5f, p.y + s * 0.5f);
+              dl->AddCircleFilled(center, s * 0.5f, colA(30, 24, 18, 220));
+              dl->AddCircle(center, s * 0.5f, colA(255, 190, 40, 240), 0, 1.4f);
+              if (renderer.hasAgentTexture()) {
+                const auto &tex = renderer.getAgentTexture();
+                auto glHandle = tex.getNativeHandle();
+                ImTextureID texID{};
+                std::memcpy(&texID, &glHandle, sizeof(glHandle));
+                float pad = 1.0f;
+                dl->AddImage(texID, ImVec2(p.x + pad, p.y + pad),
+                             ImVec2(p.x + s - pad, p.y + s - pad));
+              } else {
+                dl->AddCircleFilled(center, 5.0f, colA(255, 200, 40, 255));
+                dl->AddCircle(center, 5.0f, colA(255, 255, 255, 240), 0, 1.5f);
+              }
+            });
 
-        // 2. Вихід (Евакуація) - реальна клітинка з лабіринту
+        drawLegendItem(
+            "Шлюз (Старт)",
+            "Початкова точка, звідки робітник починає місію (люк шлюзу з "
+            "маяком)",
+            [&colA](ImDrawList *dl, ImVec2 p, float s) {
+              dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s),
+                                colA(28, 26, 32, 255), 2.0f);
+              dl->AddRectFilled(ImVec2(p.x + 2, p.y + 2),
+                                ImVec2(p.x + s - 2, p.y + s - 2),
+                                colA(240, 135, 18, 255), 2.0f);
+              dl->AddRect(ImVec2(p.x + 2, p.y + 2),
+                          ImVec2(p.x + s - 2, p.y + s - 2),
+                          colA(255, 210, 90, 255), 2.0f, 0, 1.2f);
+              dl->AddCircle(ImVec2(p.x + s * 0.5f, p.y + s * 0.5f), s * 0.22f,
+                            colA(255, 240, 140, 255), 0, 1.2f);
+              // 4 corner beacons
+              dl->AddRectFilled(ImVec2(p.x + 2, p.y + 2),
+                                ImVec2(p.x + 4.5f, p.y + 4.5f),
+                                colA(255, 220, 60, 255));
+              dl->AddRectFilled(ImVec2(p.x + s - 4.5f, p.y + 2),
+                                ImVec2(p.x + s - 2, p.y + 4.5f),
+                                colA(255, 220, 60, 255));
+              dl->AddRectFilled(ImVec2(p.x + 2, p.y + s - 4.5f),
+                                ImVec2(p.x + 4.5f, p.y + s - 2),
+                                colA(255, 220, 60, 255));
+              dl->AddRectFilled(ImVec2(p.x + s - 4.5f, p.y + s - 4.5f),
+                                ImVec2(p.x + s - 2, p.y + s - 2),
+                                colA(255, 220, 60, 255));
+            });
+
+        // 3. Exit (Evacuation) - actual maze cell appearance
         if (config.routeMode == core::RouteMode::RoundTrip) {
           drawLegendItem("Вихід (Недоступний)",
                          "У режимі 'A -> A (База)' вихід заблоковано. "
                          "Евакуація лише через вхід.",
                          [&colA](ImDrawList *dl, ImVec2 p, float s) {
-                           dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s), colA(32, 34, 40, 255), 2.0f);
-                           dl->AddRectFilled(ImVec2(p.x + 2, p.y + 2), ImVec2(p.x + s - 2, p.y + s - 2),
+                           dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s),
+                                             colA(32, 34, 40, 255), 2.0f);
+                           dl->AddRectFilled(ImVec2(p.x + 2, p.y + 2),
+                                             ImVec2(p.x + s - 2, p.y + s - 2),
                                              colA(52, 56, 66, 255), 2.0f);
-                           dl->AddRect(ImVec2(p.x + 2, p.y + 2), ImVec2(p.x + s - 2, p.y + s - 2),
+                           dl->AddRect(ImVec2(p.x + 2, p.y + 2),
+                                       ImVec2(p.x + s - 2, p.y + s - 2),
                                        colA(80, 85, 96, 255), 2.0f, 0, 1.2f);
-                           dl->AddLine(ImVec2(p.x + 3.5f, p.y + 3.5f), ImVec2(p.x + s - 3.5f, p.y + s - 3.5f),
+                           dl->AddLine(ImVec2(p.x + 3.5f, p.y + 3.5f),
+                                       ImVec2(p.x + s - 3.5f, p.y + s - 3.5f),
                                        colA(225, 55, 55, 240), 2.0f);
-                           dl->AddLine(ImVec2(p.x + s - 3.5f, p.y + 3.5f), ImVec2(p.x + 3.5f, p.y + s - 3.5f),
+                           dl->AddLine(ImVec2(p.x + s - 3.5f, p.y + 3.5f),
+                                       ImVec2(p.x + 3.5f, p.y + s - 3.5f),
                                        colA(225, 55, 55, 240), 2.0f);
                          });
         } else {
           drawLegendItem(
               "Вихід (Евакуація)",
-              "Шлюз евакуації, куди робітник прямує після збору брухту (смарагдова платформа)",
+              "Шлюз евакуації, куди робітник прямує після збору брухту "
+              "(смарагдова платформа)",
               [&colA](ImDrawList *dl, ImVec2 p, float s) {
-                dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s), colA(20, 32, 26, 255), 2.0f);
-                dl->AddRectFilled(ImVec2(p.x + 2, p.y + 2), ImVec2(p.x + s - 2, p.y + s - 2),
+                dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s),
+                                  colA(20, 32, 26, 255), 2.0f);
+                dl->AddRectFilled(ImVec2(p.x + 2, p.y + 2),
+                                  ImVec2(p.x + s - 2, p.y + s - 2),
                                   colA(40, 185, 100, 255), 2.0f);
-                dl->AddRect(ImVec2(p.x + 2, p.y + 2), ImVec2(p.x + s - 2, p.y + s - 2),
+                dl->AddRect(ImVec2(p.x + 2, p.y + 2),
+                            ImVec2(p.x + s - 2, p.y + s - 2),
                             colA(140, 255, 185, 255), 2.0f, 0, 1.2f);
                 dl->AddCircle(ImVec2(p.x + s * 0.5f, p.y + s * 0.5f), s * 0.22f,
                               colA(180, 255, 210, 255), 0, 1.2f);
-                // 4 кутові смарагдові маячки
-                dl->AddRectFilled(ImVec2(p.x + 2, p.y + 2), ImVec2(p.x + 4.5f, p.y + 4.5f), colA(80, 255, 160, 255));
-                dl->AddRectFilled(ImVec2(p.x + s - 4.5f, p.y + 2), ImVec2(p.x + s - 2, p.y + 4.5f), colA(80, 255, 160, 255));
-                dl->AddRectFilled(ImVec2(p.x + 2, p.y + s - 4.5f), ImVec2(p.x + 4.5f, p.y + s - 2), colA(80, 255, 160, 255));
-                dl->AddRectFilled(ImVec2(p.x + s - 4.5f, p.y + s - 4.5f), ImVec2(p.x + s - 2, p.y + s - 2), colA(80, 255, 160, 255));
+                // 4 corner emerald beacons
+                dl->AddRectFilled(ImVec2(p.x + 2, p.y + 2),
+                                  ImVec2(p.x + 4.5f, p.y + 4.5f),
+                                  colA(80, 255, 160, 255));
+                dl->AddRectFilled(ImVec2(p.x + s - 4.5f, p.y + 2),
+                                  ImVec2(p.x + s - 2, p.y + 4.5f),
+                                  colA(80, 255, 160, 255));
+                dl->AddRectFilled(ImVec2(p.x + 2, p.y + s - 4.5f),
+                                  ImVec2(p.x + 4.5f, p.y + s - 2),
+                                  colA(80, 255, 160, 255));
+                dl->AddRectFilled(ImVec2(p.x + s - 4.5f, p.y + s - 4.5f),
+                                  ImVec2(p.x + s - 2, p.y + s - 2),
+                                  colA(80, 255, 160, 255));
               });
         }
 
-        // 3. Багнюка / Болото / Вода - реальна текстурна клітинка
-        drawLegendItem("Багнюка / Болото / Вода",
-                       "Важкопрохідна ділянка з бульбашками: витрата енергії +25 прямо, +35 по діагоналі",
-                       [&colA](ImDrawList *dl, ImVec2 p, float s) {
-                         dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s), colA(32, 22, 14, 255), 2.0f);
-                         dl->AddRectFilled(ImVec2(p.x + 2, p.y + 2), ImVec2(p.x + s - 2, p.y + s - 2),
-                                           colA(44, 32, 18, 255), 2.0f);
-                         dl->AddRect(ImVec2(p.x + 4.5f, p.y + 4.5f), ImVec2(p.x + s - 4.5f, p.y + s - 4.5f),
-                                     colA(88, 68, 44, 220), 1.0f);
-                         // Бульбашки багнюки
-                         dl->AddCircleFilled(ImVec2(p.x + s * 0.35f, p.y + s * 0.40f), 2.2f, colA(115, 88, 54, 255));
-                         dl->AddCircle(ImVec2(p.x + s * 0.35f, p.y + s * 0.40f), 2.2f, colA(152, 122, 80, 240), 0, 0.8f);
-                         dl->AddCircleFilled(ImVec2(p.x + s * 0.68f, p.y + s * 0.62f), 1.6f, colA(115, 88, 54, 255));
-                         // Заклепки безпеки по кутах
-                         dl->AddRectFilled(ImVec2(p.x + 1, p.y + 1), ImVec2(p.x + 3, p.y + 3), colA(120, 95, 55, 200));
-                         dl->AddRectFilled(ImVec2(p.x + s - 3, p.y + 1), ImVec2(p.x + s - 1, p.y + 3), colA(120, 95, 55, 200));
-                         dl->AddRectFilled(ImVec2(p.x + 1, p.y + s - 3), ImVec2(p.x + 3, p.y + s - 1), colA(120, 95, 55, 200));
-                         dl->AddRectFilled(ImVec2(p.x + s - 3, p.y + s - 3), ImVec2(p.x + s - 1, p.y + s - 1), colA(120, 95, 55, 200));
-                       });
+        // 4. Mud / Swamp / Water hazard tile (original style with round
+        // bubbles)
+        drawLegendItem(
+            "Багнюка / Болото / Вода",
+            "Важкопрохідна ділянка з бульбашками: витрата енергії +25 прямо, "
+            "+35 по діагоналі",
+            [&colA](ImDrawList *dl, ImVec2 p, float s) {
+              dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s),
+                                colA(32, 22, 14, 255), 2.0f);
+              dl->AddRectFilled(ImVec2(p.x + 2, p.y + 2),
+                                ImVec2(p.x + s - 2, p.y + s - 2),
+                                colA(44, 32, 18, 255), 2.0f);
+              dl->AddRect(ImVec2(p.x + 4.5f, p.y + 4.5f),
+                          ImVec2(p.x + s - 4.5f, p.y + s - 4.5f),
+                          colA(88, 68, 44, 220), 1.0f);
+              // Mud bubbles
+              dl->AddCircleFilled(ImVec2(p.x + s * 0.35f, p.y + s * 0.40f),
+                                  2.2f, colA(115, 88, 54, 255));
+              dl->AddCircle(ImVec2(p.x + s * 0.35f, p.y + s * 0.40f), 2.2f,
+                            colA(152, 122, 80, 240), 0, 0.8f);
+              dl->AddCircleFilled(ImVec2(p.x + s * 0.68f, p.y + s * 0.62f),
+                                  1.6f, colA(115, 88, 54, 255));
+              // Corner safety rivets
+              dl->AddRectFilled(ImVec2(p.x + 1, p.y + 1),
+                                ImVec2(p.x + 3, p.y + 3),
+                                colA(120, 95, 55, 200));
+              dl->AddRectFilled(ImVec2(p.x + s - 3, p.y + 1),
+                                ImVec2(p.x + s - 1, p.y + 3),
+                                colA(120, 95, 55, 200));
+              dl->AddRectFilled(ImVec2(p.x + 1, p.y + s - 3),
+                                ImVec2(p.x + 3, p.y + s - 1),
+                                colA(120, 95, 55, 200));
+              dl->AddRectFilled(ImVec2(p.x + s - 3, p.y + s - 3),
+                                ImVec2(p.x + s - 1, p.y + s - 1),
+                                colA(120, 95, 55, 200));
+            });
 
-        // 4. Дрібний, побутовий, важкий брухт
+        // 5. Light, medium, and heavy scrap items
         drawLegendItem(
             "Дрібний брухт (1-3 кг)",
             "Одноручний брухт Lethal Company (каченя, рибка, пульт, лупа)",
@@ -1902,65 +2171,44 @@ public:
 
         drawLegendItem(
             "Важкий брухт (10-18 кг)",
-            "Дворучні масивні механізми (апарат живлення, двигун, золото, реактор)",
+            "Дворучні масивні механізми (апарат живлення, двигун, золото, "
+            "реактор)",
             [&colA](ImDrawList *dl, ImVec2 p, float s) {
               ImVec2 center(p.x + s * 0.5f, p.y + s * 0.5f);
               dl->AddCircleFilled(center, 7.0f, colA(255, 75, 75, 255));
               dl->AddCircle(center, 7.0f, colA(255, 255, 255, 240), 0, 1.8f);
             });
 
-        // 5. Пройдена клітинка (Слід) - реальний вигляд з лабіринту
-        drawLegendItem(
-            "Пройдена клітинка (Слід)",
-            "Пройдений шлях робітника: темно-блакитна підлога з неоновим контуром",
-            [&colA](ImDrawList *dl, ImVec2 p, float s) {
-              dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s), colA(10, 48, 65, 235), 2.0f);
-              dl->AddRect(p, ImVec2(p.x + s, p.y + s), colA(0, 230, 245, 240), 2.0f, 0, 1.5f);
-              // Маленькі сліди кроків всередині
-              dl->AddCircleFilled(ImVec2(p.x + s * 0.38f, p.y + s * 0.52f), 1.8f, colA(0, 220, 240, 190));
-              dl->AddCircleFilled(ImVec2(p.x + s * 0.62f, p.y + s * 0.44f), 1.8f, colA(0, 220, 240, 190));
-            });
+        // 6. Walked cell (Trail) - clean maze floor square without inner dots
+        drawLegendItem("Пройдена клітинка (Слід)",
+                       "Пройдений шлях робітника: темно-блакитна підлога з "
+                       "неоновим контуром",
+                       [&colA](ImDrawList *dl, ImVec2 p, float s) {
+                         dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s),
+                                           colA(10, 48, 65, 235), 2.0f);
+                         dl->AddRect(p, ImVec2(p.x + s, p.y + s),
+                                     colA(0, 230, 245, 240), 2.0f, 0, 1.5f);
+                       });
 
-        // 6. Робітник (Агент) - РЕАЛЬНИЙ СПРАЙТ РОБІТНИКА З ГРИ
-        drawLegendItem(
-            "Робітник (Агент)",
-            "Автономний робітник у захисному костюмі Lethal Company",
-            [&colA, &renderer](ImDrawList *dl, ImVec2 p, float s) {
-              ImVec2 center(p.x + s * 0.5f, p.y + s * 0.5f);
-              dl->AddCircleFilled(center, s * 0.5f, colA(30, 24, 18, 220));
-              dl->AddCircle(center, s * 0.5f, colA(255, 190, 40, 240), 0, 1.4f);
-              if (renderer.hasAgentTexture()) {
-                const auto &tex = renderer.getAgentTexture();
-                auto glHandle = tex.getNativeHandle();
-                ImTextureID texID{};
-                std::memcpy(&texID, &glHandle, sizeof(glHandle));
-                float pad = 1.0f;
-                dl->AddImage(texID, ImVec2(p.x + pad, p.y + pad), ImVec2(p.x + s - pad, p.y + s - pad));
-              } else {
-                dl->AddCircleFilled(center, 5.0f, colA(255, 200, 40, 255));
-                dl->AddCircle(center, 5.0f, colA(255, 255, 255, 240), 0, 1.5f);
-              }
-            });
-
-        // 7. Маршрут (TSP) - РЕАЛЬНА ЛАЗЕРНА ЛІНІЯ З ТОЧКОЮ ПЕРЕСУВАННЯ
-        drawLegendItem(
-            "Маршрут (Траєкторія TSP)",
-            "Розрахована оптимальна лінія пересування робітника з контрольною точкою",
-            [&colA](ImDrawList *dl, ImVec2 p, float s) {
-              dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s), colA(22, 24, 30, 220), 2.0f);
-              // Зовнішнє неонове сяйво траєкторії
-              dl->AddLine(ImVec2(p.x + 2, p.y + s - 3), ImVec2(p.x + s - 2, p.y + 3),
-                          colA(0, 200, 240, 130), 4.2f);
-              // Основна лазерна лінія
-              dl->AddLine(ImVec2(p.x + 2, p.y + s - 3), ImVec2(p.x + s - 2, p.y + 3),
-                          colA(0, 255, 240, 255), 2.0f);
-              // Біле ядро променя
-              dl->AddLine(ImVec2(p.x + 3, p.y + s - 4), ImVec2(p.x + s - 3, p.y + 4),
-                          colA(230, 255, 255, 240), 1.0f);
-              // Контрольна точка маршруту (waypoint node)
-              dl->AddCircleFilled(ImVec2(p.x + s * 0.5f, p.y + s * 0.5f), 2.6f, colA(0, 255, 240, 255));
-              dl->AddCircle(ImVec2(p.x + s * 0.5f, p.y + s * 0.5f), 2.6f, colA(255, 255, 255, 255), 0, 1.0f);
-            });
+        // 7. Route (TSP Trajectory) - laser line without waypoint node circle
+        drawLegendItem("Маршрут (Траєкторія TSP)",
+                       "Розрахована оптимальна лінія пересування робітника",
+                       [&colA](ImDrawList *dl, ImVec2 p, float s) {
+                         dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s),
+                                           colA(22, 24, 30, 220), 2.0f);
+                         // Outer neon glow
+                         dl->AddLine(ImVec2(p.x + 2, p.y + s - 3),
+                                     ImVec2(p.x + s - 2, p.y + 3),
+                                     colA(0, 200, 240, 130), 4.2f);
+                         // Main laser line
+                         dl->AddLine(ImVec2(p.x + 2, p.y + s - 3),
+                                     ImVec2(p.x + s - 2, p.y + 3),
+                                     colA(0, 255, 240, 255), 2.0f);
+                         // White core beam
+                         dl->AddLine(ImVec2(p.x + 3, p.y + s - 4),
+                                     ImVec2(p.x + s - 3, p.y + 4),
+                                     colA(230, 255, 255, 240), 1.0f);
+                       });
 
         ImGui::Spacing();
         float btnLocalY =
@@ -2008,7 +2256,8 @@ public:
               "%s", (isCatalogOpen_ && !isCatalogClosing_)
                         ? "Згорнути каталог найменувань брухту та повернутися "
                           "до легенди."
-                        : "Розгорнути повний каталог з 60 найменувань брухту Lethal Company.");
+                        : "Розгорнути повний каталог з 60 найменувань брухту "
+                          "Lethal Company.");
         }
         ImGui::PopStyleColor(4);
 
@@ -2020,8 +2269,9 @@ public:
             mazeItemNames.insert(mItem.name);
           }
 
-          ImGui::PushStyleVar(ImGuiStyleVar_CellPadding,
-                              ImVec2(10.0f * config.uiScale, 4.0f * config.uiScale));
+          ImGui::PushStyleVar(
+              ImGuiStyleVar_CellPadding,
+              ImVec2(10.0f * config.uiScale, 4.0f * config.uiScale));
 
           if (ImGui::BeginTable("ScrapCatalogTable", 2,
                                 ImGuiTableFlags_RowBg |
@@ -2038,7 +2288,8 @@ public:
             ImGui::TableHeadersRow();
             ImGui::PopStyleColor();
 
-            core::ItemCategory lastCategory = static_cast<core::ItemCategory>(-1);
+            core::ItemCategory lastCategory =
+                static_cast<core::ItemCategory>(-1);
 
             for (size_t i = 0; i < catalog.size(); ++i) {
               const auto &it = catalog[i];
@@ -2047,16 +2298,18 @@ public:
               if (it.category != lastCategory) {
                 lastCategory = it.category;
 
-                const char *catHeader = (it.category == core::ItemCategory::LightScrap)
-                                            ? "Легкий брухт (1-3 кг)"
-                                        : (it.category == core::ItemCategory::MediumScrap)
-                                            ? "Побутовий брухт (4-8 кг)"
-                                            : "Важкий брухт (10-18 кг)";
-                ImVec4 headerCol = (it.category == core::ItemCategory::LightScrap)
-                                       ? ImVec4(0.0f, 0.90f, 1.0f, 1.0f)
-                                   : (it.category == core::ItemCategory::MediumScrap)
-                                       ? ImVec4(1.0f, 0.85f, 0.1f, 1.0f)
-                                       : ImVec4(1.0f, 0.40f, 0.40f, 1.0f);
+                const char *catHeader =
+                    (it.category == core::ItemCategory::LightScrap)
+                        ? "Легкий брухт (1-3 кг)"
+                    : (it.category == core::ItemCategory::MediumScrap)
+                        ? "Побутовий брухт (4-8 кг)"
+                        : "Важкий брухт (10-18 кг)";
+                ImVec4 headerCol =
+                    (it.category == core::ItemCategory::LightScrap)
+                        ? ImVec4(0.0f, 0.90f, 1.0f, 1.0f)
+                    : (it.category == core::ItemCategory::MediumScrap)
+                        ? ImVec4(1.0f, 0.85f, 0.1f, 1.0f)
+                        : ImVec4(1.0f, 0.40f, 0.40f, 1.0f);
 
                 if (i > 0) {
                   float sepGap = 14.0f * config.uiScale;
@@ -2074,18 +2327,22 @@ public:
 
                 ImVec2 cellPos = ImGui::GetCursorScreenPos();
                 ImVec2 winPos = ImGui::GetWindowPos();
-                float winW = ImGui::GetWindowWidth();
-                float padSide = ImGui::GetStyle().WindowPadding.x;
-                ImVec2 bannerMin(winPos.x + padSide, cellPos.y);
-                ImVec2 bannerMax(winPos.x + winW - padSide, cellPos.y + bannerH);
+                float contentMinX =
+                    winPos.x + ImGui::GetWindowContentRegionMin().x;
+                float contentMaxX =
+                    winPos.x + ImGui::GetWindowContentRegionMax().x;
+                ImVec2 bannerMin(contentMinX, cellPos.y);
+                ImVec2 bannerMax(contentMaxX, cellPos.y + bannerH);
 
-                bool isCatHovered = ImGui::IsMouseHoveringRect(bannerMin, bannerMax);
+                bool isCatHovered =
+                    ImGui::IsMouseHoveringRect(bannerMin, bannerMax);
                 if (isCatHovered) {
                   hoveredCatalogCategory_ = static_cast<int>(it.category);
                 }
 
                 uint8_t bannerAlpha = static_cast<uint8_t>(
-                    std::clamp((isCatHovered ? 65.0f : 26.0f) * windowAlpha, 0.0f, 255.0f));
+                    std::clamp((isCatHovered ? 65.0f : 26.0f) * windowAlpha,
+                               0.0f, 255.0f));
                 ImU32 rowBg = (it.category == core::ItemCategory::LightScrap)
                                   ? IM_COL32(0, 210, 250, bannerAlpha)
                               : (it.category == core::ItemCategory::MediumScrap)
@@ -2093,22 +2350,32 @@ public:
                                   : IM_COL32(255, 75, 75, bannerAlpha);
 
                 ImDrawList *dl = ImGui::GetWindowDrawList();
-                dl->AddRectFilled(bannerMin, bannerMax, rowBg, 3.0f * config.uiScale);
+                // Push unclipped banner rect to span across both table columns
+                dl->PushClipRect(bannerMin, bannerMax, false);
+                dl->AddRectFilled(bannerMin, bannerMax, rowBg,
+                                  3.0f * config.uiScale);
                 float availW = bannerMax.x - bannerMin.x;
                 float textW = ImGui::CalcTextSize(catHeader).x;
-                float textX = bannerMin.x + std::max(0.0f, (availW - textW) * 0.5f);
+                float textX =
+                    bannerMin.x + std::max(0.0f, (availW - textW) * 0.5f);
                 float textY = bannerMin.y + topPad;
-                dl->AddText(ImVec2(textX, textY), ImGui::ColorConvertFloat4ToU32(headerCol), catHeader);
+                dl->AddText(ImVec2(textX, textY),
+                            ImGui::ColorConvertFloat4ToU32(headerCol),
+                            catHeader);
+                dl->PopClipRect();
 
                 ImGui::Dummy(ImVec2(0.0f, bannerH));
 
                 if (isCatHovered) {
-                  ImGui::SetTooltip("%s\nВиділено всі предмети цієї категорії в комплексі.", catHeader);
+                  ImGui::SetTooltip(
+                      "%s\nВиділено всі предмети цієї категорії в комплексі.",
+                      catHeader);
                   if (lastHoveredCatalogCategory_ != hoveredCatalogCategory_) {
                     lastHoveredCatalogCategory_ = hoveredCatalogCategory_;
-                    camera.fitMaze(maze.getWidth() * ProceduralRenderer::TILE_SIZE,
-                                   maze.getHeight() * ProceduralRenderer::TILE_SIZE,
-                                   windowWidth, windowHeight, 1.15f, true);
+                    camera.fitMaze(
+                        maze.getWidth() * ProceduralRenderer::TILE_SIZE,
+                        maze.getHeight() * ProceduralRenderer::TILE_SIZE,
+                        windowWidth, windowHeight, 1.15f, true);
                   }
                 }
               }
@@ -2151,19 +2418,21 @@ public:
                 hoveredCatalogCategory_ = -1;
                 hoveredCatalogItemName_ = it.name;
                 if (isPresentInMaze) {
-                  ImGui::SetTooltip(
-                      "%zu. %s [В поточному комплексі]\nВага: %d кг | Вартість: %d грн",
-                      i + 1, it.name.c_str(), it.baseWeight, it.baseValue);
+                  ImGui::SetTooltip("%zu. %s [В поточному комплексі]\nВага: %d "
+                                    "кг | Вартість: %d грн",
+                                    i + 1, it.name.c_str(), it.baseWeight,
+                                    it.baseValue);
                 } else {
-                  ImGui::SetTooltip(
-                      "%zu. %s\nВага: %d кг | Вартість: %d грн",
-                      i + 1, it.name.c_str(), it.baseWeight, it.baseValue);
+                  ImGui::SetTooltip("%zu. %s\nВага: %d кг | Вартість: %d грн",
+                                    i + 1, it.name.c_str(), it.baseWeight,
+                                    it.baseValue);
                 }
                 if (lastHoveredCatalogItemName_ != it.name) {
                   lastHoveredCatalogItemName_ = it.name;
-                  camera.fitMaze(maze.getWidth() * ProceduralRenderer::TILE_SIZE,
-                                 maze.getHeight() * ProceduralRenderer::TILE_SIZE,
-                                 windowWidth, windowHeight, 1.15f, true);
+                  camera.fitMaze(
+                      maze.getWidth() * ProceduralRenderer::TILE_SIZE,
+                      maze.getHeight() * ProceduralRenderer::TILE_SIZE,
+                      windowWidth, windowHeight, 1.15f, true);
                 }
               }
             }
@@ -2182,7 +2451,7 @@ public:
           }
         }
 
-        // 2. Кнопка "Зібраний брухт" під каталогом
+        // 2. Collected scrap list button below catalog
         ImGui::Spacing();
         const auto &collectedIds = engine.getCollectedItemIds();
         size_t collectedCount = collectedIds.size();
@@ -2195,41 +2464,73 @@ public:
         }
 
         bool hasExtraScrap = (collectedCount > targetItemsCount);
-        size_t extraCount = hasExtraScrap ? (collectedCount - targetItemsCount) : 0;
+        size_t extraCount =
+            hasExtraScrap ? (collectedCount - targetItemsCount) : 0;
 
-        char collectedBtnText[96];
-        if (hasExtraScrap) {
-          std::snprintf(collectedBtnText, sizeof(collectedBtnText),
-                        "Зібраний брухт (%zu/%zu од. [+%zu понад план!])###CollectedBtn",
-                        collectedCount, targetItemsCount, extraCount);
+        int curCollectedVal = engine.getAgent().getBackpack().getCurrentValue();
+        int quota = config.companyQuota;
+        bool isQuotaMet = (curCollectedVal >= quota);
+
+        char collectedBtnText[128];
+        if (isQuotaMet) {
+          if (hasExtraScrap) {
+            std::snprintf(collectedBtnText, sizeof(collectedBtnText),
+                          "Мінімальну квоту виконано! (%d/%d грн | %zu од. "
+                          "[+%zu])###CollectedBtn",
+                          curCollectedVal, quota, collectedCount, extraCount);
+          } else {
+            std::snprintf(collectedBtnText, sizeof(collectedBtnText),
+                          "Мінімальну квоту виконано! (%d/%d грн | %zu/%zu "
+                          "од.)###CollectedBtn",
+                          curCollectedVal, quota, collectedCount,
+                          targetItemsCount);
+          }
         } else {
-          std::snprintf(collectedBtnText, sizeof(collectedBtnText),
-                        "Зібраний брухт (%zu/%zu од.)###CollectedBtn",
-                        collectedCount, targetItemsCount);
+          if (hasExtraScrap) {
+            std::snprintf(collectedBtnText, sizeof(collectedBtnText),
+                          "Квота: %d / %d грн (%zu од. [+%zu])###CollectedBtn",
+                          curCollectedVal, quota, collectedCount, extraCount);
+          } else {
+            std::snprintf(collectedBtnText, sizeof(collectedBtnText),
+                          "Квота: %d / %d грн (%zu/%zu од.)###CollectedBtn",
+                          curCollectedVal, quota, collectedCount,
+                          targetItemsCount);
+          }
         }
 
         float collectedBtnLocalY =
             ImGui::GetCursorPosY() - ImGui::GetStyle().WindowPadding.y;
 
-        ImVec4 btnNormalCol = hasExtraScrap ? ImVec4(0.24f, 0.20f, 0.10f, 0.90f)
-                                           : ImVec4(0.14f, 0.18f, 0.16f, 0.85f);
-        ImVec4 btnOpenCol   = hasExtraScrap ? ImVec4(0.32f, 0.26f, 0.12f, 0.95f)
-                                           : ImVec4(0.18f, 0.28f, 0.22f, 0.90f);
-        ImVec4 borderCol    = hasExtraScrap ? ImVec4(0.95f, 0.75f, 0.20f, 0.95f)
-                                           : ((isCollectedOpen_ || isCollectedClosing_)
-                                                  ? ImVec4(0.35f, 0.95f, 0.55f, 0.90f)
-                                                  : ImVec4(0.25f, 0.50f, 0.35f, 0.70f));
+        ImVec4 btnNormalCol =
+            isQuotaMet ? ImVec4(0.10f, 0.22f, 0.14f, 0.88f)
+                       : (hasExtraScrap ? ImVec4(0.24f, 0.20f, 0.10f, 0.90f)
+                                        : ImVec4(0.14f, 0.18f, 0.16f, 0.85f));
+        ImVec4 btnOpenCol =
+            isQuotaMet ? ImVec4(0.14f, 0.30f, 0.18f, 0.95f)
+                       : (hasExtraScrap ? ImVec4(0.32f, 0.26f, 0.12f, 0.95f)
+                                        : ImVec4(0.18f, 0.28f, 0.22f, 0.90f));
+        ImVec4 borderCol =
+            isQuotaMet
+                ? ImVec4(0.25f, 0.95f, 0.50f, 0.95f)
+                : (hasExtraScrap ? ImVec4(0.95f, 0.75f, 0.20f, 0.95f)
+                                 : ((isCollectedOpen_ || isCollectedClosing_)
+                                        ? ImVec4(0.35f, 0.95f, 0.55f, 0.90f)
+                                        : ImVec4(0.25f, 0.50f, 0.35f, 0.70f)));
 
         ImGui::PushStyleColor(ImGuiCol_Button,
                               (isCollectedOpen_ || isCollectedClosing_)
                                   ? btnOpenCol
                                   : btnNormalCol);
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                              hasExtraScrap ? ImVec4(0.40f, 0.32f, 0.16f, 0.95f)
-                                            : ImVec4(0.24f, 0.38f, 0.28f, 0.95f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                              hasExtraScrap ? ImVec4(0.50f, 0.40f, 0.20f, 1.00f)
-                                            : ImVec4(0.30f, 0.48f, 0.35f, 1.00f));
+        ImGui::PushStyleColor(
+            ImGuiCol_ButtonHovered,
+            isQuotaMet ? ImVec4(0.16f, 0.35f, 0.22f, 0.95f)
+                       : (hasExtraScrap ? ImVec4(0.40f, 0.32f, 0.16f, 0.95f)
+                                        : ImVec4(0.24f, 0.38f, 0.28f, 0.95f)));
+        ImGui::PushStyleColor(
+            ImGuiCol_ButtonActive,
+            isQuotaMet ? ImVec4(0.22f, 0.45f, 0.28f, 1.00f)
+                       : (hasExtraScrap ? ImVec4(0.50f, 0.40f, 0.20f, 1.00f)
+                                        : ImVec4(0.30f, 0.48f, 0.35f, 1.00f)));
         ImGui::PushStyleColor(ImGuiCol_Border, borderCol);
 
         if (ImGui::Button(collectedBtnText,
@@ -2244,7 +2545,8 @@ public:
             }
             collectedAutoScrollActive_ = true;
             collectedAutoScrollStart_ = ImGui::GetScrollY();
-            collectedAutoScrollTarget_ = std::max(0.0f, collectedBtnLocalY - 4.0f);
+            collectedAutoScrollTarget_ =
+                std::max(0.0f, collectedBtnLocalY - 4.0f);
             collectedAutoScrollTime_ = 0.0f;
           } else {
             isCollectedClosing_ = true;
@@ -2252,39 +2554,101 @@ public:
           }
         }
         if (ImGui::IsItemHovered()) {
-          if (hasExtraScrap) {
+          if (isQuotaMet) {
+            ImGui::SetTooltip("Мінімальну квоту Компанії успішно виконано!\n"
+                              "Зібрано %d грн із необхідних %d грн.",
+                              curCollectedVal, quota);
+          } else if (hasExtraScrap) {
             ImGui::SetTooltip(
                 "На шляху агента лежав брухт, який помістився в рюкзак,\n"
                 "тому агент зібрав на %zu од. більше, ніж планувалося!",
                 extraCount);
           } else {
             ImGui::SetTooltip(
-                "%s", (isCollectedOpen_ && !isCollectedClosing_)
-                          ? "Згорнути список зібраного робітником брухту."
-                          : "Розгорнути повний список зібраного на мапі брухту.");
+                "%s",
+                (isCollectedOpen_ && !isCollectedClosing_)
+                    ? "Згорнути список зібраного робітником брухту."
+                    : "Розгорнути повний список зібраного на мапі брухту.");
           }
         }
         ImGui::PopStyleColor(4);
 
         if (isCollectedOpen_ || collectedOpenProgress_ > 0.001f) {
           ImGui::Spacing();
-          float collectedEase = collectedOpenProgress_ * collectedOpenProgress_ *
+          float collectedEase = collectedOpenProgress_ *
+                                collectedOpenProgress_ *
                                 (3.0f - 2.0f * collectedOpenProgress_);
-          float clipBoxH = std::max(10.0f, measuredCollectedContentH_ * collectedEase);
-          ImGui::BeginChild("##CollectedScrapAnimBox", ImVec2(0.0f, clipBoxH), false,
-                            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
+          float clipBoxH =
+              std::max(10.0f, measuredCollectedContentH_ * collectedEase);
+          ImGui::BeginChild(
+              "##CollectedScrapAnimBox", ImVec2(0.0f, clipBoxH), false,
+              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
           float childStartY = ImGui::GetCursorPosY();
 
-          if (hasExtraScrap) {
-            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.95f, 0.75f, 0.20f, 0.85f));
-            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.18f, 0.14f, 0.08f, 0.85f));
+          // Quota status notification banner at the top of the expanded card
+          if (isQuotaMet) {
+            int surplusVal = curCollectedVal - quota;
+            ImGui::PushStyleColor(ImGuiCol_Border,
+                                  ImVec4(0.25f, 0.95f, 0.50f, 0.95f));
+            ImGui::PushStyleColor(ImGuiCol_ChildBg,
+                                  ImVec4(0.10f, 0.25f, 0.16f, 0.92f));
             ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 4.0f);
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
-                                ImVec2(8.0f * config.uiScale, 6.0f * config.uiScale));
-            ImGui::BeginChild("##OpportunisticScrapNotice", ImVec2(0.0f, 0.0f),
-                              ImGuiChildFlags_Border | ImGuiChildFlags_AutoResizeY);
+            ImGui::PushStyleVar(
+                ImGuiStyleVar_WindowPadding,
+                ImVec2(8.0f * config.uiScale, 6.0f * config.uiScale));
+            ImGui::BeginChild("##QuotaSuccessNotice", ImVec2(0.0f, 0.0f),
+                              ImGuiChildFlags_Border |
+                                  ImGuiChildFlags_AutoResizeY);
+            ImGui::TextColored(ImVec4(0.40f, 1.0f, 0.60f, 1.0f),
+                               "[OK] МІНІМАЛЬНУ КВОТУ ВИКОНАНО!");
+            ImGui::TextWrapped(
+                "Зібрано %d грн із необхідних %d грн (+%d грн перевиконання). "
+                "Евакуація гарантує 100%% успіх!",
+                curCollectedVal, quota, surplusVal);
+            ImGui::EndChild();
+            ImGui::PopStyleVar(2);
+            ImGui::PopStyleColor(2);
+            ImGui::Spacing();
+          } else {
+            int remainingVal = quota - curCollectedVal;
+            ImGui::PushStyleColor(ImGuiCol_Border,
+                                  ImVec4(1.0f, 0.75f, 0.20f, 0.85f));
+            ImGui::PushStyleColor(ImGuiCol_ChildBg,
+                                  ImVec4(0.24f, 0.18f, 0.08f, 0.90f));
+            ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 4.0f);
+            ImGui::PushStyleVar(
+                ImGuiStyleVar_WindowPadding,
+                ImVec2(8.0f * config.uiScale, 6.0f * config.uiScale));
+            ImGui::BeginChild("##QuotaProgressNotice", ImVec2(0.0f, 0.0f),
+                              ImGuiChildFlags_Border |
+                                  ImGuiChildFlags_AutoResizeY);
             ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.30f, 1.0f),
-                               "[!] Понадплановий збір (+%zu од.):", extraCount);
+                               "[*] ПРОГРЕС КВОТИ: %d / %d грн",
+                               curCollectedVal, quota);
+            ImGui::TextWrapped("До виконання вимоги Компанії залишилося "
+                               "підібрати брухту на %d грн.",
+                               remainingVal);
+            ImGui::EndChild();
+            ImGui::PopStyleVar(2);
+            ImGui::PopStyleColor(2);
+            ImGui::Spacing();
+          }
+
+          if (hasExtraScrap) {
+            ImGui::PushStyleColor(ImGuiCol_Border,
+                                  ImVec4(0.95f, 0.75f, 0.20f, 0.85f));
+            ImGui::PushStyleColor(ImGuiCol_ChildBg,
+                                  ImVec4(0.18f, 0.14f, 0.08f, 0.85f));
+            ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 4.0f);
+            ImGui::PushStyleVar(
+                ImGuiStyleVar_WindowPadding,
+                ImVec2(8.0f * config.uiScale, 6.0f * config.uiScale));
+            ImGui::BeginChild("##OpportunisticScrapNotice", ImVec2(0.0f, 0.0f),
+                              ImGuiChildFlags_Border |
+                                  ImGuiChildFlags_AutoResizeY);
+            ImGui::TextColored(
+                ImVec4(1.0f, 0.85f, 0.30f, 1.0f),
+                "[!] Понадплановий збір (+%zu од.):", extraCount);
             ImGui::TextWrapped(
                 "На шляху агента лежав брухт, який помістився в рюкзак, "
                 "тому агент зібрав більше ніж потрібно було!");
@@ -2329,7 +2693,8 @@ public:
                 ImGui::TextColored(col, "%zu. %s", i + 1, it.name.c_str());
                 if (!isPlanned) {
                   ImGui::SameLine();
-                  ImGui::TextColored(ImVec4(1.0f, 0.82f, 0.25f, 1.0f), "[+Попутний]");
+                  ImGui::TextColored(ImVec4(1.0f, 0.82f, 0.25f, 1.0f),
+                                     "[+Попутний]");
                 }
 
                 bool isRowHovered = ImGui::IsItemHovered();
@@ -2349,7 +2714,8 @@ public:
                   camera.zoomTo(0.50f, 8.5f); // 2.0x magnification
 
                   renderTopCenteredItemTooltip(it, window, camera.getView(),
-                                               windowWidth, windowHeight, !isPlanned);
+                                               windowWidth, windowHeight,
+                                               !isPlanned);
                 }
               }
               ImGui::EndTable();
@@ -2378,9 +2744,10 @@ public:
           lastHoveredCatalogCategory_ = -1;
         }
 
-        // Measure collapsed height only when both catalog and collected lists are completely closed
-        if (!isCatalogOpen_ && catalogOpenProgress_ <= 0.0f && !isCollectedOpen_ &&
-            collectedOpenProgress_ <= 0.0f) {
+        // Measure collapsed height only when both catalog and collected lists
+        // are completely closed
+        if (!isCatalogOpen_ && catalogOpenProgress_ <= 0.0f &&
+            !isCollectedOpen_ && collectedOpenProgress_ <= 0.0f) {
           float measuredH = std::ceil(ImGui::GetCursorPosY() + padY + 4.0f);
           if (measuredH > 50.0f) {
             collapsedLegendH_ = measuredH;
@@ -2511,11 +2878,14 @@ public:
 
       if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
         if (state.isTransitionActive) {
-          ImGui::SetTooltip("Центрування недоступне під час генерації та трасування маршруту.");
+          ImGui::SetTooltip("Центрування недоступне під час генерації та "
+                            "трасування маршруту.");
         } else {
-          ImGui::SetTooltip("%s", config.cameraFollowAgent
-                                      ? "Вимкнути стеження камери за агентом [C]."
-                                      : "Центрувати та увімкнути стеження камери за агентом [C].");
+          ImGui::SetTooltip(
+              "%s",
+              config.cameraFollowAgent
+                  ? "Вимкнути стеження камери за агентом [C]."
+                  : "Центрувати та увімкнути стеження камери за агентом [C].");
         }
       }
     }
@@ -2523,18 +2893,14 @@ public:
     ImGui::PopStyleVar(2);
   }
 
-  void renderWorldTooltip(const map::Maze &maze,
-                          const simulation::SimulationEngine &engine,
-                          const sf::Vector2f &worldPos, bool mouseOverUI,
-                          const sf::Vector2i &mousePixel = {0, 0},
-                          float windowWidth = 1920.0f,
-                          float windowHeight = 1080.0f,
-                          bool isExitDisabled = false,
-                          float scanRadius = -1.0f,
-                          const sf::Vector2f &scanOrigin = {0.0f, 0.0f},
-                          bool isSonarScanning = false,
-                          float routeProgress = 1.0f,
-                          bool isFadingOut = false) {
+  void renderWorldTooltip(
+      const map::Maze &maze, const simulation::SimulationEngine &engine,
+      const sf::Vector2f &worldPos, bool mouseOverUI,
+      const sf::Vector2i &mousePixel = {0, 0}, float windowWidth = 1920.0f,
+      float windowHeight = 1080.0f, bool isExitDisabled = false,
+      float scanRadius = -1.0f, const sf::Vector2f &scanOrigin = {0.0f, 0.0f},
+      bool isSonarScanning = false, float routeProgress = 1.0f,
+      bool isFadingOut = false) {
     if (mouseOverUI || isFadingOut)
       return;
 
@@ -2579,14 +2945,19 @@ public:
       int distT = startPt.y;
       int distB = (maze.getHeight() - 1) - startPt.y;
       int minDist = std::min({distL, distR, distT, distB});
-      if (minDist == distL) inDir = {1, 0};
-      else if (minDist == distR) inDir = {-1, 0};
-      else if (minDist == distT) inDir = {0, 1};
-      else inDir = {0, -1};
+      if (minDist == distL)
+        inDir = {1, 0};
+      else if (minDist == distR)
+        inDir = {-1, 0};
+      else if (minDist == distT)
+        inDir = {0, 1};
+      else
+        inDir = {0, -1};
     }
     sf::Vector2i cellBeforeStart{startPt.x - inDir.x, startPt.y - inDir.y};
-    sf::Vector2f startArrowCenter{(cellBeforeStart.x + 0.5f) * ProceduralRenderer::TILE_SIZE,
-                                  (cellBeforeStart.y + 0.5f) * ProceduralRenderer::TILE_SIZE};
+    sf::Vector2f startArrowCenter{
+        (cellBeforeStart.x + 0.5f) * ProceduralRenderer::TILE_SIZE,
+        (cellBeforeStart.y + 0.5f) * ProceduralRenderer::TILE_SIZE};
 
     sf::Vector2i cellAfterExit{0, 0};
     sf::Vector2f exitArrowCenter{0.0f, 0.0f};
@@ -2594,7 +2965,8 @@ public:
     if (hasExitArrow) {
       core::Point exitPt = maze.getExitPoint();
       sf::Vector2i outDir{0, 0};
-      if (plan.routeValid && plan.fullPath.size() >= 2 && plan.fullPath.back() == exitPt) {
+      if (plan.routeValid && plan.fullPath.size() >= 2 &&
+          plan.fullPath.back() == exitPt) {
         core::Point pPrev = plan.fullPath[plan.fullPath.size() - 2];
         outDir = {std::clamp(exitPt.x - pPrev.x, -1, 1),
                   std::clamp(exitPt.y - pPrev.y, -1, 1)};
@@ -2615,14 +2987,19 @@ public:
         int distT = exitPt.y;
         int distB = (maze.getHeight() - 1) - exitPt.y;
         int minDist = std::min({distL, distR, distT, distB});
-        if (minDist == distL) outDir = {-1, 0};
-        else if (minDist == distR) outDir = {1, 0};
-        else if (minDist == distT) outDir = {0, -1};
-        else outDir = {0, 1};
+        if (minDist == distL)
+          outDir = {-1, 0};
+        else if (minDist == distR)
+          outDir = {1, 0};
+        else if (minDist == distT)
+          outDir = {0, -1};
+        else
+          outDir = {0, 1};
       }
       cellAfterExit = {exitPt.x + outDir.x, exitPt.y + outDir.y};
-      exitArrowCenter = {(cellAfterExit.x + 0.5f) * ProceduralRenderer::TILE_SIZE,
-                         (cellAfterExit.y + 0.5f) * ProceduralRenderer::TILE_SIZE};
+      exitArrowCenter = {
+          (cellAfterExit.x + 0.5f) * ProceduralRenderer::TILE_SIZE,
+          (cellAfterExit.y + 0.5f) * ProceduralRenderer::TILE_SIZE};
     }
 
     core::Point cellPoint{tileX, tileY};
@@ -2645,8 +3022,8 @@ public:
       return;
     }
 
-    // While sonar scanning animation is active, do not show tooltip for cells or arrows that
-    // have not been revealed yet by the sonar wave wavefront!
+    // While sonar scanning animation is active, do not show tooltip for cells
+    // or arrows that have not been revealed yet by the sonar wave wavefront!
     if (isSonarScanning && scanRadius >= 0.0f) {
       float checkX = 0.0f;
       float checkY = 0.0f;
@@ -2660,7 +3037,8 @@ public:
         checkX = (tileX + 0.5f) * ProceduralRenderer::TILE_SIZE;
         checkY = (tileY + 0.5f) * ProceduralRenderer::TILE_SIZE;
       }
-      float distToOrigin = std::hypot(checkX - scanOrigin.x, checkY - scanOrigin.y);
+      float distToOrigin =
+          std::hypot(checkX - scanOrigin.x, checkY - scanOrigin.y);
       if (distToOrigin > scanRadius + 14.0f) {
         return; // Unscanned: not yet reached by sonar wavefront
       }
@@ -2700,14 +3078,15 @@ public:
       }
     }
 
-    // Check if mouse is directly hovering the drawn route line (within line thickness + glow radius)
+    // Check if mouse is directly hovering the drawn route line (within line
+    // thickness + glow radius)
     bool isHoveringRouteLine = false;
     if (pCell && !plan.fullPath.empty() && routeProgress > 0.001f) {
       size_t maxSeg = plan.fullPath.size() - 1;
       if (routeProgress < 0.999f) {
-        maxSeg = static_cast<size_t>(std::clamp(
-            routeProgress * static_cast<float>(plan.fullPath.size()), 0.0f,
-            static_cast<float>(plan.fullPath.size() - 1)));
+        maxSeg = static_cast<size_t>(
+            std::clamp(routeProgress * static_cast<float>(plan.fullPath.size()),
+                       0.0f, static_cast<float>(plan.fullPath.size() - 1)));
       }
       for (size_t i = 0; i < maxSeg; ++i) {
         const auto &pA = plan.fullPath[i];
@@ -2724,7 +3103,8 @@ public:
             dist = std::hypot(worldPos.x - aWorld.x, worldPos.y - aWorld.y);
           } else {
             float t = std::clamp(((worldPos.x - aWorld.x) * ab.x +
-                                  (worldPos.y - aWorld.y) * ab.y) / l2,
+                                  (worldPos.y - aWorld.y) * ab.y) /
+                                     l2,
                                  0.0f, 1.0f);
             sf::Vector2f proj = aWorld + t * ab;
             dist = std::hypot(worldPos.x - proj.x, worldPos.y - proj.y);
@@ -2738,12 +3118,15 @@ public:
     }
 
     // Wall hover filtering:
-    // 1. Enclosed interior walls (surrounded by corridors/rooms) -> always show tooltip for all cells.
-    // 2. Exterior walls (facing the void) -> only show tooltip within 2 cells of an exterior corridor/room.
+    // 1. Enclosed interior walls (surrounded by corridors/rooms) -> always show
+    // tooltip for all cells.
+    // 2. Exterior walls (facing the void) -> only show tooltip within 2 cells
+    // of an exterior corridor/room.
     // 3. Gateway cells (before start or after exit) -> never show wall tooltip.
     if (!isHoveringStartArrow && !isHoveringExitArrow && !isHoveringAgent &&
         pCell && pCell->getType() == core::CellType::Wall) {
-      if ((cellPoint.x == cellBeforeStart.x && cellPoint.y == cellBeforeStart.y) ||
+      if ((cellPoint.x == cellBeforeStart.x &&
+           cellPoint.y == cellBeforeStart.y) ||
           (cellPoint.x == cellAfterExit.x && cellPoint.y == cellAfterExit.y)) {
         return;
       }
@@ -2752,7 +3135,8 @@ public:
         bool isWithin2Cells = false;
         for (int dy = -2; dy <= 2 && !isWithin2Cells; ++dy) {
           for (int dx = -2; dx <= 2 && !isWithin2Cells; ++dx) {
-            if (dx == 0 && dy == 0) continue;
+            if (dx == 0 && dy == 0)
+              continue;
             int nx = cellPoint.x + dx;
             int ny = cellPoint.y + dy;
             if (maze.isValid(nx, ny) && maze.at(nx, ny).isPassable()) {
@@ -2783,14 +3167,16 @@ public:
 
     float pivotX = 0.0f;
     float posX = mouseX + 16.0f;
-    if (posX + s_lastTooltipSize.x > windowWidth - 12.0f || mouseX > windowWidth - 220.0f) {
+    if (posX + s_lastTooltipSize.x > windowWidth - 12.0f ||
+        mouseX > windowWidth - 220.0f) {
       posX = mouseX - 16.0f;
       pivotX = 1.0f;
     }
 
     float pivotY = 0.0f;
     float posY = mouseY + 16.0f;
-    if (posY + s_lastTooltipSize.y > windowHeight - 12.0f || mouseY > windowHeight - 180.0f) {
+    if (posY + s_lastTooltipSize.y > windowHeight - 12.0f ||
+        mouseY > windowHeight - 180.0f) {
       posY = mouseY - 12.0f;
       pivotY = 1.0f;
     }
@@ -2798,7 +3184,8 @@ public:
     posX = std::clamp(posX, 10.0f, windowWidth - 10.0f);
     posY = std::clamp(posY, 10.0f, windowHeight - 10.0f);
 
-    ImGui::SetNextWindowPos(ImVec2(posX, posY), ImGuiCond_Always, ImVec2(pivotX, pivotY));
+    ImGui::SetNextWindowPos(ImVec2(posX, posY), ImGuiCond_Always,
+                            ImVec2(pivotX, pivotY));
 
     if (ImGui::Begin("##TacticalWorldTooltip", nullptr, tipFlags)) {
       ImGui::PushTextWrapPos(std::min(460.0f, windowWidth - 32.0f));
@@ -2819,8 +3206,7 @@ public:
         ImGui::Text("Координати шлюзу: [%d, %d]", maze.getExitPoint().x,
                     maze.getExitPoint().y);
       } else if (isHoveringAgent) {
-        ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f),
-                           "Робітник (Агент)");
+        ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f), "Робітник (Агент)");
         ImGui::Separator();
         ImGui::TextUnformatted(
             "Поточна позиція автономного робітника (GPS тактичний маяк)");
@@ -2852,7 +3238,8 @@ public:
                     itemHere->getValueDensity());
         ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
       } else if (isHoveringRouteLine) {
-        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.9f, 1.0f), "Лінія маршруту (TSP)");
+        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.9f, 1.0f),
+                           "Лінія маршруту (TSP)");
         ImGui::Separator();
         ImGui::TextUnformatted(
             "Розрахована лінія оптимального шляху робітника");
@@ -2902,7 +3289,8 @@ public:
           ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
         }
       } else if (pCell && pCell->getType() == core::CellType::Mud) {
-        ImGui::TextColored(ImVec4(0.85f, 0.65f, 0.35f, 1.0f), "Багнюка / Болото / Вода");
+        ImGui::TextColored(ImVec4(0.85f, 0.65f, 0.35f, 1.0f),
+                           "Багнюка / Болото / Вода");
         ImGui::Separator();
         ImGui::TextUnformatted("Важкопрохідна ділянка: витрата енергії +25 "
                                "прямо, +35 по діагоналі");
@@ -2918,8 +3306,10 @@ public:
         ImGui::TextUnformatted("Клітинка, яку робітник уже пройшов");
         ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
       } else if (pCell && pCell->getType() == core::CellType::Wall) {
-        if ((cellPoint.x == cellBeforeStart.x && cellPoint.y == cellBeforeStart.y) ||
-            (cellPoint.x == cellAfterExit.x && cellPoint.y == cellAfterExit.y)) {
+        if ((cellPoint.x == cellBeforeStart.x &&
+             cellPoint.y == cellBeforeStart.y) ||
+            (cellPoint.x == cellAfterExit.x &&
+             cellPoint.y == cellAfterExit.y)) {
           return;
         }
         ImGui::TextColored(ImVec4(0.6f, 0.65f, 0.75f, 1.0f), "Стіна комплексу");
@@ -2961,8 +3351,6 @@ public:
     ImGui::PopStyleVar(2);
   }
 
-
-
   void renderMinimapZoomBadge(float cameraZoom, float windowWidth,
                               float windowHeight, float minimapScale,
                               float /*uiScale*/, float alpha) {
@@ -2987,7 +3375,8 @@ public:
     float badgeH = std::max(20.0f * l.s, valSz.y + 7.0f * l.s);
 
     // Positioned safely below the rounded corner bezel (cornerR = 26.0f * l.s)
-    // l.screenY + 32.0f * l.s places the badge cleanly on the vertical straight edge of the screen
+    // l.screenY + 32.0f * l.s places the badge cleanly on the vertical straight
+    // edge of the screen
     float badgeX = l.screenX + l.screenW - badgeW - 12.0f * l.s;
     float badgeY = l.screenY + 32.0f * l.s;
 
@@ -3030,21 +3419,25 @@ public:
 
       drawList->AddText(ImVec2(startTextX, textY), textValCol, zoomBuf);
 
-      // Mini tactical gauge at bottom matching sidebar slider range [0.20x .. 4.50x]
-      float normT = std::clamp((currentMagnification - 0.20f) / (4.50f - 0.20f), 0.0f, 1.0f);
-      drawList->AddRectFilled(ImVec2(badgeX + gaugeMarginX, gaugeY),
-                              ImVec2(badgeX + gaugeMarginX + gaugeW, gaugeY + gaugeH),
-                              gaugeBgCol, 1.0f);
+      // Mini tactical gauge at bottom matching sidebar slider range [0.20x
+      // .. 4.50x]
+      float normT = std::clamp((currentMagnification - 0.20f) / (4.50f - 0.20f),
+                               0.0f, 1.0f);
+      drawList->AddRectFilled(
+          ImVec2(badgeX + gaugeMarginX, gaugeY),
+          ImVec2(badgeX + gaugeMarginX + gaugeW, gaugeY + gaugeH), gaugeBgCol,
+          1.0f);
       if (normT > 0.01f) {
-        drawList->AddRectFilled(ImVec2(badgeX + gaugeMarginX, gaugeY),
-                                ImVec2(badgeX + gaugeMarginX + gaugeW * normT, gaugeY + gaugeH),
-                                gaugeFillCol, 1.0f);
+        drawList->AddRectFilled(
+            ImVec2(badgeX + gaugeMarginX, gaugeY),
+            ImVec2(badgeX + gaugeMarginX + gaugeW * normT, gaugeY + gaugeH),
+            gaugeFillCol, 1.0f);
       }
       // 1.00x normal scale tick mark on the gauge
       float norm1x = (1.00f - 0.20f) / (4.50f - 0.20f);
       float markX = badgeX + gaugeMarginX + gaugeW * norm1x;
-      drawList->AddLine(ImVec2(markX, gaugeY - 1.0f), ImVec2(markX, gaugeY + gaugeH + 1.0f),
-                        markCol, 1.0f);
+      drawList->AddLine(ImVec2(markX, gaugeY - 1.0f),
+                        ImVec2(markX, gaugeY + gaugeH + 1.0f), markCol, 1.0f);
     }
     ImGui::End();
     ImGui::PopStyleVar(2);
