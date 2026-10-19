@@ -78,7 +78,7 @@ Contains 6 complete laboratory works in Java with JavaFX graphical interfaces, c
 - **[Lab 3](./laboratory-works/OOP/3/src/Main.java):** Object Composition, Deep Copying, Sorting & Search ([CODE](./laboratory-works/OOP/3/src/Main.java) | [EN README](./laboratory-works/OOP/3/README.md) | [UA PDF](./laboratory-works/OOP/3/ЛР3_Композиція_клонування_та_сотування.pdf))
 - **[Lab 4](./laboratory-works/OOP/4/src/main/java/gymworld/GymWorld.java):** JavaFX GUI & Custom Dialog Windows ([CODE](./laboratory-works/OOP/4/src/main/java/gymworld/GymWorld.java) | [EN README](./laboratory-works/OOP/4/README.md) | [UA PDF](./laboratory-works/OOP/4/ЛР4_Графічний_інтерфейс_JavaFX.pdf))
 - **[Lab 5](./laboratory-works/OOP/5/src/main/java/gymworld/GymWorld.java):** JavaFX Inheritance, Minimap, & Multi-Criteria Filtering ([CODE](./laboratory-works/OOP/5/src/main/java/gymworld/GymWorld.java) | [EN README](./laboratory-works/OOP/5/README.md) | [UA PDF](./laboratory-works/OOP/5/ЛР5_Успадкування_та_поліморфізм.pdf))
-- **[Lab 6](./laboratory-works/OOP/6/src/main/java/gymworld/GymWorld.java):** Object Serialization & System State Persistence ([CODE](./laboratory-works/OOP/6/src/main/java/gymworld/GymWorld.java) | [EN README](./laboratory-works/OOP/6/README.md) | [UA PDF](./laboratory-works/OOP/6/ЛР6_Серіалізація_обєктів.pdf))
+- **[Lab 6](./laboratory-works/OOP/6):** Object Serialization & System State Persistence ([CODE (Course Project)](./course-projects/OOP-java) | [EN README](./laboratory-works/OOP/6/README.md) | [UA PDF](./laboratory-works/OOP/6/ЛР6_Серіалізація_обєктів.pdf))
 
 ---
 
@@ -182,7 +182,7 @@ academic-archive/
 - **[ЛР 3](./laboratory-works/OOP/3/src/Main.java):** Композиція об'єктів, глибоке копіювання, сортування та пошук ([КОД](./laboratory-works/OOP/3/src/Main.java) | [УКР PDF](./laboratory-works/OOP/3/ЛР3_Композиція_клонування_та_сотування.pdf) | [АНГЛ README](./laboratory-works/OOP/3/README.md))
 - **[ЛР 4](./laboratory-works/OOP/4/src/main/java/gymworld/GymWorld.java):** Графічний інтерфейс JavaFX та діалогові вікна ([КОД](./laboratory-works/OOP/4/src/main/java/gymworld/GymWorld.java) | [УКР PDF](./laboratory-works/OOP/4/ЛР4_Графічний_інтерфейс_JavaFX.pdf) | [АНГЛ README](./laboratory-works/OOP/4/README.md))
 - **[ЛР 5](./laboratory-works/OOP/5/src/main/java/gymworld/GymWorld.java):** Успадкування JavaFX, радар-мінімапа та багатокритеріальна фільтрація ([КОД](./laboratory-works/OOP/5/src/main/java/gymworld/GymWorld.java) | [УКР PDF](./laboratory-works/OOP/5/ЛР5_Успадкування_та_поліморфізм.pdf) | [АНГЛ README](./laboratory-works/OOP/5/README.md))
-- **[ЛР 6](./laboratory-works/OOP/6/src/main/java/gymworld/GymWorld.java):** Серіалізація об'єктів та збереження стану системи ([КОД](./laboratory-works/OOP/6/src/main/java/gymworld/GymWorld.java) | [УКР PDF](./laboratory-works/OOP/6/ЛР6_Серіалізація_обєктів.pdf) | [АНГЛ README](./laboratory-works/OOP/6/README.md))
+- **[ЛР 6](./laboratory-works/OOP/6):** Серіалізація об'єктів та збереження стану системи ([КОД (Курсова)](./course-projects/OOP-java) | [УКР PDF](./laboratory-works/OOP/6/ЛР6_Серіалізація_обєктів.pdf) | [АНГЛ README](./laboratory-works/OOP/6/README.md))
 
 ---
 

@@ -10,9 +10,9 @@
 
 | Document | Format | Description & Link |
 | :--- | :---: | :--- |
-| **Individual Assignment** | `DOCX` | 🇺🇦 [`Індивідуальне_завдання_Lethal_Company.docx`](./Індивідуальне_завдання_Lethal_Company.docx) — Approved individual coursework assignment and specifications |
-| **Methodological Guidelines** | `PDF` | 🇺🇦 [`guidelines-for-coursework-UA.pdf`](./guidelines-for-coursework-UA.pdf) — Official VNTU DSA coursework requirements and standards |
-| **Task Variants Catalog** | `DOCX` | 🇺🇦 [`individual_task_variants.docx`](./individual_task_variants.docx) — Department coursework task variants list |
+| **Individual Assignment** | `DOCX` | 🇺🇦 [`Індивідуальне_завдання_Lethal_Company.docx`](./docs/Індивідуальне_завдання_Lethal_Company.docx) — Approved individual coursework assignment and specifications |
+| **Methodological Guidelines** | `PDF` | 🇺🇦 [`guidelines-for-coursework-UA.pdf`](./docs/guidelines-for-coursework-UA.pdf) — Official VNTU DSA coursework requirements and standards |
+| **Task Variants Catalog** | `DOCX` | 🇺🇦 [`individual_task_variants.docx`](./docs/individual_task_variants.docx) — Department coursework task variants list |
 
 ---
 
@@ -166,9 +166,11 @@ flowchart TD
 course-projects/DSA-cpp/
 ├── CMakeLists.txt                         # CMake build script
 ├── README.md                              # 📖 Project Documentation (Bilingual: EN / UA)
-├── guidelines-for-coursework-UA.pdf       # Methodological Guidelines (Ukrainian)
-├── individual_task_variants.docx          # Department Coursework Variants Catalog
-├── Індивідуальне_завдання_Lethal_Company.docx # Approved Individual Assignment
+├── docs/                                  # 📑 Academic documentation & specifications
+│   ├── guidelines-for-coursework-UA.pdf   # Methodological Guidelines (Ukrainian)
+│   ├── individual_task_variants.docx      # Department Coursework Variants Catalog
+│   ├── notes.md                           # Algorithmic notes
+│   └── Індивідуальне_завдання_Lethal_Company.docx # Approved Individual Assignment
 ├── assets/                                # 🎨 Application visual assets & icons
 │   ├── app.rc                             # Windows resource definition script
 │   ├── icon.ico                           # Executable icon
@@ -262,9 +264,9 @@ All required SFML runtime DLLs and asset files are automatically copied into `bu
 
 | Документ | Формат | Опис та пряме посилання |
 | :--- | :---: | :--- |
-| **Індивідуальне завдання** | `DOCX` | 🇺🇦 [`Індивідуальне_завдання_Lethal_Company.docx`](./Індивідуальне_завдання_Lethal_Company.docx) — Затверджене індивідуальне завдання та вимоги кафедри |
-| **Методичні вказівки кафедри** | `PDF` | 🇺🇦 [`guidelines-for-coursework-UA.pdf`](./guidelines-for-coursework-UA.pdf) — Офіційні методичні вказівки ВНТУ з дисципліни АСД |
-| **Каталог варіантів завдань** | `DOCX` | 🇺🇦 [`individual_task_variants.docx`](./individual_task_variants.docx) — Збірник тем та варіантів курсових робіт |
+| **Індивідуальне завдання** | `DOCX` | 🇺🇦 [`Індивідуальне_завдання_Lethal_Company.docx`](./docs/Індивідуальне_завдання_Lethal_Company.docx) — Затверджене індивідуальне завдання та вимоги кафедри |
+| **Методичні вказівки кафедри** | `PDF` | 🇺🇦 [`guidelines-for-coursework-UA.pdf`](./docs/guidelines-for-coursework-UA.pdf) — Офіційні методичні вказівки ВНТУ з дисципліни АСД |
+| **Каталог варіантів завдань** | `DOCX` | 🇺🇦 [`individual_task_variants.docx`](./docs/individual_task_variants.docx) — Збірник тем та варіантів курсових робіт |
 
 ---
 
@@ -418,9 +420,11 @@ flowchart TD
 course-projects/DSA-cpp/
 ├── CMakeLists.txt                         # Конфігурація збірки CMake
 ├── README.md                              # 📖 Документація проєкту (Bilingual: EN / UA)
-├── guidelines-for-coursework-UA.pdf       # Методичні вказівки кафедри (Українська)
-├── individual_task_variants.docx          # Збірник варіантів завдань кафедри
-├── Індивідуальне_завдання_Lethal_Company.docx # Затверджене індивідуальне завдання
+├── docs/                                  # 📑 Академічна документація та специфікації
+│   ├── guidelines-for-coursework-UA.pdf   # Методичні вказівки кафедри (Українська)
+│   ├── individual_task_variants.docx      # Збірник варіантів завдань кафедри
+│   ├── notes.md                           # Нотатки дослідження алгоритмів
+│   └── Індивідуальне_завдання_Lethal_Company.docx # Затверджене індивідуальне завдання
 ├── assets/                                # 🎨 Графічні ресурси, текстури та іконка
 │   ├── app.rc                             # Скрипт ресурсів програми (Windows)
 │   ├── icon.ico                           # Іконка виконуваного файлу
