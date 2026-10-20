@@ -6,9 +6,12 @@
 
 ---
 
-> [!NOTE]
-> **Complete Academic & Software Archive / Повноцінний академічний та програмний архів**  
-> This folder contains both the **interactive desktop game-simulation application** (**TORNADO GYM Simulator**) developed in Java 17+ and JavaFX, and the comprehensive **academic coursework documentation** (49-page explanatory note, UML models, and university guidelines in `docs/`).
+> [!IMPORTANT]
+> **Type of README:** 🎮 **Game Application / Software System README**  
+> This file is dedicated specifically to the **TORNADO GYM Simulator** desktop game application: game loop mechanics, controls, architecture, object modeling, domain entities, and launch instructions.  
+> 
+> 📑 **Looking for the Coursework Explanatory Note & Academic Documentation?**  
+> See the dedicated **[Coursework Explanatory Note & Documentation README (`docs/README.md`)](./docs/README.md)** for the academic report breakdown (49-page explanatory note), UML diagrams catalog, university requirements, guidelines, and evaluation details.
 
 ---
 
@@ -17,6 +20,7 @@
 | Deliverable / Document | Format | Description & Link |
 | :------------------------------ | :----: | :--------------------------------------------------------------------------------------------------------------------------- |
 | **Interactive Game Application** | `JavaFX` | 🎮 Complete desktop application source code in [`src/main/java/gymworld/`](./src/main/java/gymworld/) (launch via `./mvnw clean javafx:run`) |
+| **Coursework Documentation README** | `MD` | 📑 [docs/README.md](./docs/README.md) — Comprehensive guide to coursework explanatory note, UML models & guidelines |
 | **Coursework Explanatory Note** | `PDF`  | 🇬🇧 [COURSEWORK-EN.pdf](./docs/COURSEWORK-EN.pdf) — Complete 49-page technical report in English |
 | **Methodological Guidelines**   | `PDF`  | 🇬🇧 [guidelines-for-coursework-EN.pdf](./docs/guidelines-for-coursework-EN.pdf) — Official VNTU coursework requirements in English |
 | **Editable Report Document**     | `DOCX` | 📄 [OOP-SychYaroslav-2PI-25B.docx](./docs/OOP-SychYaroslav-2PI-25B.docx) — Full editable thesis manuscript in Microsoft Word |
@@ -277,9 +281,12 @@ course-projects/OOP-java/
 
 ---
 
-> [!NOTE]
-> **Повноцінний академічний та програмний архів**  
-> У цьому каталозі розміщено як **повноцінний графічний симулятор-гру** (**TORNADO GYM Simulator**), розроблений мовою Java 17+ на базі JavaFX з відкритим вихідним кодом, так і повний комплект **академічної документації курсового проєкту** (49-сторінкова пояснювальна записка, комплекс UML-діаграм та методичні вказівки кафедри у папці `docs/`).
+> [!IMPORTANT]
+> **Тип README-файлу:** 🎮 **Документація до програми / комп'ютерної гри-симулятора**  
+> Цей файл присвячено безпосередньо програмному застосунку **TORNADO GYM Simulator**: ігровому процесу, механікам, керуванню, архітектурі класів, моделюванню об'єктів та інструкціям із запуску.  
+> 
+> 📑 **Шукаєте пояснювальну записку та академічну документацію до курсової роботи?**  
+> Перейдіть до окремого **[README пояснювальної записки та документації курсової (`docs/README.md`)](./docs/README.md)**, де зібрано детальний огляд розділів пояснювальної записки (49 стор.), каталог UML-діаграм, методичні вказівки кафедри та результати захисту.
 
 ---
 
@@ -288,6 +295,7 @@ course-projects/OOP-java/
 | Складова / Документ | Формат | Опис та пряме посилання |
 | :----------------------------------- | :----: | :---------------------------------------------------------------------------------------------------------------------------- |
 | **Гра-застосунок (Симулятор)**       | `JavaFX` | 🎮 Повний вихідний код десктопного застосунку в [`src/main/java/gymworld/`](./src/main/java/gymworld/) (запуск: `./mvnw clean javafx:run`) |
+| **README курсової записки**          | `MD`   | 📑 [docs/README.md](./docs/README.md) — Повний путівник по пояснювальній записці, UML-моделям та методичним вимогам |
 | **Пояснювальна записка до курсової** | `PDF`  | 🇺🇦 [COURSEWORK-UA.pdf](./docs/COURSEWORK-UA.pdf) — Повна пояснювальна записка до курсової роботи (49 стор.) |
 | **Методичні вказівки кафедри**       | `PDF`  | 🇺🇦 [guidelines-for-coursework-UA.pdf](./docs/guidelines-for-coursework-UA.pdf) — Офіційні методичні вказівки ВНТУ з дисципліни ООП |
 | **Редагований файл записки**         | `DOCX` | 📄 [OOP-SychYaroslav-2PI-25B.docx](./docs/OOP-SychYaroslav-2PI-25B.docx) — Повний рукопис записки у форматі Microsoft Word |

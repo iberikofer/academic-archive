@@ -4,12 +4,20 @@
 
 > 🌐 **Language:** English &nbsp;|&nbsp; **[🇺🇦 Switch to Ukrainian Version / Перейти до української версії](#-українська-версія)**
 
+> [!IMPORTANT]
+> **Type of README:** 🎮 **Game Application / Simulation Software README**  
+> This file is dedicated specifically to the **Lethal Company DSA Simulator** software application: combinatorial algorithms pipeline (0/1 Knapsack, TSP with 2-Opt, A*/Dijkstra/BFS pathfinding, BSP maze generation), Dear ImGui HUD, interactive controls, C++20 / SFML 3 architecture, and build/run instructions.  
+> 
+> 📑 **Looking for the Coursework Explanatory Note & Academic Documentation?**  
+> See the dedicated **[Coursework Explanatory Note & Documentation README (`docs/README.md`)](./docs/README.md)** for the academic report structure, approved individual assignment, mathematical problem formulations, guideline compliance, and algorithmic research notes.
+
 ---
 
 ## 📑 Project Documentation & Guidelines
 
 | Document | Format | Description & Link |
 | :--- | :---: | :--- |
+| **Coursework Documentation README** | `MD` | 📑 [docs/README.md](./docs/README.md) — Comprehensive guide to coursework explanatory note, mathematical model & guidelines |
 | **Individual Assignment** | `DOCX` | 🇺🇦 [`Індивідуальне_завдання_Lethal_Company.docx`](./docs/Індивідуальне_завдання_Lethal_Company.docx) — Approved individual coursework assignment and specifications |
 | **Methodological Guidelines** | `PDF` | 🇺🇦 [`guidelines-for-coursework-UA.pdf`](./docs/guidelines-for-coursework-UA.pdf) — Official VNTU DSA coursework requirements and standards |
 | **Task Variants Catalog** | `DOCX` | 🇺🇦 [`individual_task_variants.docx`](./docs/individual_task_variants.docx) — Department coursework task variants list |
@@ -258,12 +266,20 @@ All required SFML runtime DLLs and asset files are automatically copied into `bu
 
 > 🌐 **Мова:** Українська &nbsp;|&nbsp; **[🇬🇧 Switch to English Version / Перейти до англійської версії](#-english-version)**
 
+> [!IMPORTANT]
+> **Тип README-файлу:** 🎮 **Документація до програми / комп'ютерної гри-симулятора**  
+> Цей файл присвячено безпосередньо програмному застосунку-симулятору **Lethal Company DSA Simulator**: пайплайну комбінаторних алгоритмів (0/1 рюкзак, TSP з 2-Opt, пошук шляху A*/Дейкстра/BFS, процедурна генерація BSP), інтерфейсу Dear ImGui, інтерактивному керуванню, C++20 / SFML 3 архітектурі та інструкціям зі збірки проєкту.  
+> 
+> 📑 **Шукаєте пояснювальну записку та академічну документацію до курсової роботи?**  
+> Перейдіть до окремого **[README пояснювальної записки та документації курсової (`docs/README.md`)](./docs/README.md)**, де представлено структуру пояснювальної записки, затверджене індивідуальне завдання, формальну математичну постановку задачі, вимоги кафедри та нотатки дослідження алгоритмів.
+
 ---
 
 ## 📑 Документація курсового проєкту та методичні матеріали
 
 | Документ | Формат | Опис та пряме посилання |
 | :--- | :---: | :--- |
+| **README курсової записки** | `MD` | 📑 [docs/README.md](./docs/README.md) — Повний путівник по пояснювальній записці, математичній моделі та методичним вимогам |
 | **Індивідуальне завдання** | `DOCX` | 🇺🇦 [`Індивідуальне_завдання_Lethal_Company.docx`](./docs/Індивідуальне_завдання_Lethal_Company.docx) — Затверджене індивідуальне завдання та вимоги кафедри |
 | **Методичні вказівки кафедри** | `PDF` | 🇺🇦 [`guidelines-for-coursework-UA.pdf`](./docs/guidelines-for-coursework-UA.pdf) — Офіційні методичні вказівки ВНТУ з дисципліни АСД |
 | **Каталог варіантів завдань** | `DOCX` | 🇺🇦 [`individual_task_variants.docx`](./docs/individual_task_variants.docx) — Збірник тем та варіантів курсових робіт |
