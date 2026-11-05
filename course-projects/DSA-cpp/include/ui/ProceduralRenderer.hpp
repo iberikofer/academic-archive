@@ -2241,7 +2241,7 @@ public:
                              ? sf::Color(0, 230, 255)
                          : (item.category == core::ItemCategory::MediumRelic)
                              ? sf::Color(255, 215, 0)
-                             : sf::Color(255, 75, 75);
+                             : sf::Color(255, 0, 255);
 
     if (!collected) {
       // Active uncollected scrap item
@@ -2444,7 +2444,7 @@ public:
                               ? sf::Color(0, 230, 255)
                           : (optItem->category == core::ItemCategory::MediumRelic)
                               ? sf::Color(255, 215, 0)
-                              : sf::Color(255, 75, 75);
+                              : sf::Color(255, 0, 255);
 
       sf::CircleShape glowRing(spotR);
       glowRing.setOrigin({spotR, spotR});
@@ -2540,7 +2540,7 @@ public:
                                  ? sf::Color(0, 230, 255)
                              : (pItem->category == core::ItemCategory::MediumScrap)
                                  ? sf::Color(255, 215, 0)
-                                 : sf::Color(255, 75, 75);
+                                 : sf::Color(255, 0, 255);
 
         // 3. Glowing tactical highlight frame around the cell
         sf::RectangleShape highlightFrame({TILE_SIZE + 4.0f, TILE_SIZE + 4.0f});
@@ -2779,7 +2779,7 @@ public:
                           ? sf::Color(0, 230, 255)
                       : (effect.category == core::ItemCategory::MediumRelic)
                           ? sf::Color(255, 215, 0)
-                          : sf::Color(255, 75, 75);
+                          : sf::Color(255, 0, 255);
 
       // 1. Expanding shockwave ring
       float ringRadius = 6.0f + 26.0f * std::sin(t * 1.57079f);

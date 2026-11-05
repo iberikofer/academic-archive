@@ -508,7 +508,7 @@ public:
           miniItem.setFillColor(sf::Color(255, 215, 0));
           break;
         case core::ItemCategory::HeavyArtifact:
-          miniItem.setFillColor(sf::Color(255, 75, 75));
+          miniItem.setFillColor(sf::Color(255, 0, 255));
           break;
         }
         target.draw(miniItem);

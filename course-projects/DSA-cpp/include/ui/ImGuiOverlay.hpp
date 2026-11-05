@@ -1807,7 +1807,7 @@ public:
         ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f),
                            "Побутовий брухт: %s", it.name.c_str());
       } else {
-        ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.35f, 1.0f), "Важкий брухт: %s",
+        ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f), "Важкий брухт: %s",
                            it.name.c_str());
       }
       ImGui::Separator();
@@ -2175,7 +2175,7 @@ public:
             "реактор)",
             [&colA](ImDrawList *dl, ImVec2 p, float s) {
               ImVec2 center(p.x + s * 0.5f, p.y + s * 0.5f);
-              dl->AddCircleFilled(center, 7.0f, colA(255, 75, 75, 255));
+              dl->AddCircleFilled(center, 7.0f, colA(255, 0, 255, 255));
               dl->AddCircle(center, 7.0f, colA(255, 255, 255, 240), 0, 1.8f);
             });
 
@@ -2309,7 +2309,7 @@ public:
                         ? ImVec4(0.0f, 0.90f, 1.0f, 1.0f)
                     : (it.category == core::ItemCategory::MediumScrap)
                         ? ImVec4(1.0f, 0.85f, 0.1f, 1.0f)
-                        : ImVec4(1.0f, 0.40f, 0.40f, 1.0f);
+                        : ImVec4(1.0f, 0.0f, 1.0f, 1.0f);
 
                 if (i > 0) {
                   float sepGap = 14.0f * config.uiScale;
@@ -2347,7 +2347,7 @@ public:
                                   ? IM_COL32(0, 210, 250, bannerAlpha)
                               : (it.category == core::ItemCategory::MediumScrap)
                                   ? IM_COL32(255, 215, 30, bannerAlpha)
-                                  : IM_COL32(255, 75, 75, bannerAlpha);
+                                  : IM_COL32(255, 0, 255, bannerAlpha);
 
                 ImDrawList *dl = ImGui::GetWindowDrawList();
                 // Push unclipped banner rect to span across both table columns
@@ -2384,7 +2384,7 @@ public:
                                ? ImVec4(0.0f, 0.9f, 1.0f, 1.0f)
                            : (it.category == core::ItemCategory::MediumScrap)
                                ? ImVec4(1.0f, 0.85f, 0.1f, 1.0f)
-                               : ImVec4(1.0f, 0.35f, 0.35f, 1.0f);
+                               : ImVec4(1.0f, 0.0f, 1.0f, 1.0f);
 
               bool isPresentInMaze = (mazeItemNames.count(it.name) > 0);
               bool isRowHovered = false;
@@ -2687,7 +2687,7 @@ public:
                                  ? ImVec4(0.0f, 0.9f, 1.0f, 1.0f)
                              : (it.category == core::ItemCategory::MediumScrap)
                                  ? ImVec4(1.0f, 0.85f, 0.1f, 1.0f)
-                                 : ImVec4(1.0f, 0.35f, 0.35f, 1.0f);
+                                 : ImVec4(1.0f, 0.0f, 1.0f, 1.0f);
                 ImGui::TableNextRow();
                 ImGui::TableSetColumnIndex(0);
                 ImGui::TextColored(col, "%zu. %s", i + 1, it.name.c_str());
@@ -3226,7 +3226,7 @@ public:
           ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f),
                              "Побутовий брухт: %s", itemHere->name.c_str());
         } else {
-          ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.35f, 1.0f),
+          ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f),
                              "Важкий брухт: %s", itemHere->name.c_str());
         }
         ImGui::Separator();
@@ -3252,7 +3252,7 @@ public:
           ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.1f, 1.0f),
                              "Побутовий брухт: %s", itemHere->name.c_str());
         } else {
-          ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.35f, 1.0f),
+          ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f),
                              "Важкий брухт: %s", itemHere->name.c_str());
         }
         ImGui::Separator();
