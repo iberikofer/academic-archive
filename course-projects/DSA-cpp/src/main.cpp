@@ -5,6 +5,7 @@
 #include <chrono>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <nlohmann/json.hpp>
 #include <vector>
 
@@ -306,25 +307,22 @@ int main(int argc, char *argv[]) {
 
   map::Maze maze;
   map::BSPGenerator generator(config);
-  generator.generate(maze);
-
-  // Smart scaling for backpack capacity & quota: ~52% of total scrap weight guarantees ~18 items capacity on 30x30, scaling smoothly with maze size
-  int initialCap = std::clamp(static_cast<int>(std::round(maze.getTotalItemWeight() * 0.52f)), 25, 450);
-  config.manualBackpackCapacity = initialCap;
-  config.companyQuota = std::max(200, static_cast<int>(std::round(maze.getTotalItemValue() * 0.50f)));
-
   simulation::SimulationEngine engine(maze, config);
-
-  auto benchmarkRows = runBatchBenchmark(maze, config);
-  recalculateSimulation(maze, config, engine, 0, 0);
-
-  // Export initial benchmark metrics to CSV & mission report to JSON
-  io::CsvExporter::exportToCsv("benchmark_results.csv", benchmarkRows);
-  io::JsonHandler::exportRouteReport("report_route.json", maze, config,
-                                     engine.getPlan(), engine, benchmarkRows,
-                                     0, 0);
+  std::vector<io::BenchmarkRow> benchmarkRows;
 
   if (testOnly) {
+    generator.generate(maze);
+    int initialCap = std::clamp(static_cast<int>(std::round(maze.getTotalItemWeight() * 0.52f)), 25, 450);
+    config.manualBackpackCapacity = initialCap;
+    config.companyQuota = std::max(200, static_cast<int>(std::round(maze.getTotalItemValue() * 0.50f)));
+    benchmarkRows = runBatchBenchmark(maze, config);
+    recalculateSimulation(maze, config, engine, 0, 0);
+
+    // Export initial benchmark metrics to CSV & mission report to JSON
+    io::CsvExporter::exportToCsv("benchmark_results.csv", benchmarkRows);
+    io::JsonHandler::exportRouteReport("report_route.json", maze, config,
+                                       engine.getPlan(), engine, benchmarkRows,
+                                       0, 0);
     std::cout << "========================================================\n"
               << "  LETHAL COMPANY DSA - VERIFICATION OF 6 CORE ALGORITHMS\n"
               << "========================================================\n";
@@ -542,205 +540,10 @@ int main(int argc, char *argv[]) {
 
   ui::ImGuiOverlay::applyLethalCompanyCherryTheme(ImGui::GetStyle());
 
-  // ========================================================
-  // SPLASH / LOADING SCREEN (LOGO, TITLE, PROGRESS BAR & %)
-  // ========================================================
-  auto renderSplash = [&](float progress, const std::string &stageText,
-                          float elapsed) {
-    ImGui::SFML::Update(window, sf::seconds(0.016f));
-    window.clear(sf::Color(22, 27, 36));
-
-    float winW = static_cast<float>(window.getSize().x);
-    float winH = static_cast<float>(window.getSize().y);
-
-    ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
-    ImGui::SetNextWindowSize(ImVec2(winW, winH));
-    ImGuiWindowFlags splashWinFlags =
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground;
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-
-    if (ImGui::Begin("SplashWindow", nullptr, splashWinFlags)) {
-      float logoDim = 230.0f;
-      float barW = 460.0f;
-      float barH = 22.0f;
-      float blockH =
-          logoDim + 18.0f + 50.0f + 16.0f + barH + 10.0f + 26.0f + 6.0f + 22.0f;
-      float topY = (winH - blockH) * 0.42f;
-
-      // 1. Centered Logo Image
-      float logoX = (winW - logoDim) * 0.5f;
-      float logoY = topY;
-      ImGui::SetCursorPos(ImVec2(logoX, logoY));
-      if (logoLoaded) {
-        ImGui::Image(logoTexture, sf::Vector2f(logoDim, logoDim));
-      } else {
-        ImGui::Dummy(ImVec2(logoDim, logoDim));
-      }
-
-      // Outer tactical glow border for the logo
-      ImDrawList *dl = ImGui::GetWindowDrawList();
-      float glowPulse = 0.5f + 0.5f * std::sin(elapsed * 4.0f);
-      ImU32 borderGlow =
-          IM_COL32(245, 140, 20, static_cast<int>(130 + 80 * glowPulse));
-      dl->AddRect(ImVec2(logoX - 3, logoY - 3),
-                  ImVec2(logoX + logoDim + 3, logoY + logoDim + 3), borderGlow,
-                  8.0f, 0, 2.0f);
-      dl->AddRect(ImVec2(logoX - 7, logoY - 7),
-                  ImVec2(logoX + logoDim + 7, logoY + logoDim + 7),
-                  IM_COL32(230, 60, 20, 60), 10.0f, 0, 1.5f);
-
-      // 2. Title "Lethal Labyrinth"
-      float titleY = logoY + logoDim + 18.0f;
-      const char *titleText = "Lethal Labyrinth";
-      float titleW =
-          titleFont
-              ? titleFont->CalcTextSizeA(46.0f, FLT_MAX, 0.0f, titleText).x
-              : ImGui::CalcTextSize(titleText).x;
-      float titleX = (winW - titleW) * 0.5f;
-      ImGui::SetCursorPos(ImVec2(titleX, titleY));
-      if (titleFont)
-        ImGui::PushFont(titleFont);
-      ImGui::TextColored(ImVec4(1.00f, 0.82f, 0.28f, 1.0f), "%s", titleText);
-      if (titleFont)
-        ImGui::PopFont();
-
-      // 3. Progress Bar
-      float barX = (winW - barW) * 0.5f;
-      float barY = titleY + 52.0f + 16.0f;
-
-      // Bar background
-      dl->AddRectFilled(ImVec2(barX, barY), ImVec2(barX + barW, barY + barH),
-                        IM_COL32(14, 16, 22, 230), 4.0f);
-
-      // Bar fill
-      float fillW = barW * std::clamp(progress, 0.0f, 1.0f);
-      if (fillW > 2.0f) {
-        dl->AddRectFilled(ImVec2(barX + 2, barY + 2),
-                          ImVec2(barX + fillW - 2, barY + barH - 2),
-                          IM_COL32(235, 75, 40, 255), 3.0f);
-        dl->AddLine(ImVec2(barX + 3, barY + 3),
-                    ImVec2(barX + fillW - 3, barY + 3),
-                    IM_COL32(255, 180, 90, 200), 1.0f);
-      }
-      // Bar border
-      dl->AddRect(ImVec2(barX, barY), ImVec2(barX + barW, barY + barH),
-                  IM_COL32(245, 160, 40, 220), 4.0f, 0, 1.8f);
-
-      // 4. Percentage under the progress bar
-      int pct = std::clamp(static_cast<int>(progress * 100.0f + 0.5f), 0, 100);
-      std::string pctStr = std::to_string(pct) + " %";
-      float pctW = ImGui::CalcTextSize(pctStr.c_str()).x;
-      float pctX = (winW - pctW) * 0.5f;
-      float pctY = barY + barH + 10.0f;
-      ImGui::SetCursorPos(ImVec2(pctX, pctY));
-      ImGui::TextColored(ImVec4(0.0f, 0.90f, 1.0f, 1.0f), "%s", pctStr.c_str());
-
-      // 5. Stage text under percentage
-      float stageW = ImGui::CalcTextSize(stageText.c_str()).x;
-      float stageX = (winW - stageW) * 0.5f;
-      float stageY = pctY + 28.0f;
-      ImGui::SetCursorPos(ImVec2(stageX, stageY));
-      ImGui::TextDisabled("%s", stageText.c_str());
-    }
-    ImGui::End();
-    ImGui::PopStyleVar();
-
-    ImGui::SFML::Render(window);
-    window.display();
-  };
-
-  // Pre-render initial splash frame while window is still hidden
-  renderSplash(0.05f, "Ініціалізація комплексу...", 0.0f);
-  renderSplash(0.05f, "Ініціалізація комплексу...", 0.0f);
-
-#ifdef _WIN32
-  if (hwnd) {
-    ShowWindow(hwnd, SW_SHOW);
-    ForceForegroundAndTop(hwnd);
-  }
-#endif
-  window.requestFocus();
-
-  sf::Clock splashClock;
-  sf::Clock splashFrameClock;
-  float splashProgress = 0.05f;
-  float targetProgress = 0.22f;
-  int splashStage = 0;
-  bool splashComplete = false;
-
-  while (window.isOpen() && !splashComplete) {
-    float dt = splashFrameClock.restart().asSeconds();
-    dt = std::clamp(dt, 0.001f, 0.05f);
-
-    while (const auto event = window.pollEvent()) {
-      ImGui::SFML::ProcessEvent(window, *event);
-      if (event->is<sf::Event::Closed>()) {
-        window.close();
-        ImGui::SFML::Shutdown();
-        return 0;
-      }
-      if (const auto *key = event->getIf<sf::Event::KeyPressed>()) {
-        if (key->code == sf::Keyboard::Key::Escape ||
-            key->code == sf::Keyboard::Key::Space ||
-            key->code == sf::Keyboard::Key::Enter) {
-          splashProgress = 1.0f;
-          targetProgress = 1.0f;
-          splashStage = 4;
-          splashComplete = true;
-        }
-      }
-      if (event->is<sf::Event::MouseButtonPressed>()) {
-        splashProgress = 1.0f;
-        targetProgress = 1.0f;
-        splashStage = 4;
-        splashComplete = true;
-      }
-    }
-
-    float elapsed = splashClock.getElapsedTime().asSeconds();
-    if (splashStage == 0 && elapsed >= 0.16f) {
-      splashStage = 1;
-      targetProgress = 0.48f;
-    } else if (splashStage == 1 && elapsed >= 0.50f) {
-      splashStage = 2;
-      targetProgress = 0.74f;
-    } else if (splashStage == 2 && elapsed >= 0.88f) {
-      splashStage = 3;
-      targetProgress = 0.94f;
-    } else if (splashStage == 3 && elapsed >= 1.25f) {
-      splashStage = 4;
-      targetProgress = 1.00f;
-    }
-
-    splashProgress +=
-        (targetProgress - splashProgress) * std::clamp(dt * 7.5f, 0.0f, 1.0f);
-
-    if (splashStage >= 4 && splashProgress >= 0.995f) {
-      splashProgress = 1.0f;
-      static float readyHoldElapsed = 0.0f;
-      readyHoldElapsed += dt;
-      if (readyHoldElapsed >= 0.50f) {
-        splashComplete = true;
-      }
-    }
-
-    std::string stageText = "Ініціалізація комплексу...";
-    if (splashStage == 1)
-      stageText = "Процедурна генерація лабіринту (BSP)...";
-    else if (splashStage == 2)
-      stageText = "Оптимізація маршруту та розміщення брухту...";
-    else if (splashStage == 3)
-      stageText = "Калібрування навігаційних алгоритмів...";
-    else if (splashStage >= 4)
-      stageText = "Готово! Вхід до комплексу...";
-
-    renderSplash(splashProgress, stageText, elapsed);
-  }
-
   window.resetGLStates();
 #ifdef _WIN32
   if (hwnd) {
+    ShowWindow(hwnd, SW_SHOW);
     ForceForegroundAndTop(hwnd);
     SetFocus(hwnd);
     SetActiveWindow(hwnd);
@@ -765,6 +568,7 @@ int main(int argc, char *argv[]) {
   ui::CameraController camera;
   ui::ProceduralRenderer renderer;
   ui::Minimap minimap;
+  minimap.setPoweredOffImmediate();
 
   float windowW = static_cast<float>(window.getSize().x);
   float windowH = static_cast<float>(window.getSize().y);
@@ -772,23 +576,299 @@ int main(int argc, char *argv[]) {
   camera.init(windowW, windowH);
   camera.setViewport(sf::FloatRect(sf::Vector2f{0.0f, 0.0f}, sf::Vector2f{1.0f, 1.0f}));
 
-  float initMazeWorldW = maze.getWidth() * ui::ProceduralRenderer::TILE_SIZE;
-  float initMazeWorldH = maze.getHeight() * ui::ProceduralRenderer::TILE_SIZE;
-  camera.fitMaze(initMazeWorldW, initMazeWorldH, windowW, windowH, 1.25f, false);
-
-  // Initialize Generation Transition with startup Lethal Company Sonar Scan from maze center
   ui::GenerationTransition transition;
-  sf::Vector2f centerOrigin{initMazeWorldW * 0.5f, initMazeWorldH * 0.5f};
-  constexpr float EXTRA_REACH = 16.0f * ui::ProceduralRenderer::TILE_SIZE + 140.0f;
-  float initMaxScanR = std::hypot(initMazeWorldW * 0.5f, initMazeWorldH * 0.5f) + EXTRA_REACH;
-  transition.startStartupScan(centerOrigin, initMaxScanR);
-  renderer.setWaitingForDrop(true);
+
+  enum class AppFlowState { Loading, Welcome, FadingOut, InGame };
+  AppFlowState appFlowState = AppFlowState::Loading;
+  float introFadeAlpha = 0.0f;
+  float splashProgress = 0.0f;
+  float targetProgress = 0.0f;
+  int splashStage = 0;
+  float barFadeAlpha = 1.0f;
+  float monitorFadeAlpha = 0.0f;
+  float logoElevateProgress = 0.0f;
+  float welcomeFadeAlpha = 0.0f;
+  float startScreenFadeAlpha = 1.0f;
+  sf::Clock splashClock;
+  sf::Clock deltaClock;
+
+  auto generateFirstLabyrinth = [&]() {
+    config.randomSeed = static_cast<unsigned int>(
+        std::chrono::high_resolution_clock::now().time_since_epoch().count());
+    generator.setConfig(config);
+    generator.generate(maze);
+    config.manualBackpackCapacity = std::clamp(
+        static_cast<int>(std::round(maze.getTotalItemWeight() * 0.52f)), 25, 450);
+    config.companyQuota = std::max(
+        200, static_cast<int>(std::round(maze.getTotalItemValue() * 0.50f)));
+    recalculateSimulation(maze, config, engine, uiState.knapsackAlgoIndex,
+                          uiState.pathfinderAlgoIndex);
+
+    float newMazeW = maze.getWidth() * ui::ProceduralRenderer::TILE_SIZE;
+    float newMazeH = maze.getHeight() * ui::ProceduralRenderer::TILE_SIZE;
+
+    renderer.resetAnimation();
+    camera.updateViewportSize(windowW, windowH);
+    camera.fitMaze(newMazeW, newMazeH, windowW, windowH, 1.25f, false);
+    minimap.resetZoom();
+
+    benchmarkRows = runBatchBenchmark(maze, config);
+    uiState.appliedKnapsackAlgoIndex = uiState.knapsackAlgoIndex;
+    uiState.appliedPathfinderAlgoIndex = uiState.pathfinderAlgoIndex;
+    uiState.appliedBackpackCapacity = config.manualBackpackCapacity;
+    uiState.appliedCompanyQuota = config.companyQuota;
+    uiState.appliedRouteMode = config.routeMode;
+    uiState.appliedInitialEnergy = config.initialEnergy;
+    uiState.appliedEnergyLimitEnabled = config.energyLimitEnabled;
+
+    io::CsvExporter::exportToCsv("benchmark_results.csv", benchmarkRows);
+    io::JsonHandler::exportRouteReport("report_route.json", maze, config,
+                                       engine.getPlan(), engine, benchmarkRows,
+                                       uiState.appliedKnapsackAlgoIndex,
+                                       uiState.appliedPathfinderAlgoIndex);
+
+    sf::Vector2f centerOrigin{newMazeW * 0.5f, newMazeH * 0.5f};
+    constexpr float EXTRA_REACH = 16.0f * ui::ProceduralRenderer::TILE_SIZE + 140.0f;
+    float newMaxR = std::hypot(newMazeW * 0.5f, newMazeH * 0.5f) + EXTRA_REACH;
+
+    transition.startStartupScan(centerOrigin, newMaxR);
+    renderer.setWaitingForDrop(true);
+
+    minimap.powerOn();
+    deltaClock.restart();
+    window.resetGLStates();
+  };
+
+  auto triggerStartGame = [&]() {
+    if (appFlowState == AppFlowState::Welcome) {
+      guiOverlay.setMissionPanelCollapsed(true);
+      guiOverlay.setMissionPanelOpenProgress(0.0f);
+      generateFirstLabyrinth();
+      startScreenFadeAlpha = 1.0f;
+      appFlowState = AppFlowState::FadingOut;
+    }
+  };
+
+  auto renderSplashWelcomeUI = [&](float scrW, float scrH, float fadeMultiplier) {
+    if (fadeMultiplier <= 0.001f)
+      return;
+
+    ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
+    ImGui::SetNextWindowSize(ImVec2(scrW, scrH));
+    ImGuiWindowFlags splashWinFlags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground;
+    if (fadeMultiplier < 0.999f) {
+      splashWinFlags |= ImGuiWindowFlags_NoInputs;
+    }
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+
+    if (ImGui::Begin("SplashWelcomeWindow", nullptr, splashWinFlags)) {
+      float logoDim = std::clamp(scrH * 0.20f, 150.0f, 210.0f);
+      float logoX = (scrW - logoDim) * 0.5f;
+
+      // Position 1: Centered vertically during initial Loading (group height ~ 350px)
+      float centerLogoY = std::max(20.0f, (scrH - (logoDim + 160.0f)) * 0.5f);
+      // Position 2: Elevated vertically to top during Briefing
+      float topLogoY = std::max(20.0f, scrH * 0.065f);
+
+      // Smooth cubic ease-in-out glide
+      float easeT = logoElevateProgress * logoElevateProgress * (3.0f - 2.0f * logoElevateProgress);
+      float logoY = centerLogoY + (topLogoY - centerLogoY) * easeT;
+
+      float effectiveIntroAlpha = introFadeAlpha * fadeMultiplier;
+
+      // Centered Logo with smooth intro fade-in and exit fade-out
+      ImGui::SetCursorPos(ImVec2(logoX, logoY));
+      if (logoLoaded) {
+        sf::Color logoTint(255, 255, 255, static_cast<uint8_t>(std::clamp(255.0f * effectiveIntroAlpha, 0.0f, 255.0f)));
+        ImGui::Image(logoTexture, sf::Vector2f(logoDim, logoDim), logoTint);
+      } else {
+        ImGui::Dummy(ImVec2(logoDim, logoDim));
+      }
+
+      // Tactical glow border for logo
+      ImDrawList *dl = ImGui::GetWindowDrawList();
+      float glowPulse = 0.5f + 0.5f * std::sin(splashClock.getElapsedTime().asSeconds() * 4.0f);
+      ImU32 borderGlow =
+          IM_COL32(245, 140, 20, static_cast<int>((130 + 80 * glowPulse) * effectiveIntroAlpha));
+      dl->AddRect(ImVec2(logoX - 3, logoY - 3),
+                  ImVec2(logoX + logoDim + 3, logoY + logoDim + 3), borderGlow,
+                  8.0f, 0, 2.0f);
+      dl->AddRect(ImVec2(logoX - 7, logoY - 7),
+                  ImVec2(logoX + logoDim + 7, logoY + logoDim + 7),
+                  IM_COL32(230, 60, 20, static_cast<int>(60 * effectiveIntroAlpha)), 10.0f, 0, 1.5f);
+
+      // Title "Lethal Labyrinth"
+      float titleY = logoY + logoDim + 14.0f;
+      const char *titleText = "Lethal Labyrinth";
+      float titleW =
+          titleFont
+              ? titleFont->CalcTextSizeA(46.0f, FLT_MAX, 0.0f, titleText).x
+              : ImGui::CalcTextSize(titleText).x;
+      float titleX = (scrW - titleW) * 0.5f;
+      ImGui::SetCursorPos(ImVec2(titleX, titleY));
+      if (titleFont)
+        ImGui::PushFont(titleFont);
+      ImGui::TextColored(ImVec4(1.00f, 0.82f, 0.28f, effectiveIntroAlpha), "%s", titleText);
+      if (titleFont)
+        ImGui::PopFont();
+
+      // 3. Progress bar phase (smooth intro fade-in, then fills, then fades out)
+      float effectiveBarAlpha = barFadeAlpha * effectiveIntroAlpha;
+      if (effectiveBarAlpha > 0.001f) {
+        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, effectiveBarAlpha);
+
+        float barW = std::min(460.0f, scrW * 0.45f);
+        float barH = 22.0f;
+        float barX = (scrW - barW) * 0.5f;
+        float barY = titleY + 52.0f + 14.0f;
+
+        dl->AddRectFilled(ImVec2(barX, barY), ImVec2(barX + barW, barY + barH),
+                          IM_COL32(14, 16, 22, static_cast<int>(230 * effectiveBarAlpha)), 4.0f);
+
+        float fillW = barW * std::clamp(splashProgress, 0.0f, 1.0f);
+        if (fillW > 2.0f) {
+          dl->AddRectFilled(ImVec2(barX + 2, barY + 2),
+                            ImVec2(barX + fillW - 2, barY + barH - 2),
+                            IM_COL32(235, 75, 40, static_cast<int>(255 * effectiveBarAlpha)), 3.0f);
+          dl->AddLine(ImVec2(barX + 3, barY + 3),
+                      ImVec2(barX + fillW - 3, barY + 3),
+                      IM_COL32(255, 180, 90, static_cast<int>(200 * effectiveBarAlpha)), 1.0f);
+        }
+        dl->AddRect(ImVec2(barX, barY), ImVec2(barX + barW, barY + barH),
+                    IM_COL32(245, 160, 40, static_cast<int>(220 * effectiveBarAlpha)), 4.0f, 0, 1.8f);
+
+        int pct = std::clamp(static_cast<int>(splashProgress * 100.0f + 0.5f), 0, 100);
+        std::string pctStr = std::to_string(pct) + " %";
+        float pctW = ImGui::CalcTextSize(pctStr.c_str()).x;
+        float pctX = (scrW - pctW) * 0.5f;
+        float pctY = barY + barH + 10.0f;
+        ImGui::SetCursorPos(ImVec2(pctX, pctY));
+        ImGui::TextColored(ImVec4(0.0f, 0.90f, 1.0f, effectiveBarAlpha), "%s", pctStr.c_str());
+
+        std::string stageText = "Ініціалізація комплексу...";
+        if (splashStage == 1)
+          stageText = "Процедурна генерація лабіринту (BSP)...";
+        else if (splashStage == 2)
+          stageText = "Оптимізація маршруту та розміщення брухту...";
+        else if (splashStage == 3)
+          stageText = "Калібрування навігаційних алгоритмів...";
+        else if (splashStage >= 4)
+          stageText = "Готово! Комплекс переведено в режим очікування...";
+
+        float stageW = ImGui::CalcTextSize(stageText.c_str()).x;
+        float stageX = (scrW - stageW) * 0.5f;
+        float stageY = pctY + 28.0f;
+        ImGui::SetCursorPos(ImVec2(stageX, stageY));
+        ImGui::TextDisabled("%s", stageText.c_str());
+
+        ImGui::PopStyleVar();
+      }
+
+      // 4. Welcome overview briefing and generate button (centered, no block bg/border, hr stays)
+      float effectiveWelcomeAlpha = welcomeFadeAlpha * fadeMultiplier;
+      if (effectiveWelcomeAlpha > 0.001f) {
+        float textMaxW = std::clamp(scrW * 0.52f, 540.0f, 760.0f);
+        float hrW = textMaxW;
+        float hrX = (scrW - hrW) * 0.5f;
+
+        // 4.1. Centered <hr> line after "Lethal Labyrinth" / before "ЕКСПЕДИЦІЙНИЙ БРИФІНГ"
+        float topHrY = titleY + 52.0f + 36.0f;
+        dl->AddLine(ImVec2(hrX, topHrY), ImVec2(hrX + hrW, topHrY),
+                    IM_COL32(235, 75, 40, static_cast<int>(180 * effectiveWelcomeAlpha)), 1.6f);
+
+        // 4.2. Centered Header (without "ТА НАВІГАЦІЯ")
+        float headerY = topHrY + 14.0f;
+        const char *headerText = "ЕКСПЕДИЦІЙНИЙ БРИФІНГ";
+        float headerW = ImGui::CalcTextSize(headerText).x;
+        ImGui::SetCursorPos(ImVec2((scrW - headerW) * 0.5f, headerY));
+        ImGui::TextColored(ImVec4(1.0f, 0.82f, 0.25f, effectiveWelcomeAlpha), "%s", headerText);
+
+        // 4.3. Centered <hr> line after "ЕКСПЕДИЦІЙНИЙ БРИФІНГ" / before body text
+        float bottomHrY = headerY + ImGui::GetFontSize() + 10.0f;
+        dl->AddLine(ImVec2(hrX, bottomHrY), ImVec2(hrX + hrW, bottomHrY),
+                    IM_COL32(235, 75, 40, static_cast<int>(180 * effectiveWelcomeAlpha)), 1.6f);
+
+        ImGui::SetCursorPosY(bottomHrY + 22.0f);
+
+        // Helper lambda to center wrapped text lines
+        auto renderCenteredWrapped = [&](const std::string &txt, float maxW, float sW, const ImVec4 &col) {
+          std::istringstream stream(txt);
+          std::string word;
+          std::string curLine;
+          while (stream >> word) {
+            std::string test = curLine.empty() ? word : (curLine + " " + word);
+            if (ImGui::CalcTextSize(test.c_str()).x > maxW && !curLine.empty()) {
+              float lineW = ImGui::CalcTextSize(curLine.c_str()).x;
+              ImGui::SetCursorPosX((sW - lineW) * 0.5f);
+              ImGui::TextColored(col, "%s", curLine.c_str());
+              curLine = word;
+            } else {
+              curLine = test;
+            }
+          }
+          if (!curLine.empty()) {
+            float lineW = ImGui::CalcTextSize(curLine.c_str()).x;
+            ImGui::SetCursorPosX((sW - lineW) * 0.5f);
+            ImGui::TextColored(col, "%s", curLine.c_str());
+          }
+        };
+
+        // Centered Paragraph 1
+        renderCenteredWrapped(
+            "Ласкаво просимо до «Lethal Labyrinth»! Проєкт натхненний атмосферою гри "
+            "Lethal Company та адаптований як навчально-дослідницька система з "
+            "дискретних структур та алгоритмів. Комплекс моделює процедурну BSP-генерацію "
+            "лабіринтів, алгоритми пошуку найкоротших шляхів (A*, Dijkstra, BFS) та "
+            "розв'язання задачі про рюкзак (Knapsack Problem) для збору цінностей.",
+            textMaxW, scrW, ImVec4(0.88f, 0.86f, 0.84f, effectiveWelcomeAlpha));
+
+        ImGui::Dummy(ImVec2(0.0f, 14.0f));
+
+        // Centered Paragraph 2
+        renderCenteredWrapped(
+            "У грі навігаційна система автоматично розраховує «найоптимальніший» маршрут "
+            "за заданими параметрами квоти. Проте ви можете особисто спробувати пройти "
+            "лабіринт у ручному режимі (клавіші [W, A, S, D]), зважаючи на обмежений ліміт "
+            "заряду енергії робітника та місткість рюкзака.",
+            textMaxW, scrW, ImVec4(0.88f, 0.86f, 0.84f, effectiveWelcomeAlpha));
+
+        ImGui::Dummy(ImVec2(0.0f, 22.0f));
+
+        // Centered Button
+        float btnW = std::clamp(textMaxW * 0.56f, 320.0f, 400.0f);
+        float btnH = 50.0f;
+        float btnX = (scrW - btnW) * 0.5f;
+        ImGui::SetCursorPosX(btnX);
+
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.80f, 0.20f, 0.16f, effectiveWelcomeAlpha));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.96f, 0.35f, 0.16f, effectiveWelcomeAlpha));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.00f, 0.55f, 0.20f, effectiveWelcomeAlpha));
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.00f, 0.80f, 0.25f, 0.95f * effectiveWelcomeAlpha));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.00f, 1.00f, 1.00f, effectiveWelcomeAlpha));
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.8f);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+
+        if (ImGui::Button("Згенерувати перший лабіринт!", ImVec2(btnW, btnH))) {
+          triggerStartGame();
+        }
+        if (ImGui::IsItemHovered()) {
+          ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+        }
+
+        ImGui::PopStyleVar(2);
+        ImGui::PopStyleColor(5);
+      }
+    }
+    ImGui::End();
+    ImGui::PopStyleVar();
+  };
 
   auto grabCursor = loadGrabCursor();
   auto defaultCursor = sf::Cursor::createFromSystem(sf::Cursor::Type::Arrow);
   bool wasDraggingCamera = false;
 
-  sf::Clock deltaClock;
   bool s_spaceDown = false;
   int s_spaceRepeatCount = 0;
   sf::Clock s_spaceRepeatClock;
@@ -859,6 +939,13 @@ int main(int argc, char *argv[]) {
           // Consume focus click so it doesn't trigger UI elements or camera drag when activating window
           continue;
         }
+        if (appFlowState == AppFlowState::Loading) {
+          introFadeAlpha = 1.0f;
+          splashProgress = 1.0f;
+          targetProgress = 1.0f;
+          splashStage = 4;
+          appFlowState = AppFlowState::Welcome;
+        }
       }
 
       // If the game window does not have focus, completely ignore any key, mouse, wheel, or text input!
@@ -872,6 +959,26 @@ int main(int argc, char *argv[]) {
       if (const auto *key = event->getIf<sf::Event::KeyPressed>()) {
         if (!hasFocus) {
           continue;
+        }
+        if (appFlowState == AppFlowState::Loading) {
+          if (key->code == sf::Keyboard::Key::Escape ||
+              key->code == sf::Keyboard::Key::Space ||
+              key->code == sf::Keyboard::Key::Enter) {
+            introFadeAlpha = 1.0f;
+            splashProgress = 1.0f;
+            targetProgress = 1.0f;
+            splashStage = 4;
+            appFlowState = AppFlowState::Welcome;
+            continue;
+          }
+        } else if (appFlowState == AppFlowState::Welcome) {
+          if (key->code == sf::Keyboard::Key::Space ||
+              key->code == sf::Keyboard::Key::Enter) {
+            if (welcomeFadeAlpha >= 0.8f) {
+              triggerStartGame();
+              continue;
+            }
+          }
         }
         if (key->code == sf::Keyboard::Key::Escape) {
           guiOverlay.toggleSidebar(config.uiScale);
@@ -1026,6 +1133,37 @@ int main(int argc, char *argv[]) {
               }
             }
           }
+
+          if (appFlowState == AppFlowState::InGame &&
+              !ImGui::GetIO().WantTextInput &&
+              !transition.isTransitionActive()) {
+            int dx = 0;
+            int dy = 0;
+            if (key->code == sf::Keyboard::Key::W || key->scancode == sf::Keyboard::Scan::W) {
+              dy = -1;
+            } else if (key->code == sf::Keyboard::Key::S || key->scancode == sf::Keyboard::Scan::S) {
+              dy = 1;
+            } else if (key->code == sf::Keyboard::Key::A || key->scancode == sf::Keyboard::Scan::A) {
+              dx = -1;
+            } else if (key->code == sf::Keyboard::Key::D || key->scancode == sf::Keyboard::Scan::D) {
+              dx = 1;
+            }
+
+            if (dx != 0 || dy != 0) {
+              if (renderer.isWaitingForDrop() || renderer.isParachuting()) {
+                renderer.finishParachuteDrop();
+                if (transition.isParachuting()) {
+                  transition.phase = ui::GenerationTransitionPhase::None;
+                }
+                guiOverlay.setMissionPanelCollapsed(false);
+              }
+              if (engine.moveAgentManual(dx, dy)) {
+                if (config.cameraFollowAgent) {
+                  uiState.requestCenterCameraOnAgent = true;
+                }
+              }
+            }
+          }
         }
       }
 
@@ -1042,7 +1180,7 @@ int main(int argc, char *argv[]) {
         }
       }
 
-      if (!transition.isTransitionActive()) {
+      if (appFlowState == AppFlowState::InGame && !transition.isTransitionActive()) {
         sf::Vector2f targetWorld;
         bool isMinimapDrag = false;
         float minimapZoomFactor = 1.0f;
@@ -1088,6 +1226,101 @@ int main(int argc, char *argv[]) {
     if (dtSeconds > 0.15f)
       dtSeconds = 0.15f; // Cap delta time on minimize/restore
 
+    if (appFlowState == AppFlowState::Loading || appFlowState == AppFlowState::Welcome) {
+      if (appFlowState == AppFlowState::Loading) {
+        if (introFadeAlpha < 1.0f) {
+          introFadeAlpha = std::min(1.0f, introFadeAlpha + dtSeconds * 2.2f);
+          if (introFadeAlpha >= 1.0f) {
+            splashClock.restart();
+            targetProgress = 0.22f;
+          }
+        } else {
+          float elapsed = splashClock.getElapsedTime().asSeconds();
+          if (splashStage == 0 && elapsed >= 0.16f) {
+            splashStage = 1;
+            targetProgress = 0.48f;
+          } else if (splashStage == 1 && elapsed >= 0.50f) {
+            splashStage = 2;
+            targetProgress = 0.74f;
+          } else if (splashStage == 2 && elapsed >= 0.88f) {
+            splashStage = 3;
+            targetProgress = 0.94f;
+          } else if (splashStage == 3 && elapsed >= 1.25f) {
+            splashStage = 4;
+            targetProgress = 1.00f;
+          }
+
+          splashProgress += (targetProgress - splashProgress) * std::clamp(dtSeconds * 7.5f, 0.0f, 1.0f);
+
+          if (splashStage >= 4 && splashProgress >= 0.995f) {
+            splashProgress = 1.0f;
+            appFlowState = AppFlowState::Welcome;
+          }
+        }
+      } else if (appFlowState == AppFlowState::Welcome) {
+        // Step 1: Progress bar fades out and minimap CRT monitor simultaneously smoothly fades in
+        if (barFadeAlpha > 0.0f) {
+          barFadeAlpha = std::max(0.0f, barFadeAlpha - dtSeconds * 3.2f);
+        }
+        if (monitorFadeAlpha < 1.0f) {
+          monitorFadeAlpha = std::min(1.0f, monitorFadeAlpha + dtSeconds * 3.2f);
+        }
+
+        // Step 2: Smoothly elevate logo and title from center to top position
+        if (logoElevateProgress < 1.0f) {
+          logoElevateProgress = std::min(1.0f, logoElevateProgress + dtSeconds * 2.2f);
+        }
+
+        // Step 3: ONLY when progress bar has completely disappeared, monitor is fully visible,
+        // and logo elevation is completed, start smoothly fading in the expedition briefing!
+        if (barFadeAlpha <= 0.001f && monitorFadeAlpha >= 0.999f && logoElevateProgress >= 0.999f) {
+          welcomeFadeAlpha = std::min(1.0f, welcomeFadeAlpha + dtSeconds * 2.8f);
+        }
+      }
+
+      window.clear(sf::Color(22, 27, 36));
+
+      // 1. Switched-off CRT monitor at bottom-right (smooth fade-in with monitorFadeAlpha)
+      minimap.render(window, maze, camera.getView(), engine.getAgent(),
+                     {}, windowW, windowH, renderer.getVisualAgentPos(),
+                     config.minimapScale, -1.0f, {0.0f, 0.0f}, 0.0f,
+                     nullptr, 1.0f, false, monitorFadeAlpha);
+
+      ImGui::SFML::Update(window, sf::seconds(dtSeconds));
+
+      // Force ImGui mouse state synchronization only when window has focus
+      sf::Vector2i mousePixel = hasFocus ? sf::Mouse::getPosition(window) : sf::Vector2i(-9999, -9999);
+      ImGuiIO &imIo = ImGui::GetIO();
+      if (!hasFocus) {
+        imIo.AppFocusLost = true;
+        imIo.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
+        for (int i = 0; i < 5; ++i) {
+          imIo.MouseDown[i] = false;
+        }
+      } else {
+        imIo.AppFocusLost = false;
+        imIo.MousePos = ImVec2(static_cast<float>(mousePixel.x), static_cast<float>(mousePixel.y));
+        for (int i = 0; i < 3; ++i) {
+          imIo.MouseDown[i] = sf::Mouse::isButtonPressed(static_cast<sf::Mouse::Button>(i));
+        }
+      }
+
+      // 2. Render ImGui Loading & Welcome Screen
+      renderSplashWelcomeUI(windowW, windowH, 1.0f);
+
+      ImGui::SFML::Render(window);
+      window.display();
+      continue;
+    }
+
+    if (appFlowState == AppFlowState::FadingOut) {
+      startScreenFadeAlpha = std::max(0.0f, startScreenFadeAlpha - dtSeconds * 2.0f);
+      if (startScreenFadeAlpha <= 0.001f) {
+        startScreenFadeAlpha = 0.0f;
+        appFlowState = AppFlowState::InGame;
+      }
+    }
+
     bool wasCompletedBefore = engine.isCompleted();
     engine.update(dtSeconds);
     if (!wasCompletedBefore && engine.isCompleted()) {
@@ -1119,6 +1352,7 @@ int main(int argc, char *argv[]) {
       if (transition.isParachuting()) {
         transition.phase = ui::GenerationTransitionPhase::None;
       }
+      guiOverlay.setMissionPanelCollapsed(false);
     }
     ImGui::SFML::Update(window, sf::seconds(dtSeconds));
 
@@ -1253,12 +1487,14 @@ int main(int argc, char *argv[]) {
         renderer.finishParachuteDrop();
         transition.phase = ui::GenerationTransitionPhase::None;
         transition.timer = 0.0f;
+        guiOverlay.setMissionPanelCollapsed(false);
       }
     }
 
     if (uiState.triggerRegeneration) {
       uiState.triggerRegeneration = false;
       guiOverlay.setSidebarCollapsed(true);
+      guiOverlay.setMissionPanelCollapsed(true);
       if (!transition.isTransitionActive()) {
         renderer.setWaitingForDrop(true);
         transition.startFadeOut(uiState.useSpecifiedSeed, uiState.specifiedSeedValue);
@@ -1364,18 +1600,23 @@ int main(int argc, char *argv[]) {
     uiState.isRouteTracing = transition.isRouteTracing();
     uiState.routeProgress = transition.getRouteProgress();
     uiState.isCameraZooming = transition.isCameraZooming();
-    guiOverlay.render(config, maze, engine, benchmarkRows, windowH, uiState);
-    guiOverlay.renderResizeHandle(windowH, config.uiScale, !transition.isTransitionActive());
-    if (uiState.cameraZoomChanged) {
-      uiState.cameraZoomChanged = false;
-      camera.setZoomLevel(uiState.cameraZoom);
-    } else if (uiState.requestSmoothZoom) {
-      uiState.requestSmoothZoom = false;
-      camera.zoomTo(uiState.targetCameraZoom, 8.5f);
+    if (appFlowState == AppFlowState::InGame) {
+      guiOverlay.render(config, maze, engine, benchmarkRows, windowH, uiState);
+      guiOverlay.renderResizeHandle(windowH, config.uiScale, !transition.isTransitionActive());
+      if (uiState.cameraZoomChanged) {
+        uiState.cameraZoomChanged = false;
+        camera.setZoomLevel(uiState.cameraZoom);
+      } else if (uiState.requestSmoothZoom) {
+        uiState.requestSmoothZoom = false;
+        camera.zoomTo(uiState.targetCameraZoom, 8.5f);
+      }
+      guiOverlay.renderMinimapLegend(config, maze, engine, camera, window,
+                                     renderer, windowW, windowH);
+      guiOverlay.renderMapTopControls(uiState, config, windowW, windowH);
+      guiOverlay.renderMissionStatusPanel(config, maze, engine, renderer, windowW, windowH);
+    } else if (appFlowState == AppFlowState::FadingOut && startScreenFadeAlpha > 0.001f) {
+      renderSplashWelcomeUI(windowW, windowH, startScreenFadeAlpha);
     }
-    guiOverlay.renderMinimapLegend(config, maze, engine, camera, window,
-                                   renderer, windowW, windowH);
-    guiOverlay.renderMapTopControls(uiState, config, windowW, windowH);
 
     // Zoom badge state on minimap screen
     float currentCameraZoom = camera.getZoomLevel();
@@ -1400,7 +1641,7 @@ int main(int argc, char *argv[]) {
       zoomBadgeAlpha = 0.50f;
     }
 
-    if (minimap.isPoweredOn() && zoomBadgeAlpha > 0.01f) {
+    if (appFlowState == AppFlowState::InGame && minimap.isPoweredOn() && zoomBadgeAlpha > 0.01f) {
       guiOverlay.renderMinimapZoomBadge(camera.getZoomLevel(), windowW, windowH,
                                         config.minimapScale, config.uiScale,
                                         zoomBadgeAlpha);
@@ -1419,7 +1660,7 @@ int main(int argc, char *argv[]) {
     sf::Vector2f activeScanOrigin = transition.scanOrigin;
     bool isExitDisabled = (config.routeMode == core::RouteMode::RoundTrip);
 
-    if (hasFocus) {
+    if (hasFocus && appFlowState == AppFlowState::InGame) {
       guiOverlay.renderWorldTooltip(
           maze, engine, worldPos, mouseOverUI, mousePixel, windowW, windowH,
           isExitDisabled, activeScanRadius, activeScanOrigin,
@@ -1434,7 +1675,7 @@ int main(int argc, char *argv[]) {
     // Handle keyboard arrow keys for camera panning only when window has focus and transition is inactive
     bool isPanningWithArrows = false;
     static sf::Vector2f s_arrowVelocity(0.0f, 0.0f);
-    if (hasFocus && !io.WantCaptureKeyboard && !transition.isTransitionActive()) {
+    if (hasFocus && !io.WantCaptureKeyboard && !transition.isTransitionActive() && appFlowState == AppFlowState::InGame) {
       float panDirX = 0.0f;
       float panDirY = 0.0f;
       if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left))
@@ -1508,7 +1749,7 @@ int main(int argc, char *argv[]) {
         float mazeCenterY = maze.getHeight() * ui::ProceduralRenderer::TILE_SIZE * 0.5f;
         camera.panTo(mazeCenterX, mazeCenterY, 14.0f);
       }
-    } else if (config.cameraFollowAgent && !engine.isCompleted() && !transition.isTransitionActive()) {
+    } else if (config.cameraFollowAgent && !transition.isTransitionActive()) {
       if (!camera.isDragging() && !minimap.isDragging() &&
           !isPanningWithArrows) {
         float distToAgent =
@@ -1539,10 +1780,35 @@ int main(int argc, char *argv[]) {
     activeScanOrigin = transition.scanOrigin;
     isExitDisabled = (config.routeMode == core::RouteMode::RoundTrip);
 
-    renderer.renderMaze(window, maze, config.showGrid, activeScanRadius, activeScanOrigin, isExitDisabled);
+    // Smooth fade in / fade out transitions for Grid and Optimal Route line checkboxes
+    static float s_gridAlpha = config.showGrid ? 1.0f : 0.0f;
+    static float s_routeAlpha = config.showOptimalRoute ? 1.0f : 0.0f;
+    const float FADE_SPEED = 4.2f; // Smooth ~240ms transition
+    float targetGrid = config.showGrid ? 1.0f : 0.0f;
+    float targetRoute = config.showOptimalRoute ? 1.0f : 0.0f;
 
-    // Route line rendered progressively based on transition phase
-    renderer.renderRoute(window, engine.getPlan(), transition.getRouteProgress());
+    if (s_gridAlpha < targetGrid) {
+      s_gridAlpha = std::min(targetGrid, s_gridAlpha + dtSeconds * FADE_SPEED);
+    } else if (s_gridAlpha > targetGrid) {
+      s_gridAlpha = std::max(targetGrid, s_gridAlpha - dtSeconds * FADE_SPEED);
+    }
+
+    if (s_routeAlpha < targetRoute) {
+      s_routeAlpha = std::min(targetRoute, s_routeAlpha + dtSeconds * FADE_SPEED);
+    } else if (s_routeAlpha > targetRoute) {
+      s_routeAlpha = std::max(targetRoute, s_routeAlpha - dtSeconds * FADE_SPEED);
+    }
+
+    // Cubic smoothstep easing: 3*t^2 - 2*t^3
+    float easedGridAlpha = s_gridAlpha * s_gridAlpha * (3.0f - 2.0f * s_gridAlpha);
+    float easedRouteAlpha = s_routeAlpha * s_routeAlpha * (3.0f - 2.0f * s_routeAlpha);
+
+    renderer.renderMaze(window, maze, easedGridAlpha, activeScanRadius, activeScanOrigin, isExitDisabled);
+
+    // Route line rendered progressively and faded with smooth alpha
+    if (easedRouteAlpha > 0.001f) {
+      renderer.renderRoute(window, engine.getPlan(), transition.getRouteProgress(), easedRouteAlpha);
+    }
     renderer.renderExitOverlay(window, maze, isExitDisabled, activeScanRadius, activeScanOrigin);
     renderer.renderEntryExitArrows(window, maze, engine.getPlan(), isExitDisabled, activeScanRadius, activeScanOrigin);
     renderer.renderRouteCompletionEffects(window, maze, isExitDisabled, activeScanRadius, activeScanOrigin);
@@ -1575,10 +1841,18 @@ int main(int argc, char *argv[]) {
     // 1:1 pixel UI view for minimap rendering
     sf::View uiView(sf::FloatRect({0.0f, 0.0f}, {windowW, windowH}));
     window.setView(uiView);
+
+    if (appFlowState == AppFlowState::FadingOut && startScreenFadeAlpha > 0.001f) {
+      sf::RectangleShape curtain(sf::Vector2f(windowW, windowH));
+      curtain.setFillColor(sf::Color(22, 27, 36, static_cast<uint8_t>(std::clamp(startScreenFadeAlpha * 255.0f, 0.0f, 255.0f))));
+      window.draw(curtain);
+    }
+
     minimap.render(window, maze, camera.getView(), engine.getAgent(),
                    collectedIds, windowW, windowH, renderer.getVisualAgentPos(),
                    config.minimapScale, activeScanRadius, activeScanOrigin,
-                   transition.getFadeAlpha(), &engine.getPlan(),
+                   transition.getFadeAlpha(),
+                   config.showOptimalRoute ? &engine.getPlan() : nullptr,
                    transition.getRouteProgress(), isExitDisabled);
 
     ImGui::SFML::Render(window);

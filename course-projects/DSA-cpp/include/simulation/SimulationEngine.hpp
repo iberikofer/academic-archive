@@ -19,6 +19,7 @@ struct HistoryFrame {
     std::vector<core::Item> backpackItems;
     std::vector<int> collectedItemIds;
     size_t routeStepIndex;
+    bool isManualMode = false;
 };
 
 class SimulationEngine {
@@ -29,6 +30,10 @@ public:
 
     void updateConfig(const core::Config& config) {
         config_ = config;
+    }
+
+    [[nodiscard]] const core::Config& getConfig() const noexcept {
+        return config_;
     }
 
     void initPlan(const algorithms::routing::RoutePlan& plan, int energy, int backpackCapacity) {
@@ -50,6 +55,7 @@ public:
         accumulatedTime_ = 0.0f;
         isPaused_ = true;
         isCompleted_ = false;
+        isManualMode_ = false;
         emergencyEvacuationTriggered_ = false;
 
         recordHistory();
@@ -79,6 +85,7 @@ public:
     void play() noexcept {
         if (!isCompleted_ && plan_.routeValid) {
             isPaused_ = false;
+            isManualMode_ = false;
         }
     }
 
@@ -95,6 +102,7 @@ public:
     }
 
     bool stepForward() {
+        isManualMode_ = false;
         if (!plan_.routeValid || currentStepIndex_ + 1 >= plan_.fullPath.size()) {
             isCompleted_ = true;
             isPaused_ = true;
@@ -184,6 +192,7 @@ public:
         agent_.restoreState(prev.currentEnergy, prev.energySpent, prev.stepsTaken);
         currentStepIndex_ = prev.routeStepIndex;
         collectedItemIds_ = prev.collectedItemIds;
+        isManualMode_ = prev.isManualMode;
         emergencyEvacuationTriggered_ = (prev.status == AgentStatus::Evacuating);
 
         auto& bp = agent_.getBackpack();
@@ -226,6 +235,7 @@ public:
         accumulatedTime_ = 0.0f;
         isPaused_ = true;
         isCompleted_ = false;
+        isManualMode_ = false;
         emergencyEvacuationTriggered_ = false;
         recordHistory();
     }
@@ -286,6 +296,68 @@ public:
         return rem;
     }
 
+    [[nodiscard]] bool isManualMode() const noexcept { return isManualMode_; }
+    void setManualMode(bool manual) noexcept { isManualMode_ = manual; }
+
+    bool moveAgentManual(int dx, int dy) {
+        if (agent_.isExhausted()) return false;
+
+        core::Point curPos = agent_.getPosition();
+        core::Point nextPos{curPos.x + dx, curPos.y + dy};
+
+        if (!maze_.isValid(nextPos) || !maze_.at(nextPos).isPassable()) {
+            return false;
+        }
+
+        isPaused_ = true;
+        isManualMode_ = true;
+
+        bool isDiag = (dx != 0 && dy != 0);
+        int stepCost = maze_.at(nextPos).getEnergyCost(isDiag);
+
+        if (config_.energyLimitEnabled) {
+            if (!agent_.consumeEnergy(stepCost, true)) {
+                isCompleted_ = true;
+                agent_.setStatus(AgentStatus::Exhausted);
+                recordHistory();
+                return false;
+            }
+        } else {
+            agent_.consumeEnergy(stepCost, false);
+        }
+
+        agent_.setPosition(nextPos);
+        agent_.addStep();
+        maze_.at(nextPos).setWalked(true);
+
+        auto& cell = maze_.at(nextPos);
+        if (cell.hasResource()) {
+            int rId = cell.getResourceId();
+            if (std::find(collectedItemIds_.begin(), collectedItemIds_.end(), rId) == collectedItemIds_.end()) {
+                auto itemOpt = maze_.getItemById(rId);
+                if (itemOpt.has_value()) {
+                    if (agent_.getBackpack().canFit(*itemOpt)) {
+                        agent_.getBackpack().addItem(*itemOpt);
+                        collectedItemIds_.push_back(rId);
+                    }
+                }
+            }
+        }
+
+        bool isExitDisabled = (config_.routeMode == core::RouteMode::RoundTrip);
+        const auto& evacTarget = isExitDisabled ? maze_.getStartPoint() : maze_.getExitPoint();
+        if (nextPos == evacTarget && agent_.getStepsTaken() > 0) {
+            isCompleted_ = true;
+            agent_.setStatus(AgentStatus::Success);
+        } else if (agent_.getStatus() == AgentStatus::Success) {
+            isCompleted_ = false;
+            agent_.setStatus(AgentStatus::Collecting);
+        }
+
+        recordHistory();
+        return true;
+    }
+
 private:
     void recordHistory() {
         HistoryFrame frame;
@@ -297,6 +369,7 @@ private:
         frame.backpackItems = agent_.getBackpack().getItems();
         frame.collectedItemIds = collectedItemIds_;
         frame.routeStepIndex = currentStepIndex_;
+        frame.isManualMode = isManualMode_;
         history_.push_back(frame);
     }
 
@@ -331,6 +404,7 @@ private:
     float baseStepDelay_ = 0.75f; // 1 move per 0.75 seconds by default
     bool isPaused_ = true;
     bool isCompleted_ = false;
+    bool isManualMode_ = false;
     bool emergencyEvacuationTriggered_ = false;
 };
 

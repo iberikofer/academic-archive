@@ -100,6 +100,18 @@ public:
     }
   }
 
+  void setMissionPanelCollapsed(bool collapsed) noexcept {
+    missionPanelCollapsed_ = collapsed;
+  }
+
+  [[nodiscard]] bool isMissionPanelCollapsed() const noexcept {
+    return missionPanelCollapsed_;
+  }
+
+  void setMissionPanelOpenProgress(float progress) noexcept {
+    missionPanelOpenProgress_ = progress;
+  }
+
   [[nodiscard]] int getHoveredCollectedItemId() const noexcept {
     return hoveredCollectedItemId_;
   }
@@ -406,6 +418,12 @@ public:
 
       // Display checkbox: Grid
       ImGui::Checkbox("Показувати сітку", &config.showGrid);
+      ImGui::Checkbox("Показувати оптимальний маршрут",
+                      &config.showOptimalRoute);
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Увімкнути або вимкнути відображення розрахованої "
+                          "оптимальної траєкторії маршруту.");
+      }
       if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip("Відображати тонку координатно-тактичну сітку між "
                           "клітинками лабіринту.");
@@ -468,6 +486,8 @@ public:
       ImGui::Spacing();
       ImGui::TextColored(ImVec4(0.85f, 0.75f, 0.50f, 1.0f),
                          "Гарячі клавіші та керування:");
+      ImGui::TextDisabled(
+          "- [W, A, S, D] - ручне керування переміщенням робітника");
       ImGui::TextDisabled("- [M] - Показати / сховати легенду позначок");
       ImGui::TextDisabled("- [C] - Центрувати / прив'язати камеру до агента");
       ImGui::TextDisabled(
@@ -476,8 +496,8 @@ public:
       ImGui::TextDisabled(
           "- [Ctrl+Space] - Повернутись на старт / Телепорт на фініш");
       ImGui::TextDisabled("- [ЛКМ] - панорамування карти");
-      ImGui::TextDisabled("- [Колесо миші] - масштабування в точку курсора");
       ImGui::TextDisabled("- [ЛКМ на міні-карті] - перехід або панорамування");
+      ImGui::TextDisabled("- [Колесо миші] - масштабування в точку курсора");
       ImGui::TextDisabled(
           "- [Колесо на міні-карті] - масштабування загальної карти");
       ImGui::TextDisabled("- [F11] - увімкнути / вимкнути повний екран");
@@ -1134,87 +1154,7 @@ public:
     // 4. Simulation playback controls
     if (renderSectionHeader("4.  Керування симуляцією", config.uiScale, true)) {
       ImGui::Spacing();
-      auto &agent = engine.getAgent();
-
-      ImVec4 statusColor = ImVec4(0.95f, 0.45f, 0.55f, 1.0f);
-      if (agent.getStatus() == simulation::AgentStatus::Success) {
-        statusColor = ImVec4(0.2f, 1.0f, 0.3f, 1.0f);
-      } else if (agent.getStatus() == simulation::AgentStatus::Exhausted) {
-        statusColor = ImVec4(1.0f, 0.3f, 0.3f, 1.0f);
-      } else if (agent.getStatus() == simulation::AgentStatus::Evacuating) {
-        statusColor = ImVec4(1.0f, 0.6f, 0.1f, 1.0f);
-      }
-
-      ImGui::Text("Стан робітника:");
-      ImGui::SameLine();
-      ImGui::TextColored(statusColor, "%s", agent.getStatusString().c_str());
-
-      float barH = std::max(22.0f * config.uiScale,
-                            ImGui::GetFontSize() +
-                                ImGui::GetStyle().FramePadding.y * 2.0f + 4.0f);
-
-      if (config.energyLimitEnabled) {
-        float energyFraction =
-            static_cast<float>(agent.getEnergyPercentage()) / 100.0f;
-        char energyBuf[64];
-        snprintf(energyBuf, sizeof(energyBuf), "Енергія: %d / %d од.",
-                 agent.getCurrentEnergy(), agent.getMaxEnergy());
-        ImGui::ProgressBar(energyFraction, ImVec2(-1, barH), energyBuf);
-      } else {
-        char energyBuf[64];
-        snprintf(energyBuf, sizeof(energyBuf),
-                 "Енергія: Необмежена (витрачено: %d од.)",
-                 agent.getEnergySpent());
-        ImGui::ProgressBar(1.0f, ImVec2(-1, barH), energyBuf);
-      }
-      if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Поточний рівень заряду енергії робітника.");
-      }
-
-      ImGui::Spacing();
-
-      float bpFraction =
-          static_cast<float>(agent.getBackpack().getUtilizationPercent()) /
-          100.0f;
-      char bpBuf[64];
-      snprintf(bpBuf, sizeof(bpBuf), "Вантаж: %d / %d кг (%d грн)",
-               agent.getBackpack().getCurrentWeight(),
-               agent.getBackpack().getMaxCapacity(),
-               agent.getBackpack().getCurrentValue());
-      ImGui::ProgressBar(bpFraction, ImVec2(-1, barH), bpBuf);
-      if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Заповненість рюкзака та сумарна вартість зібраних "
-                          "цінностей у гривнях.");
-      }
-
-      ImGui::Spacing();
-      int curValue = agent.getBackpack().getCurrentValue();
-      int targetQuota = config.companyQuota;
-      float quotaFraction =
-          std::clamp(static_cast<float>(curValue) /
-                         static_cast<float>(std::max(1, targetQuota)),
-                     0.0f, 1.0f);
-      char quotaBuf[64];
-      if (curValue >= targetQuota) {
-        snprintf(quotaBuf, sizeof(quotaBuf), "Квота: %d / %d грн [ВИКОНАНО!]",
-                 curValue, targetQuota);
-        ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
-                              ImVec4(0.18f, 0.85f, 0.42f, 1.0f));
-      } else {
-        snprintf(quotaBuf, sizeof(quotaBuf), "Квота: %d / %d грн (%d%%)",
-                 curValue, targetQuota,
-                 static_cast<int>(quotaFraction * 100.0f));
-        ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
-                              ImVec4(1.00f, 0.72f, 0.18f, 1.0f));
-      }
-      ImGui::ProgressBar(quotaFraction, ImVec2(-1, barH), quotaBuf);
-      ImGui::PopStyleColor();
-      if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip(
-            "Виконання мінімальної квоти Компанії (потрібно %d грн).\n"
-            "Вартість зростає в момент кожного підібраного предмета.",
-            targetQuota);
-      }
+      const auto &agent = engine.getAgent();
 
       if (engine.getExtraCollectedCount() > 0) {
         ImGui::Spacing();
@@ -1842,12 +1782,11 @@ public:
     hoveredCatalogCategory_ = -1;
 
     float dt = ImGui::GetIO().DeltaTime;
-    float targetT = config.showLegend ? 1.0f : 0.0f;
-    float animSpeed = 9.0f; // Smooth ~0.22s transition
-    legendAnimT_ +=
-        (targetT - legendAnimT_) * std::clamp(dt * animSpeed, 0.0f, 1.0f);
-    if (std::abs(targetT - legendAnimT_) < 0.003f) {
-      legendAnimT_ = targetT;
+    const float LEGEND_ANIM_DURATION = 0.24f; // Responsive 240ms transition matching sidebar
+    if (config.showLegend) {
+      legendAnimT_ = std::min(1.0f, legendAnimT_ + dt / LEGEND_ANIM_DURATION);
+    } else {
+      legendAnimT_ = std::max(0.0f, legendAnimT_ - dt / LEGEND_ANIM_DURATION);
     }
 
     // Cubic smoothstep easing: 3*t^2 - 2*t^3
@@ -1893,18 +1832,22 @@ public:
     ImGui::End();
     ImGui::PopStyleVar(2);
 
-    // 2. Details window gracefully sliding & fading directly underneath the
-    // button
-    if (windowAlpha > 0.02f) {
-      float slideX = (1.0f - easeT) * 20.0f;
-      float legendX = btnX + slideX;
-      float legendY = btnY + commonBtnH + 6.0f;
+    // 2. Details window gracefully sliding & fading vertically under the toggle button
+    if (windowAlpha > 0.001f) {
       float frameH = ui::Minimap::getFrameHeight(config.minimapScale);
       float mapControlsBtnH =
           std::max(28.0f * config.uiScale, ImGui::GetFrameHeight());
       float mapControlsY =
           windowHeight - frameH - Minimap::PADDING - mapControlsBtnH - 6.0f;
-      float maxLegendH = std::max(120.0f, mapControlsY - 6.0f - legendY);
+      float targetLegendY = btnY + commonBtnH + 6.0f;
+      float maxLegendH = std::max(120.0f, mapControlsY - 6.0f - targetLegendY);
+
+      bool isQuotaMet = (engine.getAgent().getBackpack().getCurrentValue() >= config.companyQuota);
+      static bool s_lastQuotaMet = false;
+      if (s_lastQuotaMet != isQuotaMet) {
+        s_lastQuotaMet = isQuotaMet;
+        collapsedLegendH_ = 0.0f;
+      }
 
       if (std::abs(lastUiScale_ - config.uiScale) > 0.001f) {
         lastUiScale_ = config.uiScale;
@@ -1915,7 +1858,7 @@ public:
                           9.0f * (std::max(18.0f, ImGui::GetTextLineHeight()) +
                                   ImGui::GetStyle().ItemSpacing.y + 6.0f) +
                           ImGui::GetFrameHeightWithSpacing() + padY * 2.0f +
-                          24.0f;
+                          (isQuotaMet ? (ImGui::GetTextLineHeightWithSpacing() + 38.0f * config.uiScale) : 28.0f * config.uiScale);
 
       float collapsedH =
           (collapsedLegendH_ > 50.0f) ? collapsedLegendH_ : baseLegendH;
@@ -1946,9 +1889,21 @@ public:
         }
       }
 
-      float subAnim = std::max(catalogOpenProgress_, collectedOpenProgress_);
-      float easeSub = subAnim * subAnim * (3.0f - 2.0f * subAnim);
-      float legendH = collapsedH + (maxLegendH - collapsedH) * easeSub;
+      float easeCatalog = catalogOpenProgress_ * catalogOpenProgress_ *
+                          (3.0f - 2.0f * catalogOpenProgress_);
+      float easeCollected = collectedOpenProgress_ * collectedOpenProgress_ *
+                            (3.0f - 2.0f * collectedOpenProgress_);
+
+      float targetCatalogH = maxLegendH;
+      float targetCollectedH = std::min(maxLegendH, collapsedH + measuredCollectedContentH_);
+
+      float catalogAddedH = (targetCatalogH - collapsedH) * easeCatalog;
+      float collectedAddedH = (targetCollectedH - collapsedH) * easeCollected;
+      float legendH = collapsedH + std::max(catalogAddedH, collectedAddedH);
+      legendH = std::min(legendH, maxLegendH);
+
+      float legendX = btnX;
+      float legendY = targetLegendY - (1.0f - easeT) * (legendH + 10.0f);
 
       ImGui::SetNextWindowPos(ImVec2(legendX, legendY), ImGuiCond_Always);
       ImGui::SetNextWindowSize(ImVec2(legendW, legendH), ImGuiCond_Always);
@@ -1978,6 +1933,9 @@ public:
       ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 4.0f);
 
       if (ImGui::Begin("MinimapLegendWindow", nullptr, flags)) {
+        ImGui::GetWindowDrawList()->PushClipRect(
+            ImVec2(btnX - 10.0f, targetLegendY - 2.0f),
+            ImVec2(btnX + legendW + 10.0f, windowHeight), true);
         ImGui::SetScrollX(0.0f);
         ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f),
                            "Легенда позначок:");
@@ -2023,7 +1981,9 @@ public:
                 std::memcpy(&texID, &glHandle, sizeof(glHandle));
                 float pad = 1.0f;
                 dl->AddImage(texID, ImVec2(p.x + pad, p.y + pad),
-                             ImVec2(p.x + s - pad, p.y + s - pad));
+                             ImVec2(p.x + s - pad, p.y + s - pad),
+                             ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f),
+                             colA(255, 255, 255, 255));
               } else {
                 dl->AddCircleFilled(center, 5.0f, colA(255, 200, 40, 255));
                 dl->AddCircle(center, 5.0f, colA(255, 255, 255, 240), 0, 1.5f);
@@ -2277,8 +2237,7 @@ public:
                                 ImGuiTableFlags_RowBg |
                                     ImGuiTableFlags_SizingStretchProp)) {
             ImGui::TableSetupColumn("  Найменування",
-                                    ImGuiTableColumnFlags_WidthStretch |
-                                        ImGuiTableColumnFlags_NoClip);
+                                    ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableSetupColumn("Вага / Ціна",
                                     ImGuiTableColumnFlags_WidthFixed,
                                     92.0f * config.uiScale);
@@ -2350,8 +2309,8 @@ public:
                                   : IM_COL32(255, 0, 255, bannerAlpha);
 
                 ImDrawList *dl = ImGui::GetWindowDrawList();
-                // Push unclipped banner rect to span across both table columns
-                dl->PushClipRect(bannerMin, bannerMax, false);
+                // Push clipped banner rect to span across both table columns
+                dl->PushClipRect(bannerMin, bannerMax, true);
                 dl->AddRectFilled(bannerMin, bannerMax, rowBg,
                                   3.0f * config.uiScale);
                 float availW = bannerMax.x - bannerMin.x;
@@ -2396,12 +2355,14 @@ public:
               if (isPresentInMaze) {
                 ImVec2 pMin = ImGui::GetItemRectMin();
                 ImVec2 pMax = ImGui::GetItemRectMax();
-                ImDrawList *dl = ImGui::GetWindowDrawList();
-                ImVec4 lineCol = col;
-                lineCol.w = std::clamp(windowAlpha, 0.0f, 1.0f);
-                dl->AddLine(ImVec2(pMin.x, pMax.y - 1.0f),
-                            ImVec2(pMax.x, pMax.y - 1.0f),
-                            ImGui::ColorConvertFloat4ToU32(lineCol), 1.4f);
+                if (ImGui::IsRectVisible(pMin, pMax)) {
+                  ImDrawList *dl = ImGui::GetWindowDrawList();
+                  ImVec4 lineCol = col;
+                  lineCol.w = std::clamp(windowAlpha, 0.0f, 1.0f);
+                  dl->AddLine(ImVec2(pMin.x, pMax.y - 1.0f),
+                              ImVec2(pMax.x, pMax.y - 1.0f),
+                              ImGui::ColorConvertFloat4ToU32(lineCol), 1.4f);
+                }
               }
 
               if (ImGui::IsItemHovered()) {
@@ -2475,13 +2436,11 @@ public:
         if (isQuotaMet) {
           if (hasExtraScrap) {
             std::snprintf(collectedBtnText, sizeof(collectedBtnText),
-                          "Мінімальну квоту виконано! (%d/%d грн | %zu од. "
-                          "[+%zu])###CollectedBtn",
+                          "(%d/%d грн | %zu од. [+%zu])###CollectedBtn",
                           curCollectedVal, quota, collectedCount, extraCount);
           } else {
             std::snprintf(collectedBtnText, sizeof(collectedBtnText),
-                          "Мінімальну квоту виконано! (%d/%d грн | %zu/%zu "
-                          "од.)###CollectedBtn",
+                          "(%d/%d грн | %zu/%zu од.)###CollectedBtn",
                           curCollectedVal, quota, collectedCount,
                           targetItemsCount);
           }
@@ -2497,9 +2456,6 @@ public:
                           targetItemsCount);
           }
         }
-
-        float collectedBtnLocalY =
-            ImGui::GetCursorPosY() - ImGui::GetStyle().WindowPadding.y;
 
         ImVec4 btnNormalCol =
             isQuotaMet ? ImVec4(0.10f, 0.22f, 0.14f, 0.88f)
@@ -2543,11 +2499,6 @@ public:
               isCatalogClosing_ = true;
               catalogScrollOnCloseStart_ = ImGui::GetScrollY();
             }
-            collectedAutoScrollActive_ = true;
-            collectedAutoScrollStart_ = ImGui::GetScrollY();
-            collectedAutoScrollTarget_ =
-                std::max(0.0f, collectedBtnLocalY - 4.0f);
-            collectedAutoScrollTime_ = 0.0f;
           } else {
             isCollectedClosing_ = true;
             collectedScrollOnCloseStart_ = ImGui::GetScrollY();
@@ -2572,6 +2523,18 @@ public:
           }
         }
         ImGui::PopStyleColor(4);
+
+        if (isQuotaMet) {
+          ImGui::Spacing();
+          const char *quotaSuccessText = "Мінімальну квоту виконано!";
+          float textW = ImGui::CalcTextSize(quotaSuccessText).x;
+          float availW = ImGui::GetContentRegionAvail().x;
+          if (availW > textW) {
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (availW - textW) * 0.5f);
+          }
+          ImGui::TextColored(ImVec4(0.35f, 0.95f, 0.55f, 1.0f), "%s", quotaSuccessText);
+          ImGui::Dummy(ImVec2(0.0f, 6.0f * config.uiScale));
+        }
 
         if (isCollectedOpen_ || collectedOpenProgress_ > 0.001f) {
           ImGui::Spacing();
@@ -2748,7 +2711,7 @@ public:
         // are completely closed
         if (!isCatalogOpen_ && catalogOpenProgress_ <= 0.0f &&
             !isCollectedOpen_ && collectedOpenProgress_ <= 0.0f) {
-          float measuredH = std::ceil(ImGui::GetCursorPosY() + padY + 4.0f);
+          float measuredH = std::ceil(ImGui::GetCursorPosY() + padY + 10.0f * config.uiScale);
           if (measuredH > 50.0f) {
             collapsedLegendH_ = measuredH;
           }
@@ -2817,6 +2780,7 @@ public:
           legendScroller_.update(68.0f, config.uiScale);
           ImGui::SetScrollX(0.0f);
         }
+        ImGui::GetWindowDrawList()->PopClipRect();
       }
       ImGui::End();
 
@@ -2887,6 +2851,404 @@ public:
                   ? "Вимкнути стеження камери за агентом [C]."
                   : "Центрувати та увімкнути стеження камери за агентом [C].");
         }
+      }
+    }
+    ImGui::End();
+    ImGui::PopStyleVar(2);
+  }
+
+  struct AgentStatusDisplay {
+    std::string text;
+    ImVec4 color;
+  };
+
+  static AgentStatusDisplay
+  getAgentStatusDisplay(const simulation::SimulationEngine &engine,
+                        const map::Maze &maze,
+                        const ProceduralRenderer &renderer,
+                        bool isManualMode) {
+    const auto &agent = engine.getAgent();
+    const auto &pos = agent.getPosition();
+
+    // 1. Evacuation reached
+    bool isExitDisabled =
+        (engine.getConfig().routeMode == core::RouteMode::RoundTrip);
+    const auto &evacTarget =
+        isExitDisabled ? maze.getStartPoint() : maze.getExitPoint();
+    if ((agent.getStatus() == simulation::AgentStatus::Success) ||
+        (pos == evacTarget && agent.getStepsTaken() > 0)) {
+      return {"Евакуація...", ImVec4(0.20f, 1.0f, 0.35f, 1.0f)};
+    }
+
+    // 2. Start point before departure / parachuting
+    if (renderer.isWaitingForDrop() || renderer.isParachuting() ||
+        (pos == maze.getStartPoint() && agent.getStepsTaken() == 0)) {
+      return {"Десантування...", ImVec4(1.0f, 0.60f, 0.15f, 1.0f)};
+    }
+
+    // 3. Exhausted
+    if (agent.isExhausted() ||
+        agent.getStatus() == simulation::AgentStatus::Exhausted) {
+      return {"Критично: Енергія вичерпана!", ImVec4(1.0f, 0.30f, 0.30f, 1.0f)};
+    }
+
+    // 4. Scrap collection on current cell
+    if (maze.isValid(pos) && maze.at(pos).hasResource()) {
+      int rId = maze.at(pos).getResourceId();
+      const auto &collected = engine.getCollectedItemIds();
+      if (std::find(collected.begin(), collected.end(), rId) !=
+          collected.end()) {
+        auto optItem = maze.getItemById(rId);
+        if (optItem.has_value()) {
+          ImVec4 catCol = (optItem->category == core::ItemCategory::LightScrap)
+                              ? ImVec4(0.0f, 0.90f, 1.0f, 1.0f)
+                          : (optItem->category == core::ItemCategory::MediumScrap)
+                              ? ImVec4(1.0f, 0.85f, 0.10f, 1.0f)
+                              : ImVec4(1.0f, 0.0f, 1.0f, 1.0f);
+          return {"Збір брухту: " + optItem->name, catCol};
+        }
+      }
+    }
+
+    // 5. Manual control vs Autonomous
+    if (isManualMode) {
+      return {"Ручне збирання брухту", ImVec4(1.0f, 0.82f, 0.25f, 1.0f)};
+    } else {
+      return {"Автономне збирання брухту", ImVec4(0.35f, 0.90f, 1.0f, 1.0f)};
+    }
+  }
+
+  void renderMissionStatusPanel(core::Config &config, const map::Maze &maze,
+                                const simulation::SimulationEngine &engine,
+                                const ProceduralRenderer &renderer,
+                                float windowWidth, float windowHeight) {
+    float dt = ImGui::GetIO().DeltaTime;
+    const float PANEL_ANIM_DUR = 0.26f;
+    if (missionPanelCollapsed_) {
+      missionPanelOpenProgress_ =
+          std::max(0.0f, missionPanelOpenProgress_ - dt / PANEL_ANIM_DUR);
+    } else {
+      missionPanelOpenProgress_ =
+          std::min(1.0f, missionPanelOpenProgress_ + dt / PANEL_ANIM_DUR);
+    }
+    float easeT = missionPanelOpenProgress_ * missionPanelOpenProgress_ *
+                  (3.0f - 2.0f * missionPanelOpenProgress_);
+
+    float mmFrameW = Minimap::getFrameWidth(config.minimapScale);
+    float monitorLeftX = windowWidth - mmFrameW - Minimap::PADDING;
+
+    float panelW = std::round(345.0f * config.uiScale);
+    float panelH = std::round(154.0f * config.uiScale);
+    float bottomMargin = std::round(Minimap::PADDING + 24.0f * config.uiScale);
+    float panelY = std::round(windowHeight - bottomMargin - panelH);
+
+    // Panel physically slides under the monitor casing without fading out
+    float panelX = std::round(monitorLeftX - panelW * easeT);
+
+    float handleW = std::round(18.0f * config.uiScale);
+    float handleH = std::round(76.0f * config.uiScale);
+    float handleX = panelX - handleW;
+    float handleY = std::round(panelY + (panelH - handleH) * 0.5f);
+
+    // 1. Mission indicators panel (clipped strictly at the monitor's left edge so it slides UNDER the monitor)
+    if (easeT > 0.001f) {
+      ImGui::SetNextWindowPos(ImVec2(panelX, panelY), ImGuiCond_Always);
+      ImGui::SetNextWindowSize(ImVec2(panelW, panelH), ImGuiCond_Always);
+
+      ImGuiWindowFlags pFlags =
+          ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+          ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar |
+          ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoBackground;
+
+      ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+      ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+      ImGui::PushStyleVar(
+          ImGuiStyleVar_WindowPadding,
+          ImVec2(10.0f * config.uiScale, 8.0f * config.uiScale));
+
+      if (ImGui::Begin("##MissionStatusPanelWindow", nullptr, pFlags)) {
+        float clipX = std::floor(monitorLeftX);
+        ImGui::PushClipRect(ImVec2(0.0f, 0.0f), ImVec2(clipX, windowHeight), true);
+
+        ImDrawList *dl = ImGui::GetWindowDrawList();
+        ImU32 panelBgCol = IM_COL32(23, 20, 26, 240);
+        ImU32 panelBorderCol = IM_COL32(122, 41, 61, 230);
+        float roundRadius = 8.0f * config.uiScale;
+
+        // Smoothly round only the left corners (top-left and bottom-left).
+        // The right side meets the monitor flush and flat with zero gaps!
+        dl->AddRectFilled(ImVec2(panelX, panelY),
+                          ImVec2(panelX + panelW, panelY + panelH),
+                          panelBgCol, roundRadius, ImDrawFlags_RoundCornersLeft);
+        dl->AddRect(ImVec2(panelX, panelY),
+                    ImVec2(panelX + panelW, panelY + panelH),
+                    panelBorderCol, roundRadius, ImDrawFlags_RoundCornersLeft, 1.0f);
+        auto statusDisp = getAgentStatusDisplay(engine, maze, renderer,
+                                               engine.isManualMode());
+
+        ImGui::Text("Стан робітника:");
+        ImGui::SameLine();
+        ImGui::TextColored(statusDisp.color, "%s", statusDisp.text.c_str());
+
+        float barH =
+            std::max(20.0f * config.uiScale, ImGui::GetFontSize() + 5.0f);
+        const auto &agent = engine.getAgent();
+
+        if (config.energyLimitEnabled) {
+          float energyFraction =
+              static_cast<float>(agent.getEnergyPercentage()) / 100.0f;
+          char energyBuf[64];
+          std::snprintf(energyBuf, sizeof(energyBuf), "Енергія: %d / %d од.",
+                        agent.getCurrentEnergy(), agent.getMaxEnergy());
+          ImGui::ProgressBar(energyFraction, ImVec2(-1, barH), energyBuf);
+        } else {
+          char energyBuf[64];
+          std::snprintf(energyBuf, sizeof(energyBuf),
+                        "Енергія: Необмежена (%d од.)",
+                        agent.getEnergySpent());
+          ImGui::ProgressBar(1.0f, ImVec2(-1, barH), energyBuf);
+        }
+        if (ImGui::IsItemHovered()) {
+          ImGui::SetTooltip("Поточний рівень заряду енергії робітника.");
+        }
+
+        ImGui::Spacing();
+
+        float bpFraction =
+            static_cast<float>(agent.getBackpack().getUtilizationPercent()) /
+            100.0f;
+        char bpBuf[64];
+        std::snprintf(bpBuf, sizeof(bpBuf), "Вантаж: %d / %d кг (%d грн)",
+                      agent.getBackpack().getCurrentWeight(),
+                      agent.getBackpack().getMaxCapacity(),
+                      agent.getBackpack().getCurrentValue());
+        ImGui::ProgressBar(bpFraction, ImVec2(-1, barH), bpBuf);
+        if (ImGui::IsItemHovered()) {
+          ImGui::SetTooltip("Заповненість рюкзака та загальна вартість брухту.");
+        }
+
+        ImGui::Spacing();
+
+        int curValue = agent.getBackpack().getCurrentValue();
+        int targetQuota = config.companyQuota;
+        float quotaFraction =
+            std::clamp(static_cast<float>(curValue) /
+                           static_cast<float>(std::max(1, targetQuota)),
+                       0.0f, 1.0f);
+        char quotaBuf[64];
+        if (curValue >= targetQuota) {
+          std::snprintf(quotaBuf, sizeof(quotaBuf),
+                        "Квота: %d / %d грн [ВИКОНАНО!]", curValue, targetQuota);
+          ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
+                                ImVec4(0.18f, 0.85f, 0.42f, 1.0f));
+        } else {
+          std::snprintf(quotaBuf, sizeof(quotaBuf), "Квота: %d / %d грн (%d%%)",
+                        curValue, targetQuota,
+                        static_cast<int>(quotaFraction * 100.0f));
+          ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
+                                ImVec4(1.00f, 0.72f, 0.18f, 1.0f));
+        }
+        ImGui::ProgressBar(quotaFraction, ImVec2(-1, barH), quotaBuf);
+        ImGui::PopStyleColor();
+        if (ImGui::IsItemHovered()) {
+          ImGui::SetTooltip("Прогрес виконання квоти Компанії.");
+        }
+
+        ImGui::PopClipRect();
+      }
+      ImGui::End();
+      ImGui::PopStyleVar(3);
+    }
+
+    // 2. Toggle button on left edge
+    float morphFactor = std::clamp((0.25f - easeT) / 0.25f, 0.0f, 1.0f);
+    float missionWaveMorph = morphFactor * morphFactor * (3.0f - 2.0f * morphFactor);
+
+    float curFlare = 28.0f * config.uiScale * missionWaveMorph;
+    float winPad = 4.0f;
+    float winY = handleY - curFlare;
+    float winH = handleH + 2.0f * curFlare;
+    float winW = handleW + 8.0f; // Extra width to allow overlap into panel without window clipping
+
+    ImGui::SetNextWindowPos(ImVec2(handleX - winPad, winY - winPad), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(winW + winPad * 2.0f, winH + winPad * 2.0f), ImGuiCond_Always);
+
+    ImGuiWindowFlags hFlags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground |
+        ImGuiWindowFlags_NoScrollbar;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+
+    if (ImGui::Begin("##MissionPanelGripWindow", nullptr, hFlags)) {
+      ImGui::SetCursorPos(ImVec2(winPad, winPad));
+      if (ImGui::InvisibleButton("##MissionGripBtn",
+                                 ImVec2(winW, winH))) {
+        missionPanelCollapsed_ = !missionPanelCollapsed_;
+      }
+
+      bool isRawHovered = ImGui::IsItemHovered();
+      bool isHovered = false;
+
+      if (isRawHovered) {
+        ImVec2 m = ImGui::GetIO().MousePos;
+        if (missionWaveMorph <= 0.05f) {
+          isHovered = (m.x >= handleX - 2.0f && m.x <= panelX + 2.0f &&
+                       m.y >= handleY - 2.0f && m.y <= handleY + handleH + 2.0f);
+        } else {
+          float wallX = panelX;
+          if (m.y >= handleY && m.y <= handleY + handleH) {
+            isHovered = (m.x >= handleX - 2.0f && m.x <= wallX + 2.0f);
+          } else if (m.y < handleY && m.y >= winY) {
+            float span = curFlare + 10.0f * config.uiScale * missionWaveMorph;
+            float t = span > 0.001f ? (m.y - winY) / span : 1.0f;
+            t = std::clamp(t, 0.0f, 1.0f);
+            float curveX = wallX - handleW * (t * t * (3.0f - 2.0f * t));
+            isHovered = (m.x >= curveX - 2.0f && m.x <= wallX + 2.0f);
+          } else if (m.y > handleY + handleH && m.y <= winY + winH) {
+            float span = curFlare + 10.0f * config.uiScale * missionWaveMorph;
+            float t = span > 0.001f ? ((winY + winH) - m.y) / span : 1.0f;
+            t = std::clamp(t, 0.0f, 1.0f);
+            float curveX = wallX - handleW * (t * t * (3.0f - 2.0f * t));
+            isHovered = (m.x >= curveX - 2.0f && m.x <= wallX + 2.0f);
+          }
+        }
+      }
+
+      bool isActive = ImGui::IsItemActive();
+
+      if (isHovered || isActive) {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+        ImGui::SetTooltip("%s", missionPanelCollapsed_
+                                    ? "[Клік]: Показати показники місії"
+                                    : "[Клік]: Сховати показники місії");
+      }
+
+      ImDrawList *dl = ImGui::GetWindowDrawList();
+
+      // Smooth color transitions between dock and floating handle matching main sidebar
+      float colorT = std::clamp(easeT / 0.25f, 0.0f, 1.0f);
+      colorT = colorT * colorT * (3.0f - 2.0f * colorT);
+      uint8_t baseR = static_cast<uint8_t>(65 - 19 * colorT);
+      uint8_t baseG = static_cast<uint8_t>(26);
+      uint8_t baseB = static_cast<uint8_t>(35 - 3 * colorT);
+      uint8_t bdrR = static_cast<uint8_t>(245 - 135 * colorT);
+      uint8_t bdrG = static_cast<uint8_t>(120 - 75 * colorT);
+      uint8_t bdrB = static_cast<uint8_t>(40 + 18 * colorT);
+
+      ImU32 normalBg = IM_COL32(baseR, baseG, baseB,
+                                static_cast<uint8_t>(235 - 15 * colorT));
+      ImU32 normalBorder =
+          IM_COL32(bdrR, bdrG, bdrB, static_cast<uint8_t>(240 - 20 * colorT));
+
+      ImU32 bgCol = isActive
+                        ? IM_COL32(255, 140, 20, 245)
+                        : isHovered ? IM_COL32(235, 48, 68, 240)
+                                    : normalBg;
+      ImU32 bdrCol = (isHovered || isActive) ? IM_COL32(255, 255, 255, 255)
+                                             : normalBorder;
+
+      float wallX = panelX;
+      float topY = handleY;
+      float botY = handleY + handleH;
+      float cornerInset = 10.0f * config.uiScale * missionWaveMorph;
+
+      if (missionWaveMorph > 0.01f) {
+        // Flowing wave shape merging smoothly into the monitor casing (x = wallX)
+        ImVec2 pTopWall(wallX, topY - curFlare);
+        ImVec2 pTopHandle(handleX, topY + cornerInset);
+        ImVec2 pTopCp1(wallX, topY - curFlare * 0.25f);
+        ImVec2 pTopCp2(handleX, topY);
+
+        ImVec2 pBotHandle(handleX, botY - cornerInset);
+        ImVec2 pBotWall(wallX, botY + curFlare);
+        ImVec2 pBotCp1(handleX, botY);
+        ImVec2 pBotCp2(wallX, botY + curFlare * 0.25f);
+
+        dl->PathClear();
+        dl->PathLineTo(pTopWall);
+        dl->PathBezierCubicCurveTo(pTopCp1, pTopCp2, pTopHandle, 24);
+        dl->PathLineTo(pBotHandle);
+        dl->PathBezierCubicCurveTo(pBotCp1, pBotCp2, pBotWall, 24);
+
+        int nPts = dl->_Path.Size;
+        if (nPts >= 2) {
+          const ImVec2 uv = ImGui::GetFontTexUvWhitePixel();
+          dl->PrimReserve((nPts - 1) * 6, nPts * 2);
+          ImDrawIdx vtxBase = static_cast<ImDrawIdx>(dl->_VtxCurrentIdx);
+
+          for (int i = 0; i < nPts; ++i) {
+            ImVec2 lPt = dl->_Path[i];
+            ImVec2 rPt(wallX + 2.0f, lPt.y); // Extends 2px under wall/monitor to ensure ZERO gap
+            dl->PrimWriteVtx(lPt, uv, bgCol);
+            dl->PrimWriteVtx(rPt, uv, bgCol);
+          }
+
+          for (int i = 0; i < nPts - 1; ++i) {
+            ImDrawIdx i0 = vtxBase + static_cast<ImDrawIdx>(i * 2);
+            ImDrawIdx i1 = i0 + 1;
+            ImDrawIdx i2 = i0 + 2;
+            ImDrawIdx i3 = i0 + 3;
+            dl->PrimWriteIdx(i0);
+            dl->PrimWriteIdx(i1);
+            dl->PrimWriteIdx(i3);
+            dl->PrimWriteIdx(i0);
+            dl->PrimWriteIdx(i3);
+            dl->PrimWriteIdx(i2);
+          }
+        }
+
+        // Draw flowing outer border stroke (left edge)
+        dl->PathStroke(bdrCol, false, 1.8f);
+
+        // Also draw border on the right edge along wallX when hovered or active:
+        dl->AddLine(ImVec2(wallX, topY - curFlare), ImVec2(wallX, botY + curFlare), bdrCol, 1.2f);
+      } else {
+        // Rounded grip handle attached flush to panel without any seam or gap
+        float handleRounding = 6.0f * config.uiScale;
+        // Extend 2px into panelX so there is ZERO gap/hole between handle and panel!
+        dl->AddRectFilled(ImVec2(handleX, handleY),
+                          ImVec2(panelX + 2.0f, handleY + handleH), bgCol,
+                          handleRounding, ImDrawFlags_RoundCornersLeft);
+
+        // Entire outer border around the handle (complete crisp white perimeter on hover)
+        dl->AddRect(ImVec2(handleX, handleY),
+                    ImVec2(handleX + handleW, handleY + handleH), bdrCol,
+                    handleRounding, ImDrawFlags_RoundCornersLeft, 1.2f);
+      }
+
+      // Chevron arrow: if collapsed, point left '<'; if open, point right '>'
+      ImU32 iconColor = (isHovered || isActive) ? IM_COL32(20, 20, 20, 240)
+                        : (easeT < 0.25f)       ? IM_COL32(255, 210, 120, 255)
+                                                : IM_COL32(195, 120, 135, 220);
+      float midX = handleX + handleW * 0.5f;
+      float midY = handleY + handleH * 0.5f;
+      float arrowSize = 4.0f * config.uiScale;
+
+      if (missionPanelCollapsed_) {
+        // Pointing Left '<' (expand to left)
+        dl->AddLine(ImVec2(midX + arrowSize * 0.6f, midY - arrowSize * 1.3f),
+                    ImVec2(midX - arrowSize * 0.6f, midY), iconColor, 2.0f);
+        dl->AddLine(ImVec2(midX - arrowSize * 0.6f, midY),
+                    ImVec2(midX + arrowSize * 0.6f, midY + arrowSize * 1.3f),
+                    iconColor, 2.0f);
+      } else {
+        // Pointing Right '>' (collapse into monitor)
+        dl->AddLine(ImVec2(midX - arrowSize * 0.6f, midY - arrowSize * 1.3f),
+                    ImVec2(midX + arrowSize * 0.6f, midY), iconColor, 2.0f);
+        dl->AddLine(ImVec2(midX + arrowSize * 0.6f, midY),
+                    ImVec2(midX - arrowSize * 0.6f, midY + arrowSize * 1.3f),
+                    iconColor, 2.0f);
+      }
+
+      // Tactical grip ridges above and below chevron
+      float lineInset = 3.5f * config.uiScale;
+      for (float off : {-20.0f * config.uiScale, -12.0f * config.uiScale,
+                        12.0f * config.uiScale, 20.0f * config.uiScale}) {
+        dl->AddLine(ImVec2(handleX + lineInset, midY + off),
+                    ImVec2(handleX + handleW - lineInset, midY + off),
+                    iconColor, 1.2f);
       }
     }
     ImGui::End();
@@ -3166,7 +3528,7 @@ public:
     float mouseY = static_cast<float>(mousePixel.y);
 
     float pivotX = 0.0f;
-    float posX = mouseX + 16.0f;
+    float posX = mouseX + 28.0f;
     if (posX + s_lastTooltipSize.x > windowWidth - 12.0f ||
         mouseX > windowWidth - 220.0f) {
       posX = mouseX - 16.0f;
@@ -3174,10 +3536,10 @@ public:
     }
 
     float pivotY = 0.0f;
-    float posY = mouseY + 16.0f;
+    float posY = mouseY + 24.0f;
     if (posY + s_lastTooltipSize.y > windowHeight - 12.0f ||
         mouseY > windowHeight - 180.0f) {
-      posY = mouseY - 12.0f;
+      posY = mouseY - 16.0f;
       pivotY = 1.0f;
     }
 
@@ -3524,7 +3886,7 @@ private:
   bool isCollectedClosing_ = false;
   float collectedOpenProgress_ = 0.0f;
   float collectedScrollOnCloseStart_ = 0.0f;
-  float measuredCollectedContentH_ = 180.0f;
+  float measuredCollectedContentH_ = 110.0f;
   bool collectedAutoScrollActive_ = false;
   float collectedAutoScrollStart_ = 0.0f;
   float collectedAutoScrollTarget_ = 0.0f;
@@ -3537,6 +3899,8 @@ private:
   float handleWaveMorph_ = 1.0f;
   bool startupHintDismissed_ = false;
   float startupHintTimer_ = 0.0f;
+  bool missionPanelCollapsed_ = true;
+  float missionPanelOpenProgress_ = 0.0f;
 };
 
 } // namespace ui

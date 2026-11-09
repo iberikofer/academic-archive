@@ -35,6 +35,7 @@ struct Config {
 
     // UI & Visual preferences
     bool showGrid = true;
+    bool showOptimalRoute = true;
     bool showLegend = false;
     bool cameraFollowAgent = true;    // Auto-center camera when agent moves
     bool vsyncEnabled = true;         // Vertical synchronization (eliminates tearing & laddering)

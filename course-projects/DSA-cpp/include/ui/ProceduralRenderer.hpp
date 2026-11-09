@@ -533,7 +533,7 @@ public:
   }
 
   void renderMaze(sf::RenderTarget &target, const map::Maze &maze,
-                  bool showGrid, float scanRadius = -1.0f,
+                  float gridAlpha = 1.0f, float scanRadius = -1.0f,
                   sf::Vector2f scanOrigin = {0.0f, 0.0f},
                   bool isExitDisabled = false) {
     if (scanRadius >= 0.0f) {
@@ -1118,14 +1118,15 @@ public:
 
     // Dedicated grid overlay: rendered strictly inside walkable corridor and
     // room floor tiles of the maze - Zero-Allocation buffer
-    if (showGrid) {
+    if (gridAlpha > 0.001f) {
       auto &gridLines = gridLines_;
       size_t maxGridVerts = static_cast<size_t>(maze.getWidth() * maze.getHeight() * 8);
       if (gridLines.getVertexCount() < maxGridVerts) {
         gridLines.resize(maxGridVerts);
       }
       size_t gridVertCount = 0;
-      sf::Color gridColor(60, 76, 96, 140);
+      uint8_t alphaByte = static_cast<uint8_t>(std::clamp(140.0f * gridAlpha, 0.0f, 255.0f));
+      sf::Color gridColor(60, 76, 96, alphaByte);
 
       for (int y = 0; y < maze.getHeight(); ++y) {
         for (int x = 0; x < maze.getWidth(); ++x) {
@@ -1180,8 +1181,9 @@ public:
 
   void renderRoute(sf::RenderTarget &target,
                    const algorithms::routing::RoutePlan &plan,
-                   float routeProgress = 1.0f) {
-    if (plan.fullPath.size() < 2 || routeProgress <= 0.001f)
+                   float routeProgress = 1.0f,
+                   float alpha = 1.0f) {
+    if (plan.fullPath.size() < 2 || routeProgress <= 0.001f || alpha <= 0.001f)
       return;
 
     // Calculate segment distances
@@ -1466,13 +1468,17 @@ public:
             target.draw(va);
         };
 
-    // Multi-layered cyber-neon route conduit
+    auto scaleAlpha = [alpha](sf::Color c) -> sf::Color {
+      return sf::Color(c.r, c.g, c.b, static_cast<uint8_t>(std::clamp(static_cast<float>(c.a) * alpha, 0.0f, 255.0f)));
+    };
+
+    // Multi-layered cyber-neon route conduit with smooth alpha fading
     drawSeamlessPolyline(waypoints, 12.0f,
-                         sf::Color(0, 210, 245, 22)); // Ambient soft glow
+                         scaleAlpha(sf::Color(0, 210, 245, 22))); // Ambient soft glow
     drawSeamlessPolyline(waypoints, 7.0f,
-                         sf::Color(0, 230, 250, 75)); // Radiant neon body
+                         scaleAlpha(sf::Color(0, 230, 250, 75))); // Radiant neon body
     drawSeamlessPolyline(waypoints, 3.5f,
-                         sf::Color(220, 255, 255, 245)); // Intense laser core
+                         scaleAlpha(sf::Color(220, 255, 255, 245))); // Intense laser core
 
     // High-energy pulsing beacon head at the leading tip of the tracing line
     if (routeProgress < 0.999f) {
@@ -1481,9 +1487,9 @@ public:
       sf::CircleShape headCircle(headR);
       headCircle.setOrigin({headR, headR});
       headCircle.setPosition(headPoint);
-      headCircle.setFillColor(sf::Color(0, 255, 245, 240));
+      headCircle.setFillColor(scaleAlpha(sf::Color(0, 255, 245, 240)));
       headCircle.setOutlineThickness(1.8f);
-      headCircle.setOutlineColor(sf::Color(255, 255, 255, 245));
+      headCircle.setOutlineColor(scaleAlpha(sf::Color(255, 255, 255, 245)));
       target.draw(headCircle);
     } else {
       // Path reached destination! Trigger 1-second entrance/exit beacon

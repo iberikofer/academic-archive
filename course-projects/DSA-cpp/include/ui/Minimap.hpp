@@ -125,6 +125,16 @@ public:
     }
   }
 
+  void setPoweredOffImmediate() noexcept {
+    powerState_ = PowerState::Off;
+    powerAnimProgress_ = 0.0f;
+  }
+
+  void powerOn() noexcept {
+    powerState_ = PowerState::TurningOn;
+    powerAnimProgress_ = 0.0f;
+  }
+
   [[nodiscard]] bool isPoweredOn() const noexcept {
     return powerState_ == PowerState::On;
   }
@@ -207,7 +217,12 @@ public:
               float scaleOrSize = 1.0f, float scanRadius = -1.0f,
               sf::Vector2f scanOrigin = {0.0f, 0.0f}, float fadeAlpha = 0.0f,
               const algorithms::routing::RoutePlan *routePlan = nullptr,
-              float routeProgress = 1.0f, bool isExitDisabled = false) {
+              float routeProgress = 1.0f, bool isExitDisabled = false,
+              float monitorAlpha = 1.0f) {
+    if (monitorAlpha <= 0.001f) {
+      return;
+    }
+    float safeAlpha = std::clamp(monitorAlpha, 0.0f, 1.0f);
     loadTexture();
 
     float dt = glowClock_.restart().asSeconds();
@@ -257,15 +272,15 @@ public:
     // pitch black when Off)
     sf::Color screenBgColor;
     if (powerState_ == PowerState::Off) {
-      screenBgColor = sf::Color(0, 0, 0, 255);
+      screenBgColor = sf::Color(0, 0, 0, static_cast<uint8_t>(255 * safeAlpha));
     } else if (powerState_ == PowerState::On) {
-      screenBgColor = sf::Color(22, 27, 36, 255);
+      screenBgColor = sf::Color(22, 27, 36, static_cast<uint8_t>(255 * safeAlpha));
     } else {
       float t = powerAnimProgress_;
       uint8_t r = static_cast<uint8_t>(22.0f * t);
       uint8_t g = static_cast<uint8_t>(27.0f * t);
       uint8_t b = static_cast<uint8_t>(36.0f * t);
-      screenBgColor = sf::Color(r, g, b, 255);
+      screenBgColor = sf::Color(r, g, b, static_cast<uint8_t>(255 * safeAlpha));
     }
 
     sf::RectangleShape bg({l.screenW, l.screenH});
@@ -845,12 +860,13 @@ public:
       sf::Sprite frameSprite(frameTexture_);
       frameSprite.setScale({l.sX, l.sY});
       frameSprite.setPosition({l.frameX, l.frameY});
+      frameSprite.setColor(sf::Color(255, 255, 255, static_cast<uint8_t>(255 * safeAlpha)));
       target.draw(frameSprite);
 
       // Authentic rounded bezel corner masks: guaranteed to cover and round off
       // any map corners behind the monitor frame
       const float cornerR = 26.0f * l.s;
-      const sf::Color bezelColor(26, 21, 17, 255);
+      const sf::Color bezelColor(26, 21, 17, static_cast<uint8_t>(255 * safeAlpha));
       constexpr int arcSegments = 8;
       constexpr float PI_VAL = 3.14159265f;
 
@@ -944,7 +960,7 @@ public:
                                (cyanBorder.g - defaultBorder.g) * activeGlow_),
           static_cast<uint8_t>(defaultBorder.b +
                                (cyanBorder.b - defaultBorder.b) * activeGlow_),
-          255);
+          static_cast<uint8_t>(255 * safeAlpha));
 
       sf::RectangleShape borderFrame({l.screenW, l.screenH});
       borderFrame.setPosition({l.screenX, l.screenY});
@@ -964,28 +980,28 @@ public:
       sf::CircleShape ledGlow(ledR * 2.2f);
       ledGlow.setOrigin({ledR * 2.2f, ledR * 2.2f});
       ledGlow.setPosition({ledX, ledY});
-      ledGlow.setFillColor(sf::Color(40, 255, 75, 80));
+      ledGlow.setFillColor(sf::Color(40, 255, 75, static_cast<uint8_t>(80 * safeAlpha)));
       target.draw(ledGlow);
 
       // Core bright green LED
       sf::CircleShape led(ledR);
       led.setOrigin({ledR, ledR});
       led.setPosition({ledX, ledY});
-      led.setFillColor(sf::Color(65, 255, 95));
+      led.setFillColor(sf::Color(65, 255, 95, static_cast<uint8_t>(255 * safeAlpha)));
       target.draw(led);
 
       // Specular highlight
       sf::CircleShape ledCore(ledR * 0.45f);
       ledCore.setOrigin({ledR * 0.45f, ledR * 0.45f});
       ledCore.setPosition({ledX - ledR * 0.15f, ledY - ledR * 0.15f});
-      ledCore.setFillColor(sf::Color(220, 255, 230));
+      ledCore.setFillColor(sf::Color(220, 255, 230, static_cast<uint8_t>(255 * safeAlpha)));
       target.draw(ledCore);
     } else {
       // Powered off: dark red/unlit diode
       sf::CircleShape led(ledR * 0.85f);
       led.setOrigin({ledR * 0.85f, ledR * 0.85f});
       led.setPosition({ledX, ledY});
-      led.setFillColor(sf::Color(135, 25, 25, 210));
+      led.setFillColor(sf::Color(135, 25, 25, static_cast<uint8_t>(210 * safeAlpha)));
       target.draw(led);
     }
 
@@ -999,15 +1015,15 @@ public:
       sf::RectangleShape pressTint({btnW, btnH});
       pressTint.setPosition({btnX, btnY});
       pressTint.setFillColor(sf::Color(
-          0, 0, 0, static_cast<uint8_t>(buttonPressVisual_ * 110.0f)));
+          0, 0, 0, static_cast<uint8_t>(buttonPressVisual_ * 110.0f * safeAlpha)));
       target.draw(pressTint);
       buttonPressVisual_ = std::max(0.0f, buttonPressVisual_ - dt * 6.0f);
     } else if (isButtonHovered_) {
       sf::RectangleShape hoverGlow({btnW, btnH});
       hoverGlow.setPosition({btnX, btnY});
-      hoverGlow.setFillColor(sf::Color(0, 230, 245, 35));
+      hoverGlow.setFillColor(sf::Color(0, 230, 245, static_cast<uint8_t>(35 * safeAlpha)));
       hoverGlow.setOutlineThickness(1.2f);
-      hoverGlow.setOutlineColor(sf::Color(0, 255, 240, 130));
+      hoverGlow.setOutlineColor(sf::Color(0, 255, 240, static_cast<uint8_t>(130 * safeAlpha)));
       target.draw(hoverGlow);
     }
   }
