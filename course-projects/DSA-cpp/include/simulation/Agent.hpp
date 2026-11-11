@@ -23,7 +23,7 @@ inline std::string agentStatusToUkrainian(AgentStatus status) {
         case AgentStatus::Returning:  return "Повернення на базу";
         case AgentStatus::Evacuating: return "Евакуація через вихід";
         case AgentStatus::Success:    return "Місія успішно виконана!";
-        case AgentStatus::Exhausted:  return "Критично: Енергія вичерпана!";
+        case AgentStatus::Exhausted:  return "Енергія вичерпана!";
         default:                      return "Невідомий стан";
     }
 }

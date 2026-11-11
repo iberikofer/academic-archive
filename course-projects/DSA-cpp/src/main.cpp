@@ -199,7 +199,9 @@ void recalculateSimulation(map::Maze &maze, core::Config &config,
                            int knapsackAlgoIndex, int pathfinderAlgoIndex) {
   maze.recomputeExteriorWalls();
   engine.updateConfig(config);
-  int cap = config.manualBackpackCapacity;
+  int cap = config.backpackLimitEnabled
+                ? config.manualBackpackCapacity
+                : std::max(1, maze.getTotalItemWeight());
 
   std::vector<core::Item> selectedItems;
   if (knapsackAlgoIndex == 0) {
@@ -223,9 +225,11 @@ void recalculateSimulation(map::Maze &maze, core::Config &config,
   auto plan = tsp.solveRoute(maze, selectedItems, config.routeMode);
 
   // Dynamic tactical energy reserve: 22% surplus (at least 120) for turns, mud terrain, and detour flexibility
-  int energyReserve = std::max(120, static_cast<int>(std::round(plan.totalEnergyCost * 0.22f)));
-  if (config.initialEnergy < plan.totalEnergyCost + energyReserve) {
-    config.initialEnergy = plan.totalEnergyCost + energyReserve;
+  if (config.energyLimitEnabled) {
+    int energyReserve = std::max(120, static_cast<int>(std::round(plan.totalEnergyCost * 0.22f)));
+    if (config.initialEnergy < plan.totalEnergyCost + energyReserve) {
+      config.initialEnergy = plan.totalEnergyCost + energyReserve;
+    }
   }
 
   engine.initPlan(plan, config.initialEnergy, cap);
@@ -564,6 +568,7 @@ int main(int argc, char *argv[]) {
   uiState.appliedRouteMode = config.routeMode;
   uiState.appliedInitialEnergy = config.initialEnergy;
   uiState.appliedEnergyLimitEnabled = config.energyLimitEnabled;
+  uiState.appliedBackpackLimitEnabled = config.backpackLimitEnabled;
 
   ui::CameraController camera;
   ui::ProceduralRenderer renderer;
@@ -585,7 +590,6 @@ int main(int argc, char *argv[]) {
   float targetProgress = 0.0f;
   int splashStage = 0;
   float barFadeAlpha = 1.0f;
-  float monitorFadeAlpha = 0.0f;
   float logoElevateProgress = 0.0f;
   float welcomeFadeAlpha = 0.0f;
   float startScreenFadeAlpha = 1.0f;
@@ -620,6 +624,7 @@ int main(int argc, char *argv[]) {
     uiState.appliedRouteMode = config.routeMode;
     uiState.appliedInitialEnergy = config.initialEnergy;
     uiState.appliedEnergyLimitEnabled = config.energyLimitEnabled;
+    uiState.appliedBackpackLimitEnabled = config.backpackLimitEnabled;
 
     io::CsvExporter::exportToCsv("benchmark_results.csv", benchmarkRows);
     io::JsonHandler::exportRouteReport("report_route.json", maze, config,
@@ -631,18 +636,22 @@ int main(int argc, char *argv[]) {
     constexpr float EXTRA_REACH = 16.0f * ui::ProceduralRenderer::TILE_SIZE + 140.0f;
     float newMaxR = std::hypot(newMazeW * 0.5f, newMazeH * 0.5f) + EXTRA_REACH;
 
-    transition.startStartupScan(centerOrigin, newMaxR);
+    transition.prepareStartupWait(centerOrigin, newMaxR);
     renderer.setWaitingForDrop(true);
 
-    minimap.powerOn();
+    minimap.setPoweredOffImmediate();
     deltaClock.restart();
     window.resetGLStates();
   };
 
   auto triggerStartGame = [&]() {
     if (appFlowState == AppFlowState::Welcome) {
-      guiOverlay.setMissionPanelCollapsed(true);
-      guiOverlay.setMissionPanelOpenProgress(0.0f);
+      guiOverlay.setMissionPanelCollapsed(false);
+      guiOverlay.setMissionPanelOpenProgress(1.0f);
+      guiOverlay.startHudIntro();
+      float hideOffsetY = ui::Minimap::getFrameHeight(config.minimapScale) +
+                          ui::Minimap::PADDING + 14.0f;
+      minimap.setIntroOffsetY(hideOffsetY);
       generateFirstLabyrinth();
       startScreenFadeAlpha = 1.0f;
       appFlowState = AppFlowState::FadingOut;
@@ -980,28 +989,30 @@ int main(int argc, char *argv[]) {
             }
           }
         }
-        if (key->code == sf::Keyboard::Key::Escape) {
-          guiOverlay.toggleSidebar(config.uiScale);
-        }
-        if (key->code == sf::Keyboard::Key::M || key->scancode == sf::Keyboard::Scan::M) {
-          if (!ImGui::GetIO().WantTextInput) {
-            config.showLegend = !config.showLegend;
-            uiState.statusNotice = config.showLegend
-                                       ? "Легенду карти відкрито [M]"
-                                       : "Легенду карти закрито [M]";
+        if (appFlowState == AppFlowState::InGame && !transition.isWaitingForIntro()) {
+          if (key->code == sf::Keyboard::Key::Escape) {
+            guiOverlay.toggleSidebar(config.uiScale);
           }
-        }
-        if (key->code == sf::Keyboard::Key::C || key->scancode == sf::Keyboard::Scan::C) {
-          if (!ImGui::GetIO().WantTextInput) {
-            if (!transition.isTransitionActive()) {
-              config.cameraFollowAgent = !config.cameraFollowAgent;
-              if (config.cameraFollowAgent) {
-                uiState.requestCenterCameraOnAgent = true;
+          if (key->code == sf::Keyboard::Key::M || key->scancode == sf::Keyboard::Scan::M) {
+            if (!ImGui::GetIO().WantTextInput) {
+              config.showLegend = !config.showLegend;
+              uiState.statusNotice = config.showLegend
+                                         ? "Легенду карти відкрито [M]"
+                                         : "Легенду карти закрито [M]";
+            }
+          }
+          if (key->code == sf::Keyboard::Key::C || key->scancode == sf::Keyboard::Scan::C) {
+            if (!ImGui::GetIO().WantTextInput) {
+              if (!transition.isTransitionActive()) {
+                config.cameraFollowAgent = !config.cameraFollowAgent;
+                if (config.cameraFollowAgent) {
+                  uiState.requestCenterCameraOnAgent = true;
+                } else {
+                  uiState.requestCenterCameraOnMaze = true;
+                }
               } else {
-                uiState.requestCenterCameraOnMaze = true;
+                uiState.statusNotice = "Центрування недоступне під час генерації та трасування маршруту";
               }
-            } else {
-              uiState.statusNotice = "Центрування недоступне під час генерації та трасування маршруту";
             }
           }
         }
@@ -1064,79 +1075,90 @@ int main(int argc, char *argv[]) {
           uiState.statusNotice = isBorderless ? "Повноекранний режим" : "Віконний режим";
         }
         if (!ImGui::GetIO().WantCaptureKeyboard) {
-          if (key->code == sf::Keyboard::Key::Space) {
-            if (!sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space)) {
-              s_spaceDown = false;
-              s_spaceRepeatCount = 0;
-            }
+          bool agentReadyOnGround =
+              (appFlowState == AppFlowState::InGame) &&
+              !transition.isTransitionActive() &&
+              !renderer.isWaitingForDrop() &&
+              !renderer.isParachuting();
 
-            bool isCtrl =
-                sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl) ||
-                sf::Keyboard::isKeyPressed(sf::Keyboard::Key::RControl);
-
-            if (isCtrl) {
-              if (!s_spaceDown && !transition.isTransitionActive()) {
-                s_spaceDown = true;
-                if (!engine.isPaused()) {
-                  engine.setPaused(true);
-                }
-                if (engine.getCurrentStepIndex() == 0) {
-                  engine.instantFinish();
-                  uiState.statusNotice = "Телепортація на фініш маршруту!";
-                } else {
-                  engine.resetToStart();
-                  uiState.statusNotice = "Повернення на стартовий шлюз!";
-                }
-                renderer.resetAnimation();
-                if (config.cameraFollowAgent) {
-                  uiState.requestCenterCameraOnAgent = true;
-                }
+          if (key->code == sf::Keyboard::Key::Space && agentReadyOnGround) {
+            bool atEvacOrSuccess =
+                engine.isAtEvacuationCell() ||
+                engine.getAgent().getStatus() == simulation::AgentStatus::Success;
+            if (!engine.isManualMode() || atEvacOrSuccess) {
+              if (!sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space)) {
+                s_spaceDown = false;
+                s_spaceRepeatCount = 0;
               }
-            } else {
-              bool isShift =
-                  sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LShift) ||
-                  sf::Keyboard::isKeyPressed(sf::Keyboard::Key::RShift);
 
-              bool shouldStep = true;
-              if (s_spaceDown) {
-                // Holding Space triggers OS key repeats.
-                // Stepping speed increased by 1.5x:
-                // Shift+Space rewinds fast: interval 0.07s and every repeat (repeatMod = 1).
-                // Space forward: interval 0.12s and every 2nd repeat (repeatMod = 2).
-                int repeatMod = isShift ? 1 : 2;
-                float minInterval = isShift ? 0.07f : 0.12f;
-                s_spaceRepeatCount = (s_spaceRepeatCount + 1) % repeatMod;
-                if (s_spaceRepeatCount != 0 ||
-                    s_spaceRepeatClock.getElapsedTime().asSeconds() < minInterval) {
-                  shouldStep = false;
-                } else {
-                  s_spaceRepeatClock.restart();
+              bool isCtrl =
+                  sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl) ||
+                  sf::Keyboard::isKeyPressed(sf::Keyboard::Key::RControl);
+
+              if (isCtrl) {
+                if (!s_spaceDown) {
+                  s_spaceDown = true;
+                  if (!engine.isPaused()) {
+                    engine.setPaused(true);
+                  }
+                  if (engine.getCurrentStepIndex() == 0 && !atEvacOrSuccess) {
+                    engine.instantFinish();
+                    uiState.statusNotice = "Телепортація на фініш маршруту!";
+                  } else {
+                    engine.resetToStart();
+                    uiState.statusNotice = "Повернення на стартовий шлюз!";
+                  }
+                  renderer.resetAnimation();
+                  if (config.cameraFollowAgent) {
+                    uiState.requestCenterCameraOnAgent = true;
+                  }
                 }
               } else {
-                s_spaceDown = true;
-                s_spaceRepeatCount = 0;
-                s_spaceRepeatClock.restart();
-              }
+                bool isShift =
+                    sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LShift) ||
+                    sf::Keyboard::isKeyPressed(sf::Keyboard::Key::RShift);
 
-              if (shouldStep && !transition.isTransitionActive()) {
-                if (!engine.isPaused()) {
-                  engine.setPaused(true);
-                }
-                if (isShift) {
-                  engine.stepBackward();
-                } else {
-                  engine.stepForward();
-                }
-                if (config.cameraFollowAgent) {
-                  uiState.requestCenterCameraOnAgent = true;
+                if (isShift || !engine.isManualMode()) {
+                  bool shouldStep = true;
+                  if (s_spaceDown) {
+                    // Holding Space triggers OS key repeats.
+                    // Stepping speed increased by 1.5x:
+                    // Shift+Space rewinds fast: interval 0.07s and every repeat (repeatMod = 1).
+                    // Space forward: interval 0.12s and every 2nd repeat (repeatMod = 2).
+                    int repeatMod = isShift ? 1 : 2;
+                    float minInterval = isShift ? 0.07f : 0.12f;
+                    s_spaceRepeatCount = (s_spaceRepeatCount + 1) % repeatMod;
+                    if (s_spaceRepeatCount != 0 ||
+                        s_spaceRepeatClock.getElapsedTime().asSeconds() < minInterval) {
+                      shouldStep = false;
+                    } else {
+                      s_spaceRepeatClock.restart();
+                    }
+                  } else {
+                    s_spaceDown = true;
+                    s_spaceRepeatCount = 0;
+                    s_spaceRepeatClock.restart();
+                  }
+
+                  if (shouldStep) {
+                    if (!engine.isPaused()) {
+                      engine.setPaused(true);
+                    }
+                    if (isShift) {
+                      engine.stepBackward();
+                    } else {
+                      engine.stepForward();
+                    }
+                    if (config.cameraFollowAgent) {
+                      uiState.requestCenterCameraOnAgent = true;
+                    }
+                  }
                 }
               }
             }
           }
 
-          if (appFlowState == AppFlowState::InGame &&
-              !ImGui::GetIO().WantTextInput &&
-              !transition.isTransitionActive()) {
+          if (agentReadyOnGround && !ImGui::GetIO().WantTextInput) {
             int dx = 0;
             int dy = 0;
             if (key->code == sf::Keyboard::Key::W || key->scancode == sf::Keyboard::Scan::W) {
@@ -1149,14 +1171,7 @@ int main(int argc, char *argv[]) {
               dx = 1;
             }
 
-            if (dx != 0 || dy != 0) {
-              if (renderer.isWaitingForDrop() || renderer.isParachuting()) {
-                renderer.finishParachuteDrop();
-                if (transition.isParachuting()) {
-                  transition.phase = ui::GenerationTransitionPhase::None;
-                }
-                guiOverlay.setMissionPanelCollapsed(false);
-              }
+            if ((dx != 0 || dy != 0) && engine.canMoveManual()) {
               if (engine.moveAgentManual(dx, dy)) {
                 if (config.cameraFollowAgent) {
                   uiState.requestCenterCameraOnAgent = true;
@@ -1200,19 +1215,31 @@ int main(int argc, char *argv[]) {
         }
 
         bool isEventOverMinimap = false;
+        bool isEventInLegendDeadzone = false;
         if (const auto *wheel = event->getIf<sf::Event::MouseWheelScrolled>()) {
           isEventOverMinimap = minimap.isMouseOver(wheel->position.x, wheel->position.y,
                                                   windowW, windowH, config.minimapScale);
+          isEventInLegendDeadzone = guiOverlay.isMouseInLegendMarginDeadzone(
+              static_cast<float>(wheel->position.x), static_cast<float>(wheel->position.y),
+              config, windowW, windowH);
         } else if (const auto *mouseBtn = event->getIf<sf::Event::MouseButtonPressed>()) {
           isEventOverMinimap = minimap.isMouseOver(mouseBtn->position.x, mouseBtn->position.y,
                                                   windowW, windowH, config.minimapScale);
+          isEventInLegendDeadzone = guiOverlay.isMouseInLegendMarginDeadzone(
+              static_cast<float>(mouseBtn->position.x), static_cast<float>(mouseBtn->position.y),
+              config, windowW, windowH);
         } else if (const auto *mouseMove = event->getIf<sf::Event::MouseMoved>()) {
           isEventOverMinimap = minimap.isMouseOver(mouseMove->position.x, mouseMove->position.y,
                                                   windowW, windowH, config.minimapScale);
+          isEventInLegendDeadzone = guiOverlay.isMouseInLegendMarginDeadzone(
+              static_cast<float>(mouseMove->position.x), static_cast<float>(mouseMove->position.y),
+              config, windowW, windowH);
         }
 
-        if (!ImGui::GetIO().WantCaptureMouse && !minimap.isDragging()) {
-          if (!isEventOverMinimap || camera.isDragging()) {
+        if (camera.isDragging() ||
+            (!ImGui::GetIO().WantCaptureMouse && !minimap.isDragging() &&
+             !isEventInLegendDeadzone)) {
+          if (camera.isDragging() || !isEventOverMinimap) {
             camera.handleEvent(*event, window);
             if (camera.isDragging()) {
               config.cameraFollowAgent = false;
@@ -1258,12 +1285,9 @@ int main(int argc, char *argv[]) {
           }
         }
       } else if (appFlowState == AppFlowState::Welcome) {
-        // Step 1: Progress bar fades out and minimap CRT monitor simultaneously smoothly fades in
+        // Step 1: Progress bar fades out
         if (barFadeAlpha > 0.0f) {
           barFadeAlpha = std::max(0.0f, barFadeAlpha - dtSeconds * 3.2f);
-        }
-        if (monitorFadeAlpha < 1.0f) {
-          monitorFadeAlpha = std::min(1.0f, monitorFadeAlpha + dtSeconds * 3.2f);
         }
 
         // Step 2: Smoothly elevate logo and title from center to top position
@@ -1271,20 +1295,13 @@ int main(int argc, char *argv[]) {
           logoElevateProgress = std::min(1.0f, logoElevateProgress + dtSeconds * 2.2f);
         }
 
-        // Step 3: ONLY when progress bar has completely disappeared, monitor is fully visible,
-        // and logo elevation is completed, start smoothly fading in the expedition briefing!
-        if (barFadeAlpha <= 0.001f && monitorFadeAlpha >= 0.999f && logoElevateProgress >= 0.999f) {
+        // Step 3: When progress bar has disappeared and logo elevation is completed, fade in briefing
+        if (barFadeAlpha <= 0.001f && logoElevateProgress >= 0.999f) {
           welcomeFadeAlpha = std::min(1.0f, welcomeFadeAlpha + dtSeconds * 2.8f);
         }
       }
 
       window.clear(sf::Color(22, 27, 36));
-
-      // 1. Switched-off CRT monitor at bottom-right (smooth fade-in with monitorFadeAlpha)
-      minimap.render(window, maze, camera.getView(), engine.getAgent(),
-                     {}, windowW, windowH, renderer.getVisualAgentPos(),
-                     config.minimapScale, -1.0f, {0.0f, 0.0f}, 0.0f,
-                     nullptr, 1.0f, false, monitorFadeAlpha);
 
       ImGui::SFML::Update(window, sf::seconds(dtSeconds));
 
@@ -1381,8 +1398,24 @@ int main(int argc, char *argv[]) {
     }
     wasDraggingCamera = isDraggingCamera;
 
-    // Handle generation transition (FadeOut -> Regenerate -> SonarScan -> PostSonarPause -> RouteTracing -> PostRoutePause -> CameraZoomingToAgent -> None)
-    if (transition.isFadingOut()) {
+    if (appFlowState == AppFlowState::InGame) {
+      guiOverlay.updateHudIntro(dtSeconds);
+    }
+
+    // Handle generation transition (WaitingForHudIntro -> WaitingForMonitorPower -> FadeOut -> Regenerate -> SonarScan -> PostSonarPause -> RouteTracing -> PostRoutePause -> CameraZoomingToAgent -> None)
+    if (transition.isWaitingForHudIntro()) {
+      if (appFlowState == AppFlowState::InGame && guiOverlay.isHudIntroComplete()) {
+        minimap.powerOn();
+        transition.phase = ui::GenerationTransitionPhase::WaitingForMonitorPower;
+        transition.timer = 0.0f;
+      }
+    } else if (transition.isWaitingForMonitorPower()) {
+      transition.timer += dtSeconds;
+      if (minimap.isPoweredOn() || transition.timer >= 0.35f) {
+        transition.phase = ui::GenerationTransitionPhase::SonarScan;
+        transition.timer = 0.0f;
+      }
+    } else if (transition.isFadingOut()) {
       transition.timer += dtSeconds;
       if (transition.timer >= transition.fadeOutDuration) {
         // Old maze is fully faded out to dark blue! Perform generation now:
@@ -1418,6 +1451,7 @@ int main(int argc, char *argv[]) {
         uiState.appliedRouteMode = config.routeMode;
         uiState.appliedInitialEnergy = config.initialEnergy;
         uiState.appliedEnergyLimitEnabled = config.energyLimitEnabled;
+        uiState.appliedBackpackLimitEnabled = config.backpackLimitEnabled;
 
         // Transition immediately into cyan radar sonar scan from center of labyrinth!
         sf::Vector2f centerOrigin{newMazeW * 0.5f, newMazeH * 0.5f};
@@ -1515,6 +1549,7 @@ int main(int argc, char *argv[]) {
       uiState.appliedRouteMode = config.routeMode;
       uiState.appliedInitialEnergy = config.initialEnergy;
       uiState.appliedEnergyLimitEnabled = config.energyLimitEnabled;
+      uiState.appliedBackpackLimitEnabled = config.backpackLimitEnabled;
       uiState.statusNotice = "Маршрут перераховано за обраними алгоритмами!";
 
       // Keep report_route.json synchronized
@@ -1601,6 +1636,11 @@ int main(int argc, char *argv[]) {
     uiState.routeProgress = transition.getRouteProgress();
     uiState.isCameraZooming = transition.isCameraZooming();
     if (appFlowState == AppFlowState::InGame) {
+      float monHideY =
+          (ui::Minimap::getFrameHeight(config.minimapScale) +
+           ui::Minimap::PADDING + 14.0f) *
+          (1.0f - guiOverlay.getHudIntroEase());
+      minimap.setIntroOffsetY(monHideY);
       guiOverlay.render(config, maze, engine, benchmarkRows, windowH, uiState);
       guiOverlay.renderResizeHandle(windowH, config.uiScale, !transition.isTransitionActive());
       if (uiState.cameraZoomChanged) {
@@ -1613,7 +1653,18 @@ int main(int argc, char *argv[]) {
       guiOverlay.renderMinimapLegend(config, maze, engine, camera, window,
                                      renderer, windowW, windowH);
       guiOverlay.renderMapTopControls(uiState, config, windowW, windowH);
-      guiOverlay.renderMissionStatusPanel(config, maze, engine, renderer, windowW, windowH);
+      guiOverlay.renderMissionStatusPanel(uiState, config, maze, engine,
+                                          renderer, windowW, windowH);
+      if (uiState.requestReturnToLastAutoStep) {
+        uiState.requestReturnToLastAutoStep = false;
+        if (engine.returnToLastAutoStep()) {
+          renderer.snapAfterReturn(engine.getCollectedItemIds());
+          uiState.statusNotice = "Повернуто до останнього автоматичного кроку!";
+          if (config.cameraFollowAgent) {
+            uiState.requestCenterCameraOnAgent = true;
+          }
+        }
+      }
     } else if (appFlowState == AppFlowState::FadingOut && startScreenFadeAlpha > 0.001f) {
       renderSplashWelcomeUI(windowW, windowH, startScreenFadeAlpha);
     }
@@ -1641,7 +1692,8 @@ int main(int argc, char *argv[]) {
       zoomBadgeAlpha = 0.50f;
     }
 
-    if (appFlowState == AppFlowState::InGame && minimap.isPoweredOn() && zoomBadgeAlpha > 0.01f) {
+    if (appFlowState == AppFlowState::InGame && minimap.isPoweredOn() &&
+        zoomBadgeAlpha > 0.01f && guiOverlay.getHudIntroEase() >= 0.99f) {
       guiOverlay.renderMinimapZoomBadge(camera.getZoomLevel(), windowW, windowH,
                                         config.minimapScale, config.uiScale,
                                         zoomBadgeAlpha);
@@ -1653,6 +1705,9 @@ int main(int argc, char *argv[]) {
     float mmFrameH = ui::Minimap::getFrameHeight(config.minimapScale);
     bool mouseOverUI =
         imIo.WantCaptureMouse || minimap.isDragging() ||
+        guiOverlay.isMouseInLegendMarginDeadzone(
+            static_cast<float>(mousePixel.x), static_cast<float>(mousePixel.y),
+            config, windowW, windowH) ||
         (mousePixel.x < guiOverlay.getSidebarWidth()) ||
         (mousePixel.x >= windowW - mmFrameW - ui::Minimap::PADDING &&
          mousePixel.y >= windowH - mmFrameH - ui::Minimap::PADDING);
@@ -1665,7 +1720,7 @@ int main(int argc, char *argv[]) {
           maze, engine, worldPos, mouseOverUI, mousePixel, windowW, windowH,
           isExitDisabled, activeScanRadius, activeScanOrigin,
           transition.isSonarScanning(), transition.getRouteProgress(),
-          transition.isFadingOut());
+          transition.isFadingOut() || transition.isWaitingForIntro());
     }
 
     camera.setViewport(
@@ -1728,9 +1783,8 @@ int main(int argc, char *argv[]) {
 
     if (uiState.requestFitMazeInView) {
       uiState.requestFitMazeInView = false;
-      camera.fitMaze(maze.getWidth() * ui::ProceduralRenderer::TILE_SIZE,
-                     maze.getHeight() * ui::ProceduralRenderer::TILE_SIZE,
-                     windowW, windowH, 1.15f, true);
+      guiOverlay.fitMazeToVisibleArea(camera, maze, config, engine, windowW,
+                                      windowH, 0.0f, true);
       uiState.cameraZoom = camera.getZoomLevel();
       uiState.targetCameraZoom = camera.getTargetZoomLevel();
     } else if (uiState.requestCenterCameraOnAgent) {
@@ -1780,12 +1834,14 @@ int main(int argc, char *argv[]) {
     activeScanOrigin = transition.scanOrigin;
     isExitDisabled = (config.routeMode == core::RouteMode::RoundTrip);
 
-    // Smooth fade in / fade out transitions for Grid and Optimal Route line checkboxes
+    // Smooth fade in / fade out transitions for Grid, Optimal Route, and Walked Cells checkboxes
     static float s_gridAlpha = config.showGrid ? 1.0f : 0.0f;
     static float s_routeAlpha = config.showOptimalRoute ? 1.0f : 0.0f;
+    static float s_walkedAlpha = config.showWalkedCells ? 1.0f : 0.0f;
     const float FADE_SPEED = 4.2f; // Smooth ~240ms transition
     float targetGrid = config.showGrid ? 1.0f : 0.0f;
     float targetRoute = config.showOptimalRoute ? 1.0f : 0.0f;
+    float targetWalked = config.showWalkedCells ? 1.0f : 0.0f;
 
     if (s_gridAlpha < targetGrid) {
       s_gridAlpha = std::min(targetGrid, s_gridAlpha + dtSeconds * FADE_SPEED);
@@ -1799,35 +1855,46 @@ int main(int argc, char *argv[]) {
       s_routeAlpha = std::max(targetRoute, s_routeAlpha - dtSeconds * FADE_SPEED);
     }
 
+    if (s_walkedAlpha < targetWalked) {
+      s_walkedAlpha = std::min(targetWalked, s_walkedAlpha + dtSeconds * FADE_SPEED);
+    } else if (s_walkedAlpha > targetWalked) {
+      s_walkedAlpha = std::max(targetWalked, s_walkedAlpha - dtSeconds * FADE_SPEED);
+    }
+
     // Cubic smoothstep easing: 3*t^2 - 2*t^3
     float easedGridAlpha = s_gridAlpha * s_gridAlpha * (3.0f - 2.0f * s_gridAlpha);
     float easedRouteAlpha = s_routeAlpha * s_routeAlpha * (3.0f - 2.0f * s_routeAlpha);
-
-    renderer.renderMaze(window, maze, easedGridAlpha, activeScanRadius, activeScanOrigin, isExitDisabled);
-
-    // Route line rendered progressively and faded with smooth alpha
-    if (easedRouteAlpha > 0.001f) {
-      renderer.renderRoute(window, engine.getPlan(), transition.getRouteProgress(), easedRouteAlpha);
-    }
-    renderer.renderExitOverlay(window, maze, isExitDisabled, activeScanRadius, activeScanOrigin);
-    renderer.renderEntryExitArrows(window, maze, engine.getPlan(), isExitDisabled, activeScanRadius, activeScanOrigin);
-    renderer.renderRouteCompletionEffects(window, maze, isExitDisabled, activeScanRadius, activeScanOrigin);
+    float easedWalkedAlpha = s_walkedAlpha * s_walkedAlpha * (3.0f - 2.0f * s_walkedAlpha);
 
     std::vector<int> collectedIds;
     for (const auto &item : engine.getAgent().getBackpack().getItems()) {
       collectedIds.push_back(item.id);
     }
-    renderer.renderItems(window, maze, collectedIds, activeScanRadius, activeScanOrigin);
-    renderer.renderAgent(window, engine.getAgent(), activeScanRadius, activeScanOrigin);
-    renderer.renderPickupEffects(window, activeScanRadius, activeScanOrigin);
-    renderer.renderSpotlightOverlay(
-        window, maze, renderView, guiOverlay.getHoveredCollectedItemId(),
-        guiOverlay.getHoveredCatalogItemName(),
-        guiOverlay.getHoveredCatalogCategory(), collectedIds);
 
-    if (transition.isSonarScanning()) {
-      renderer.renderSonarScanEffects(window, activeScanOrigin, activeScanRadius,
-                                      transition.maxRadius, transition.getSonarProgress());
+    if (!transition.isWaitingForIntro()) {
+      renderer.renderMaze(window, maze, easedGridAlpha, activeScanRadius,
+                          activeScanOrigin, isExitDisabled, easedWalkedAlpha);
+
+      // Route line rendered progressively and faded with smooth alpha
+      if (easedRouteAlpha > 0.001f) {
+        renderer.renderRoute(window, engine.getPlan(), transition.getRouteProgress(), easedRouteAlpha);
+      }
+      renderer.renderExitOverlay(window, maze, isExitDisabled, activeScanRadius, activeScanOrigin);
+      renderer.renderEntryExitArrows(window, maze, engine.getPlan(), isExitDisabled, activeScanRadius, activeScanOrigin);
+      renderer.renderRouteCompletionEffects(window, maze, isExitDisabled, activeScanRadius, activeScanOrigin);
+
+      renderer.renderItems(window, maze, collectedIds, activeScanRadius, activeScanOrigin);
+      renderer.renderAgent(window, engine.getAgent(), activeScanRadius, activeScanOrigin);
+      renderer.renderPickupEffects(window, activeScanRadius, activeScanOrigin);
+      renderer.renderSpotlightOverlay(
+          window, maze, renderView, guiOverlay.getHoveredCollectedItemId(),
+          guiOverlay.getHoveredCatalogItemName(),
+          guiOverlay.getHoveredCatalogCategory(), collectedIds);
+
+      if (transition.isSonarScanning()) {
+        renderer.renderSonarScanEffects(window, activeScanOrigin, activeScanRadius,
+                                        transition.maxRadius, transition.getSonarProgress());
+      }
     }
 
     if (transition.isFadingOut()) {
@@ -1848,12 +1915,15 @@ int main(int argc, char *argv[]) {
       window.draw(curtain);
     }
 
-    minimap.render(window, maze, camera.getView(), engine.getAgent(),
-                   collectedIds, windowW, windowH, renderer.getVisualAgentPos(),
-                   config.minimapScale, activeScanRadius, activeScanOrigin,
-                   transition.getFadeAlpha(),
-                   config.showOptimalRoute ? &engine.getPlan() : nullptr,
-                   transition.getRouteProgress(), isExitDisabled);
+    if (appFlowState == AppFlowState::InGame) {
+      minimap.render(window, maze, camera.getView(), engine.getAgent(),
+                     collectedIds, windowW, windowH, renderer.getVisualAgentPos(),
+                     config.minimapScale, activeScanRadius, activeScanOrigin,
+                     transition.getFadeAlpha(),
+                     config.showOptimalRoute ? &engine.getPlan() : nullptr,
+                     transition.getRouteProgress(), isExitDisabled, 1.0f,
+                     !transition.isWaitingForIntro());
+    }
 
     ImGui::SFML::Render(window);
     window.display();

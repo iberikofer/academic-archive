@@ -23,6 +23,7 @@ struct Config {
     int companyQuota = 1000;
 
     // Backpack parameters
+    bool backpackLimitEnabled = true; // Enable capacity limit vs unlimited backpack
     bool autoBackpackCapacity = true; // Automatically ~50% of total spawned item weight
     int manualBackpackCapacity = 55;  // User slider fallback/manual override (10..500 kg)
 
@@ -36,6 +37,7 @@ struct Config {
     // UI & Visual preferences
     bool showGrid = true;
     bool showOptimalRoute = true;
+    bool showWalkedCells = true;
     bool showLegend = false;
     bool cameraFollowAgent = true;    // Auto-center camera when agent moves
     bool vsyncEnabled = true;         // Vertical synchronization (eliminates tearing & laddering)

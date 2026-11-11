@@ -30,6 +30,7 @@ public:
 
     void updateConfig(const core::Config& config) {
         config_ = config;
+        agent_.getBackpack().setUnlimited(!config_.backpackLimitEnabled);
     }
 
     [[nodiscard]] const core::Config& getConfig() const noexcept {
@@ -39,6 +40,7 @@ public:
     void initPlan(const algorithms::routing::RoutePlan& plan, int energy, int backpackCapacity) {
         plan_ = plan;
         agent_.reset(maze_.getStartPoint(), energy, backpackCapacity);
+        agent_.getBackpack().setUnlimited(!config_.backpackLimitEnabled);
         maze_.resetVisualizationFlags();
         if (maze_.isValid(maze_.getStartPoint())) {
             maze_.at(maze_.getStartPoint()).setWalked(true);
@@ -77,15 +79,14 @@ public:
     }
 
     void togglePlayPause() noexcept {
-        if (!isCompleted_ && plan_.routeValid) {
+        if (!isManualMode_ && !isCompleted_ && plan_.routeValid) {
             isPaused_ = !isPaused_;
         }
     }
 
     void play() noexcept {
-        if (!isCompleted_ && plan_.routeValid) {
+        if (!isManualMode_ && !isCompleted_ && plan_.routeValid) {
             isPaused_ = false;
-            isManualMode_ = false;
         }
     }
 
@@ -102,11 +103,13 @@ public:
     }
 
     bool stepForward() {
-        isManualMode_ = false;
+        if (isManualMode_) {
+            return false;
+        }
         if (!plan_.routeValid || currentStepIndex_ + 1 >= plan_.fullPath.size()) {
             isCompleted_ = true;
             isPaused_ = true;
-            if (plan_.routeValid) {
+            if (plan_.routeValid && isAtEvacuationCell()) {
                 agent_.setStatus(AgentStatus::Success);
             }
             return false;
@@ -155,7 +158,8 @@ public:
                         // Opportunistic pickup: only pick up unplanned corridor loot if it does NOT
                         // encroach on capacity reserved for yet-to-be-visited planned waypoints
                         int remPlanned = getRemainingPlannedWeight();
-                        if (curWeight + remPlanned + itemOpt->weight <= maxCap) {
+                        if (!config_.backpackLimitEnabled ||
+                            curWeight + remPlanned + itemOpt->weight <= maxCap) {
                             agent_.getBackpack().addItem(*itemOpt);
                             collectedItemIds_.push_back(rId);
                         }
@@ -180,7 +184,10 @@ public:
     }
 
     bool stepBackward() {
-        if (!plan_.routeValid || history_.size() <= 1) {
+        bool allowManualEvacUndo =
+            isAtEvacuationCell() || agent_.getStatus() == AgentStatus::Success;
+        if ((isManualMode_ && !allowManualEvacUndo) || !plan_.routeValid ||
+            history_.size() <= 1) {
             return false;
         }
 
@@ -197,6 +204,7 @@ public:
 
         auto& bp = agent_.getBackpack();
         bp.clear();
+        bp.setUnlimited(!config_.backpackLimitEnabled);
         for (const auto& item : prev.backpackItems) {
             bp.addItem(item);
         }
@@ -209,6 +217,11 @@ public:
         for (size_t i = 0; i <= currentStepIndex_ && i < plan_.fullPath.size(); ++i) {
             maze_.at(plan_.fullPath[i]).setWalked(true);
         }
+        for (const auto& f : history_) {
+            if (maze_.isValid(f.agentPosition)) {
+                maze_.at(f.agentPosition).setWalked(true);
+            }
+        }
 
         isCompleted_ = false;
         // Keep isPaused_ true so the user can inspect the restored historical frame without auto-advancing
@@ -216,15 +229,18 @@ public:
     }
 
     void instantFinish() {
-        if (!plan_.routeValid) return;
+        if (isManualMode_ || !plan_.routeValid) return;
         isPaused_ = true;
         while (!isCompleted_ && stepForward()) {
         }
     }
 
     void resetToStart() {
-        if (!plan_.routeValid) return;
+        bool allowManualEvacReset =
+            isAtEvacuationCell() || agent_.getStatus() == AgentStatus::Success;
+        if ((isManualMode_ && !allowManualEvacReset) || !plan_.routeValid) return;
         agent_.reset(maze_.getStartPoint(), agent_.getMaxEnergy(), agent_.getBackpack().getMaxCapacity());
+        agent_.getBackpack().setUnlimited(!config_.backpackLimitEnabled);
         maze_.resetVisualizationFlags();
         if (maze_.isValid(maze_.getStartPoint())) {
             maze_.at(maze_.getStartPoint()).setWalked(true);
@@ -299,8 +315,60 @@ public:
     [[nodiscard]] bool isManualMode() const noexcept { return isManualMode_; }
     void setManualMode(bool manual) noexcept { isManualMode_ = manual; }
 
+    [[nodiscard]] bool isAtEvacuationCell() const noexcept {
+        bool isExitDisabled = (config_.routeMode == core::RouteMode::RoundTrip);
+        const auto& evacTarget = isExitDisabled ? maze_.getStartPoint() : maze_.getExitPoint();
+        return (agent_.getPosition() == evacTarget) &&
+               (!isExitDisabled || agent_.getStepsTaken() > 0);
+    }
+
+    [[nodiscard]] bool canMoveManual() const noexcept {
+        if (config_.energyLimitEnabled && agent_.isExhausted()) return false;
+        if (agent_.getStatus() == AgentStatus::Success || isAtEvacuationCell()) return false;
+        return true;
+    }
+
+    bool returnToLastAutoStep() {
+        if (!isManualMode_ || history_.empty()) {
+            return false;
+        }
+
+        while (history_.size() > 1 && history_.back().isManualMode) {
+            history_.pop_back();
+        }
+
+        const auto& target = history_.back();
+        agent_.setPosition(target.agentPosition);
+        agent_.setStatus(target.status);
+        agent_.restoreState(target.currentEnergy, target.energySpent, target.stepsTaken);
+        currentStepIndex_ = target.routeStepIndex;
+        collectedItemIds_ = target.collectedItemIds;
+        isManualMode_ = target.isManualMode;
+        emergencyEvacuationTriggered_ = (target.status == AgentStatus::Evacuating);
+
+        auto& bp = agent_.getBackpack();
+        bp.clear();
+        bp.setUnlimited(!config_.backpackLimitEnabled);
+        for (const auto& item : target.backpackItems) {
+            bp.addItem(item);
+        }
+
+        for (int y = 0; y < maze_.getHeight(); ++y) {
+            for (int x = 0; x < maze_.getWidth(); ++x) {
+                maze_.at(x, y).setWalked(false);
+            }
+        }
+        for (size_t i = 0; i <= currentStepIndex_ && i < plan_.fullPath.size(); ++i) {
+            maze_.at(plan_.fullPath[i]).setWalked(true);
+        }
+
+        isPaused_ = true;
+        isCompleted_ = (target.status == AgentStatus::Success);
+        return true;
+    }
+
     bool moveAgentManual(int dx, int dy) {
-        if (agent_.isExhausted()) return false;
+        if (!canMoveManual()) return false;
 
         core::Point curPos = agent_.getPosition();
         core::Point nextPos{curPos.x + dx, curPos.y + dy};

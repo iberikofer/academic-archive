@@ -30,6 +30,8 @@ struct CellPaintEffect {
 
 enum class GenerationTransitionPhase {
   None,
+  WaitingForHudIntro,
+  WaitingForMonitorPower,
   FadeOut,
   SonarScan,
   PostSonarPause,
@@ -79,6 +81,16 @@ struct GenerationTransition {
     hasPendingRegen = false;
   }
 
+  void prepareStartupWait(sf::Vector2f origin, float radius) {
+    isRecalculatingRoute = false;
+    routeTracingDuration = 4.20f;
+    phase = GenerationTransitionPhase::WaitingForHudIntro;
+    timer = 0.0f;
+    scanOrigin = origin;
+    maxRadius = radius;
+    hasPendingRegen = false;
+  }
+
   void startRouteTracingOnly(float duration = 2.80f) {
     phase = GenerationTransitionPhase::RouteTracing;
     timer = 0.0f;
@@ -92,6 +104,19 @@ struct GenerationTransition {
     return phase != GenerationTransitionPhase::None &&
            phase != GenerationTransitionPhase::CameraZoomingToAgent &&
            phase != GenerationTransitionPhase::ParachuteDrop;
+  }
+
+  [[nodiscard]] bool isWaitingForHudIntro() const noexcept {
+    return phase == GenerationTransitionPhase::WaitingForHudIntro;
+  }
+
+  [[nodiscard]] bool isWaitingForMonitorPower() const noexcept {
+    return phase == GenerationTransitionPhase::WaitingForMonitorPower;
+  }
+
+  [[nodiscard]] bool isWaitingForIntro() const noexcept {
+    return phase == GenerationTransitionPhase::WaitingForHudIntro ||
+           phase == GenerationTransitionPhase::WaitingForMonitorPower;
   }
 
   [[nodiscard]] bool isFadingOut() const noexcept {
@@ -132,7 +157,7 @@ struct GenerationTransition {
     if (phase == GenerationTransitionPhase::SonarScan) {
       return std::clamp(timer / sonarDuration, 0.0f, 1.0f);
     }
-    if (phase == GenerationTransitionPhase::FadeOut)
+    if (phase == GenerationTransitionPhase::FadeOut || isWaitingForIntro())
       return 0.0f;
     return 1.0f;
   }
@@ -144,7 +169,7 @@ struct GenerationTransition {
       float ease = t * t * (3.0f - 2.0f * t);
       return maxRadius * ease;
     }
-    if (phase == GenerationTransitionPhase::FadeOut)
+    if (phase == GenerationTransitionPhase::FadeOut || isWaitingForIntro())
       return -1.0f;
     return maxRadius * 1.5f; // Fully revealed for subsequent phases
   }
@@ -280,6 +305,20 @@ public:
     lastActiveCatalogCategory_ = -1;
     parachuteDrop_.finish();
     isWaitingForDrop_ = false;
+    lastStepStartPos_ = {0.0f, 0.0f};
+    lastStepTargetPos_ = {0.0f, 0.0f};
+    currentStepHopY_ = 0.0f;
+    currentStepSquashX_ = 1.0f;
+    currentStepSquashY_ = 1.0f;
+    victoryHopY_ = 0.0f;
+    victoryScaleX_ = 1.0f;
+    victoryScaleY_ = 1.0f;
+  }
+
+  void snapAfterReturn(const std::vector<int> &collectedIds) {
+    visualAgentInitialized_ = false;
+    pickupEffects_.clear();
+    lastCollectedIds_ = collectedIds;
     lastStepStartPos_ = {0.0f, 0.0f};
     lastStepTargetPos_ = {0.0f, 0.0f};
     currentStepHopY_ = 0.0f;
@@ -535,7 +574,7 @@ public:
   void renderMaze(sf::RenderTarget &target, const map::Maze &maze,
                   float gridAlpha = 1.0f, float scanRadius = -1.0f,
                   sf::Vector2f scanOrigin = {0.0f, 0.0f},
-                  bool isExitDisabled = false) {
+                  bool isExitDisabled = false, float walkedAlpha = 1.0f) {
     if (scanRadius >= 0.0f) {
       updateCachedDistances(maze, scanOrigin);
     }
@@ -629,7 +668,7 @@ public:
         bool isSpecial = (cType == core::CellType::Mud ||
                           cType == core::CellType::Start ||
                           cType == core::CellType::Exit ||
-                          cell.isWalked() ||
+                          (cell.isWalked() && walkedAlpha > 0.001f) ||
                           cell.isVisitedBySearch());
         if (!isSpecial) {
           continue; // Plain wall and floor cells skipped instantly!
@@ -939,9 +978,116 @@ public:
 
         // Walked trail: animated square fill for freshly stepped-on cells,
         // static for settled cells
-        if (cell.isWalked() && cell.getType() != core::CellType::Start &&
+        if (walkedAlpha > 0.001f && cell.isWalked() &&
+            cell.getType() != core::CellType::Start &&
             cell.getType() != core::CellType::Exit) {
+          float walkedClamped = std::clamp(walkedAlpha, 0.0f, 1.0f);
+          float gridClamped = std::clamp(gridAlpha, 0.0f, 1.0f);
           bool isMud = (cell.getType() == core::CellType::Mud);
+
+          auto isWalkedHighlight = [&](int nx, int ny) {
+            if (!maze.isValid(nx, ny))
+              return false;
+            const auto &nc = maze.at(nx, ny);
+            return nc.isWalked() && nc.getType() != core::CellType::Start &&
+                   nc.getType() != core::CellType::Exit;
+          };
+
+          bool topW = isWalkedHighlight(x, y - 1);
+          bool botW = isWalkedHighlight(x, y + 1);
+          bool leftW = isWalkedHighlight(x - 1, y);
+          bool rightW = isWalkedHighlight(x + 1, y);
+
+          // Draw walked cell borders: outer boundary stays solid; shared edges between
+          // adjacent walked cells follow gridClamped so disabling grid removes internal dividers.
+          auto drawWalkedBorders = [&](float bx, float by, float bSize,
+                                       float bThick, const sf::Color &baseRgb,
+                                       float maxBorderAlpha, float internalMix) {
+            float aTop = maxBorderAlpha * (topW ? internalMix : 1.0f);
+            float aBot = maxBorderAlpha * (botW ? internalMix : 1.0f);
+            float aLeft = maxBorderAlpha * (leftW ? internalMix : 1.0f);
+            float aRight = maxBorderAlpha * (rightW ? internalMix : 1.0f);
+
+            bool ccTL = topW && leftW && !isWalkedHighlight(x - 1, y - 1);
+            bool ccTR = topW && rightW && !isWalkedHighlight(x + 1, y - 1);
+            bool ccBL = botW && leftW && !isWalkedHighlight(x - 1, y + 1);
+            bool ccBR = botW && rightW && !isWalkedHighlight(x + 1, y + 1);
+
+            float topTrimL =
+                (ccTL || (!leftW && topW && aLeft >= 1.0f)) ? bThick : 0.0f;
+            float topTrimR =
+                (ccTR || (!rightW && topW && aRight >= 1.0f)) ? bThick : 0.0f;
+            float botTrimL =
+                (ccBL || (!leftW && botW && aLeft >= 1.0f)) ? bThick : 0.0f;
+            float botTrimR =
+                (ccBR || (!rightW && botW && aRight >= 1.0f)) ? bThick : 0.0f;
+
+            bool drawTop = (aTop >= 1.0f) && (bSize > topTrimL + topTrimR);
+            bool drawBot = (aBot >= 1.0f) && (bSize > botTrimL + botTrimR);
+
+            auto mkColor = [&](float a) {
+              return sf::Color(baseRgb.r, baseRgb.g, baseRgb.b,
+                               static_cast<uint8_t>(std::clamp(a, 0.0f, 255.0f)));
+            };
+
+            if (drawTop) {
+              sf::RectangleShape strip({bSize - topTrimL - topTrimR, bThick});
+              strip.setPosition({bx + topTrimL, by});
+              strip.setFillColor(mkColor(aTop));
+              target.draw(strip);
+            }
+            if (drawBot) {
+              sf::RectangleShape strip({bSize - botTrimL - botTrimR, bThick});
+              strip.setPosition({bx + botTrimL, by + bSize - bThick});
+              strip.setFillColor(mkColor(aBot));
+              target.draw(strip);
+            }
+
+            float leftTrimT =
+                (ccTL || (aTop >= 1.0f && topTrimL == 0.0f)) ? bThick : 0.0f;
+            float leftTrimB =
+                (ccBL || (aBot >= 1.0f && botTrimL == 0.0f)) ? bThick : 0.0f;
+            if (aLeft >= 1.0f && bSize > leftTrimT + leftTrimB) {
+              sf::RectangleShape strip({bThick, bSize - leftTrimT - leftTrimB});
+              strip.setPosition({bx, by + leftTrimT});
+              strip.setFillColor(mkColor(aLeft));
+              target.draw(strip);
+            }
+
+            float rightTrimT =
+                (ccTR || (aTop >= 1.0f && topTrimR == 0.0f)) ? bThick : 0.0f;
+            float rightTrimB =
+                (ccBR || (aBot >= 1.0f && botTrimR == 0.0f)) ? bThick : 0.0f;
+            if (aRight >= 1.0f && bSize > rightTrimT + rightTrimB) {
+              sf::RectangleShape strip({bThick, bSize - rightTrimT - rightTrimB});
+              strip.setPosition({bx + bSize - bThick, by + rightTrimT});
+              strip.setFillColor(mkColor(aRight));
+              target.draw(strip);
+            }
+
+            if (maxBorderAlpha >= 1.0f) {
+              sf::Color cornerCol = mkColor(maxBorderAlpha);
+              sf::RectangleShape dot({bThick, bThick});
+              dot.setFillColor(cornerCol);
+              if (ccTL) {
+                dot.setPosition({bx, by});
+                target.draw(dot);
+              }
+              if (ccTR) {
+                dot.setPosition({bx + bSize - bThick, by});
+                target.draw(dot);
+              }
+              if (ccBL) {
+                dot.setPosition({bx, by + bSize - bThick});
+                target.draw(dot);
+              }
+              if (ccBR) {
+                dot.setPosition({bx + bSize - bThick, by + bSize - bThick});
+                target.draw(dot);
+              }
+            }
+          };
+
           auto pIt = std::find_if(paintEffects_.begin(), paintEffects_.end(),
                                   [x, y](const CellPaintEffect &e) {
                                     return e.x == x && e.y == y;
@@ -955,36 +1101,41 @@ public:
 
             // 1. Expanding square fill from center (translucent cyan)
             sf::Color fillColor =
-                isMud ? sf::Color(0, 180, 215, static_cast<uint8_t>(35 * t))
-                      : sf::Color(10, 48, 65, static_cast<uint8_t>(220 * t));
-            sf::Color borderColor =
-                isMud
-                    ? sf::Color(0, 220, 235, static_cast<uint8_t>(25 + 45 * t))
-                    : sf::Color(0, 230, 245,
-                                static_cast<uint8_t>(100 + 155 * t));
+                isMud ? sf::Color(0, 180, 215,
+                                  static_cast<uint8_t>(35 * t * walkedClamped))
+                      : sf::Color(10, 48, 65,
+                                  static_cast<uint8_t>(220 * t * walkedClamped));
 
             sf::RectangleShape growingOverlay({curSize, curSize});
             growingOverlay.setOrigin({halfSize, halfSize});
             growingOverlay.setPosition(
                 {px + TILE_SIZE * 0.5f, py + TILE_SIZE * 0.5f});
             growingOverlay.setFillColor(fillColor);
-            growingOverlay.setOutlineThickness(isMud ? -1.0f : -1.5f);
-            growingOverlay.setOutlineColor(borderColor);
             target.draw(growingOverlay);
+
+            float growBorderA = (isMud ? (25.0f + 45.0f * t) : (100.0f + 155.0f * t)) *
+                                walkedClamped;
+            sf::Color growBorderRgb =
+                isMud ? sf::Color(0, 220, 235) : sf::Color(0, 230, 245);
+            float internalMix = gridClamped + (1.0f - gridClamped) * (1.0f - ease);
+            drawWalkedBorders(px + TILE_SIZE * 0.5f - halfSize,
+                              py + TILE_SIZE * 0.5f - halfSize, curSize,
+                              isMud ? 1.0f : 1.5f, growBorderRgb, growBorderA,
+                              internalMix);
 
             // 2. High-energy tactical flash edge expanding with the square
             if (t < 0.85f) {
               float flashT = 1.0f - (t / 0.85f);
               sf::Color flashFill =
                   isMud ? sf::Color(0, 200, 230,
-                                    static_cast<uint8_t>(flashT * 25.0f))
+                                    static_cast<uint8_t>(flashT * 25.0f * walkedClamped))
                         : sf::Color(0, 235, 255,
-                                    static_cast<uint8_t>(flashT * 90.0f));
+                                    static_cast<uint8_t>(flashT * 90.0f * walkedClamped));
               sf::Color flashBorder =
                   isMud ? sf::Color(140, 255, 250,
-                                    static_cast<uint8_t>(flashT * 60.0f))
+                                    static_cast<uint8_t>(flashT * 60.0f * walkedClamped))
                         : sf::Color(140, 255, 250,
-                                    static_cast<uint8_t>(flashT * 220.0f));
+                                    static_cast<uint8_t>(flashT * 220.0f * walkedClamped));
 
               sf::RectangleShape flashBox({curSize, curSize});
               flashBox.setOrigin({halfSize, halfSize});
@@ -998,23 +1149,23 @@ public:
           } else {
             // Settled stepped-on cell
             sf::Color settledFill =
-                isMud ? sf::Color(0, 180, 215, 35)
+                isMud ? sf::Color(0, 180, 215,
+                                  static_cast<uint8_t>(35.0f * walkedClamped))
                       : // Delicate cyan tint for walked mud so sludge and
                         // bubbles stay visible
-                    sf::Color(10, 48, 65, 220); // Deep dark cyan
-            sf::Color settledBorder =
-                isMud ? sf::Color(0, 220, 235, 65)
-                      : // Soft semi-transparent cyan border for mud
-                    sf::Color(
-                        0, 230, 245,
-                        230); // Bright light cyan border for standard tiles
+                    sf::Color(10, 48, 65,
+                              static_cast<uint8_t>(220.0f * walkedClamped)); // Deep dark cyan
 
             sf::RectangleShape walkedOverlay({TILE_SIZE, TILE_SIZE});
             walkedOverlay.setPosition({px, py});
             walkedOverlay.setFillColor(settledFill);
-            walkedOverlay.setOutlineThickness(isMud ? -1.0f : -1.5f);
-            walkedOverlay.setOutlineColor(settledBorder);
             target.draw(walkedOverlay);
+
+            float settledBorderA = (isMud ? 65.0f : 230.0f) * walkedClamped;
+            sf::Color settledBorderRgb =
+                isMud ? sf::Color(0, 220, 235) : sf::Color(0, 230, 245);
+            drawWalkedBorders(px, py, TILE_SIZE, isMud ? 1.0f : 1.5f,
+                              settledBorderRgb, settledBorderA, gridClamped);
           }
         }
 
@@ -2244,9 +2395,9 @@ public:
                        : 11.0f;
 
     sf::Color catColor = (item.category == core::ItemCategory::LightGem)
-                             ? sf::Color(0, 230, 255)
+                             ? sf::Color(50, 105, 255)
                          : (item.category == core::ItemCategory::MediumRelic)
-                             ? sf::Color(255, 215, 0)
+                             ? sf::Color(255, 255, 0)
                              : sf::Color(255, 0, 255);
 
     if (!collected) {
@@ -2447,9 +2598,9 @@ public:
       // 2. High-tech glowing neon pulse ring
       float pulse = 0.5f + 0.5f * std::sin(animTime_ * 6.0f);
       sf::Color ringCol = (optItem->category == core::ItemCategory::LightGem)
-                              ? sf::Color(0, 230, 255)
+                              ? sf::Color(50, 105, 255)
                           : (optItem->category == core::ItemCategory::MediumRelic)
-                              ? sf::Color(255, 215, 0)
+                              ? sf::Color(255, 255, 0)
                               : sf::Color(255, 0, 255);
 
       sf::CircleShape glowRing(spotR);
@@ -2543,9 +2694,9 @@ public:
 
         // Category color for rings & highlight
         sf::Color catColor = (pItem->category == core::ItemCategory::LightScrap)
-                                 ? sf::Color(0, 230, 255)
+                                 ? sf::Color(50, 105, 255)
                              : (pItem->category == core::ItemCategory::MediumScrap)
-                                 ? sf::Color(255, 215, 0)
+                                 ? sf::Color(255, 255, 0)
                                  : sf::Color(255, 0, 255);
 
         // 3. Glowing tactical highlight frame around the cell
@@ -2782,9 +2933,9 @@ public:
       uint8_t alpha = static_cast<uint8_t>(alphaNorm * 255.0f);
 
       sf::Color col = (effect.category == core::ItemCategory::LightGem)
-                          ? sf::Color(0, 230, 255)
+                          ? sf::Color(50, 105, 255)
                       : (effect.category == core::ItemCategory::MediumRelic)
-                          ? sf::Color(255, 215, 0)
+                          ? sf::Color(255, 255, 0)
                           : sf::Color(255, 0, 255);
 
       // 1. Expanding shockwave ring

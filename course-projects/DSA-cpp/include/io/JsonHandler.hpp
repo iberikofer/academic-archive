@@ -62,6 +62,7 @@ public:
 
             j["agent"] = {
                 {"backpack_capacity_kg", config.manualBackpackCapacity},
+                {"backpack_limit_enabled", config.backpackLimitEnabled},
                 {"company_quota_credits", config.companyQuota},
                 {"initial_energy", config.initialEnergy},
                 {"energy_limit_enabled", config.energyLimitEnabled},
@@ -125,6 +126,9 @@ public:
                 const auto& ja = j["agent"];
                 if (ja.contains("backpack_capacity_kg") && ja["backpack_capacity_kg"].is_number_integer()) {
                     config.manualBackpackCapacity = ja["backpack_capacity_kg"];
+                }
+                if (ja.contains("backpack_limit_enabled") && ja["backpack_limit_enabled"].is_boolean()) {
+                    config.backpackLimitEnabled = ja["backpack_limit_enabled"];
                 }
                 if (ja.contains("company_quota_credits") && ja["company_quota_credits"].is_number_integer()) {
                     config.companyQuota = ja["company_quota_credits"];

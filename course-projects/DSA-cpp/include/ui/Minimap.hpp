@@ -21,6 +21,8 @@ public:
   // Dimensions and inner transparent hole bounds of map.png monitor frame
   static constexpr float TEX_WIDTH = 1710.0f;
   static constexpr float TEX_HEIGHT = 1599.0f;
+  // Transparent padding + anti-aliased bevel edge on left side of map.png
+  static constexpr float FRAME_LEFT_INSET = 25.0f;
   static constexpr float HOLE_LEFT = 145.0f;
   static constexpr float HOLE_TOP = 142.0f;
   static constexpr float HOLE_WIDTH = 1415.0f;
@@ -83,9 +85,13 @@ public:
     return TEX_HEIGHT * ((BASE_FRAME_WIDTH * scale) / TEX_WIDTH);
   }
 
+  static float getVisualLeftInset(float scaleOrSize = 1.0f) noexcept {
+    return FRAME_LEFT_INSET * getFrameScale(scaleOrSize);
+  }
+
   static Layout calculateLayout(float windowWidth, float windowHeight,
                                 float scaleOrSize, float mazeW,
-                                float mazeH) noexcept {
+                                float mazeH, float offsetY = 0.0f) noexcept {
     Layout l;
     float scale =
         (scaleOrSize > 10.0f) ? (scaleOrSize / BASE_FRAME_WIDTH) : scaleOrSize;
@@ -96,7 +102,7 @@ public:
         TEX_WIDTH * l.s; // Exactly BASE_FRAME_WIDTH * scale = 355.0f * scale
     l.frameH = TEX_HEIGHT * l.s;
     l.frameX = windowWidth - l.frameW - PADDING;
-    l.frameY = windowHeight - l.frameH - PADDING;
+    l.frameY = windowHeight - l.frameH - PADDING + offsetY;
 
     l.screenX = l.frameX + HOLE_LEFT * l.s;
     l.screenY = l.frameY + HOLE_TOP * l.s - 3.0f;
@@ -172,19 +178,21 @@ public:
            py <= l.screenY + l.screenH;
   }
 
+  void setIntroOffsetY(float offsetY) noexcept { introOffsetY_ = offsetY; }
+
   [[nodiscard]] bool isMouseOver(int px, int py, float windowWidth,
                                  float windowHeight,
                                  float scaleOrSize = 1.0f) const noexcept {
-    Layout l =
-        calculateLayout(windowWidth, windowHeight, scaleOrSize, 100.0f, 100.0f);
+    Layout l = calculateLayout(windowWidth, windowHeight, scaleOrSize, 100.0f,
+                               100.0f, introOffsetY_);
     return isOverFrame(px, py, l);
   }
 
   [[nodiscard]] bool isInsideMinimap(int px, int py, float windowWidth,
                                      float windowHeight,
                                      float scaleOrSize = 1.0f) const noexcept {
-    Layout l =
-        calculateLayout(windowWidth, windowHeight, scaleOrSize, 100.0f, 100.0f);
+    Layout l = calculateLayout(windowWidth, windowHeight, scaleOrSize, 100.0f,
+                               100.0f, introOffsetY_);
     return isInsideScreen(px, py, l);
   }
 
@@ -218,7 +226,7 @@ public:
               sf::Vector2f scanOrigin = {0.0f, 0.0f}, float fadeAlpha = 0.0f,
               const algorithms::routing::RoutePlan *routePlan = nullptr,
               float routeProgress = 1.0f, bool isExitDisabled = false,
-              float monitorAlpha = 1.0f) {
+              float monitorAlpha = 1.0f, bool showMapContent = true) {
     if (monitorAlpha <= 0.001f) {
       return;
     }
@@ -252,21 +260,33 @@ public:
 
     float mazeW = maze.getWidth() * ProceduralRenderer::TILE_SIZE;
     float mazeH = maze.getHeight() * ProceduralRenderer::TILE_SIZE;
-    Layout l =
-        calculateLayout(windowWidth, windowHeight, scaleOrSize, mazeW, mazeH);
+    Layout l = calculateLayout(windowWidth, windowHeight, scaleOrSize, mazeW,
+                               mazeH, introOffsetY_);
 
-    // Hardware OpenGL clipping strictly to the CRT monitor screen aperture hole
+    if (l.frameY >= windowHeight - 1.0f) {
+      return;
+    }
+
+    // Hardware OpenGL clipping strictly to the visible part of the CRT screen aperture hole
     sf::View prevView = target.getView();
     sf::Vector2u winSize = target.getSize();
     float tw = static_cast<float>(winSize.x);
     float th = static_cast<float>(winSize.y);
 
-    sf::View apertureView(sf::FloatRect(sf::Vector2f{l.screenX, l.screenY},
-                                        sf::Vector2f{l.screenW, l.screenH}));
-    apertureView.setViewport(
-        sf::FloatRect(sf::Vector2f{l.screenX / tw, l.screenY / th},
-                      sf::Vector2f{l.screenW / tw, l.screenH / th}));
-    target.setView(apertureView);
+    float visScreenTop = std::max(0.0f, l.screenY);
+    float visScreenBot = std::min(th, l.screenY + l.screenH);
+    bool screenVisible =
+        (visScreenBot > visScreenTop + 1.0f && l.screenX < tw &&
+         l.screenX + l.screenW > 0.0f);
+
+    if (screenVisible) {
+      float visScreenH = visScreenBot - visScreenTop;
+      sf::View apertureView(sf::FloatRect(sf::Vector2f{l.screenX, visScreenTop},
+                                          sf::Vector2f{l.screenW, visScreenH}));
+      apertureView.setViewport(
+          sf::FloatRect(sf::Vector2f{l.screenX / tw, visScreenTop / th},
+                        sf::Vector2f{l.screenW / tw, visScreenH / th}));
+      target.setView(apertureView);
 
     // 1. CRT Monitor inner screen background panel (dark cathode glass when On,
     // pitch black when Off)
@@ -316,6 +336,7 @@ public:
       float curX = l.screenX + (l.screenW - curW) * 0.5f;
       float curY = l.screenY + (l.screenH - curH) * 0.5f;
 
+      if (showMapContent) {
       sf::View screenView(sf::FloatRect(sf::Vector2f{l.screenX, l.screenY},
                                         sf::Vector2f{l.screenW, l.screenH}));
       screenView.setViewport(sf::FloatRect(sf::Vector2f{curX / tw, curY / th},
@@ -517,10 +538,10 @@ public:
 
         switch (item.category) {
         case core::ItemCategory::LightGem:
-          miniItem.setFillColor(sf::Color(0, 230, 255));
+          miniItem.setFillColor(sf::Color(50, 105, 255));
           break;
         case core::ItemCategory::MediumRelic:
-          miniItem.setFillColor(sf::Color(255, 215, 0));
+          miniItem.setFillColor(sf::Color(255, 255, 0));
           break;
         case core::ItemCategory::HeavyArtifact:
           miniItem.setFillColor(sf::Color(255, 0, 255));
@@ -805,6 +826,7 @@ public:
           target.draw(miniPulse);
         }
       }
+      } // end if (showMapContent)
 
       // Switch back to apertureView for CRT scan beam and flash overlays
       target.setView(apertureView);
@@ -843,6 +865,7 @@ public:
 
     // Restore target view before rendering the monitor frame casing
     target.setView(prevView);
+    } // end if (screenVisible)
 
     // 9. Draw the authentic Lethal Company monitor frame sprite on top!
     if (isDragging_) {
@@ -1034,8 +1057,8 @@ public:
                    float &outZoomFactor, float scaleOrSize = 1.0f) {
     float mazeW = maze.getWidth() * ProceduralRenderer::TILE_SIZE;
     float mazeH = maze.getHeight() * ProceduralRenderer::TILE_SIZE;
-    Layout l =
-        calculateLayout(windowWidth, windowHeight, scaleOrSize, mazeW, mazeH);
+    Layout l = calculateLayout(windowWidth, windowHeight, scaleOrSize, mazeW,
+                               mazeH, introOffsetY_);
 
     outZoomFactor = 1.0f;
 
@@ -1137,8 +1160,8 @@ private:
                            float scaleOrSize = 1.0f) const {
     float mazeW = maze.getWidth() * ProceduralRenderer::TILE_SIZE;
     float mazeH = maze.getHeight() * ProceduralRenderer::TILE_SIZE;
-    Layout l =
-        calculateLayout(windowWidth, windowHeight, scaleOrSize, mazeW, mazeH);
+    Layout l = calculateLayout(windowWidth, windowHeight, scaleOrSize, mazeW,
+                               mazeH, introOffsetY_);
 
     float clickRelX =
         (static_cast<float>(mousePixel.x) - l.offsetX) / l.mapScaleX;
@@ -1161,6 +1184,7 @@ private:
   float buttonPressVisual_ = 0.0f;
   float routeCompletionTimer_ = 0.0f;
   bool wasRouteCompleted_ = false;
+  float introOffsetY_ = 0.0f;
   sf::VertexArray minimapQuads_{sf::PrimitiveType::Triangles};
   sf::VertexArray minimapBorders_{sf::PrimitiveType::Lines};
 };

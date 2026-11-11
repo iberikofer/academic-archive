@@ -201,6 +201,35 @@ public:
         }
     }
 
+    void fitMazeInRect(float contentCenterX, float contentCenterY,
+                       float contentWidthWorld, float contentHeightWorld,
+                       float safeLeft, float safeTop,
+                       float safeRight, float safeBottom,
+                       float windowWidth, float windowHeight,
+                       float padding = 1.10f, bool smooth = true,
+                       float minZoomLevel = 1.0f) {
+        float availW = std::max(220.0f, safeRight - safeLeft);
+        float availH = std::max(220.0f, safeBottom - safeTop);
+
+        float zoomX = (contentWidthWorld * padding) / availW;
+        float zoomY = (contentHeightWorld * padding) / availH;
+        float targetZoom = std::clamp(std::max(minZoomLevel, std::max(zoomX, zoomY)),
+                                      1.0f / 4.50f, 1.0f / 0.20f);
+
+        float safeCenterX = (safeLeft + safeRight) * 0.5f;
+        float safeCenterY = (safeTop + safeBottom) * 0.5f;
+        float targetWorldX = contentCenterX + (windowWidth * 0.5f - safeCenterX) * targetZoom;
+        float targetWorldY = contentCenterY + (windowHeight * 0.5f - safeCenterY) * targetZoom;
+
+        if (smooth) {
+            zoomTo(targetZoom, 8.0f);
+            panTo(targetWorldX, targetWorldY, 8.0f);
+        } else {
+            setZoomLevel(targetZoom);
+            centerOn(targetWorldX, targetWorldY);
+        }
+    }
+
     [[nodiscard]] sf::View& getView() noexcept { return view_; }
     [[nodiscard]] const sf::View& getView() const noexcept { return view_; }
     [[nodiscard]] float getZoomLevel() const noexcept { return zoomLevel_; }

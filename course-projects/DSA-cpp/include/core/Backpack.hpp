@@ -16,12 +16,15 @@ public:
         maxCapacity_ = std::max(1, capacity);
     }
 
+    [[nodiscard]] bool isUnlimited() const noexcept { return unlimited_; }
+    void setUnlimited(bool unlimited) noexcept { unlimited_ = unlimited; }
+
     [[nodiscard]] int getCurrentWeight() const noexcept { return currentWeight_; }
     [[nodiscard]] int getCurrentValue() const noexcept { return currentValue_; }
     [[nodiscard]] const std::vector<Item>& getItems() const noexcept { return items_; }
 
     [[nodiscard]] bool canFit(const Item& item) const noexcept {
-        return (currentWeight_ + item.weight) <= maxCapacity_;
+        return unlimited_ || (currentWeight_ + item.weight) <= maxCapacity_;
     }
 
     bool addItem(const Item& item) {
@@ -54,10 +57,11 @@ public:
     }
 
     [[nodiscard]] bool isFull() const noexcept {
-        return currentWeight_ >= maxCapacity_;
+        return !unlimited_ && currentWeight_ >= maxCapacity_;
     }
 
     [[nodiscard]] double getUtilizationPercent() const noexcept {
+        if (unlimited_) return 100.0;
         return maxCapacity_ > 0 ? (static_cast<double>(currentWeight_) / maxCapacity_) * 100.0 : 0.0;
     }
 
@@ -65,6 +69,7 @@ private:
     int maxCapacity_;
     int currentWeight_;
     int currentValue_;
+    bool unlimited_ = false;
     std::vector<Item> items_;
 };
 

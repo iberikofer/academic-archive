@@ -5,26 +5,26 @@
             "category": "Рюкзак",
             "dimension": 30,
             "energy_cost": 0,
-            "items_count": 23,
+            "items_count": 22,
             "quality_percent": 100.0,
             "steps": 0,
-            "time_ms": 0.045,
-            "time_us": 45,
-            "value_credits": 1553,
+            "time_ms": 0.046,
+            "time_us": 46,
+            "value_credits": 1530,
             "visited_nodes": 0,
-            "weight_kg": 68
+            "weight_kg": 67
         },
         {
             "algorithm": "Greedy Knapsack (Value/Weight)",
             "category": "Рюкзак",
             "dimension": 30,
             "energy_cost": 0,
-            "items_count": 23,
-            "quality_percent": 99.61365099806827,
+            "items_count": 25,
+            "quality_percent": 99.08496732026144,
             "steps": 0,
-            "time_ms": 0.032,
-            "time_us": 32,
-            "value_credits": 1547,
+            "time_ms": 0.027,
+            "time_us": 27,
+            "value_credits": 1516,
             "visited_nodes": 0,
             "weight_kg": 67
         },
@@ -32,40 +32,40 @@
             "algorithm": "A* (Octile Heuristic, 8-way)",
             "category": "Пошук шляху",
             "dimension": 30,
-            "energy_cost": 452,
+            "energy_cost": 506,
             "items_count": 0,
             "quality_percent": 100.0,
-            "steps": 41,
-            "time_ms": 0.579,
-            "time_us": 579,
+            "steps": 46,
+            "time_ms": 0.599,
+            "time_us": 599,
             "value_credits": 0,
-            "visited_nodes": 172,
+            "visited_nodes": 188,
             "weight_kg": 0
         },
         {
             "algorithm": "Dijkstra (Uniform Cost, 8-way)",
             "category": "Пошук шляху",
             "dimension": 30,
-            "energy_cost": 452,
+            "energy_cost": 506,
             "items_count": 0,
             "quality_percent": 100.0,
-            "steps": 41,
-            "time_ms": 0.613,
-            "time_us": 613,
+            "steps": 46,
+            "time_ms": 0.607,
+            "time_us": 607,
             "value_credits": 0,
-            "visited_nodes": 275,
+            "visited_nodes": 277,
             "weight_kg": 0
         },
         {
             "algorithm": "BFS (Breadth-First Search, 8-way)",
             "category": "Пошук шляху",
             "dimension": 30,
-            "energy_cost": 476,
+            "energy_cost": 507,
             "items_count": 0,
-            "quality_percent": 94.9579831932773,
-            "steps": 40,
-            "time_ms": 0.522,
-            "time_us": 522,
+            "quality_percent": 99.80276134122288,
+            "steps": 45,
+            "time_ms": 0.501,
+            "time_us": 501,
             "value_credits": 0,
             "visited_nodes": 277,
             "weight_kg": 0
@@ -74,43 +74,43 @@
             "algorithm": "Nearest Neighbor + 2-Opt",
             "category": "Маршрутизація TSP",
             "dimension": 30,
-            "energy_cost": 1533,
-            "items_count": 23,
-            "quality_percent": 106.69506999391358,
-            "steps": 133,
-            "time_ms": 50.796,
-            "time_us": 50796,
-            "value_credits": 1553,
+            "energy_cost": 1483,
+            "items_count": 22,
+            "quality_percent": 102.36998025016459,
+            "steps": 125,
+            "time_ms": 50.007,
+            "time_us": 50007,
+            "value_credits": 1530,
             "visited_nodes": 20,
-            "weight_kg": 68
+            "weight_kg": 67
         }
     ],
     "knapsack_optimization": {
         "algorithm": "0/1 Knapsack DP (Exact)",
-        "backpack_capacity_kg": 71,
+        "backpack_capacity_kg": 70,
         "collected_items": [],
         "collected_value_credits": 0,
         "collected_weight_kg": 0,
-        "company_quota_credits": 1092,
+        "company_quota_credits": 1027,
         "extra_opportunistic_items": 0,
-        "greedy_vs_dp_quality_percent": 99.61365099806827,
+        "greedy_vs_dp_quality_percent": 99.08496732026144,
         "items_count": 0,
         "quota_met": false
     },
     "map": {
         "exit_point": {
-            "x": 28,
-            "y": 5
+            "x": 25,
+            "y": 28
         },
         "height": 30,
         "rooms_count": 7,
-        "seed": 2176387384,
+        "seed": 4042888244,
         "start_point": {
             "x": 1,
-            "y": 22
+            "y": 4
         },
-        "total_item_value_credits": 2183,
-        "total_item_weight_kg": 136,
+        "total_item_value_credits": 2053,
+        "total_item_weight_kg": 135,
         "total_items_in_maze": 30,
         "width": 30
     },
@@ -118,558 +118,698 @@
         "is_completed": false,
         "is_evacuated": false,
         "status": "Очікування",
-        "timestamp": "2026-11-09 01:51:18",
+        "timestamp": "2026-11-10 21:19:48",
         "title": "Lethal Company Autonomous Agent Route Report"
     },
     "route_analytics": {
-        "calculation_time_us": 49089,
-        "energy_remaining": 1582,
+        "calculation_time_us": 50383,
+        "energy_remaining": 1915,
         "energy_spent": 0,
         "full_trajectory": [
             {
                 "step": 0,
                 "x": 1,
-                "y": 22
+                "y": 4
             },
             {
                 "step": 1,
                 "x": 2,
-                "y": 22
+                "y": 4
             },
             {
                 "step": 2,
                 "x": 2,
-                "y": 23
+                "y": 3
             },
             {
                 "step": 3,
-                "x": 3,
-                "y": 24
+                "x": 2,
+                "y": 2
             },
             {
                 "step": 4,
                 "x": 3,
-                "y": 25
+                "y": 3
             },
             {
                 "step": 5,
                 "x": 4,
-                "y": 24
+                "y": 4
             },
             {
                 "step": 6,
                 "x": 5,
-                "y": 23
+                "y": 5
             },
             {
                 "step": 7,
                 "x": 6,
-                "y": 22
+                "y": 5
             },
             {
                 "step": 8,
-                "x": 7,
-                "y": 22
+                "x": 6,
+                "y": 6
             },
             {
                 "step": 9,
-                "x": 8,
-                "y": 22
+                "x": 6,
+                "y": 7
             },
             {
                 "step": 10,
-                "x": 9,
-                "y": 22
+                "x": 6,
+                "y": 8
             },
             {
                 "step": 11,
-                "x": 10,
-                "y": 22
+                "x": 6,
+                "y": 9
             },
             {
                 "step": 12,
-                "x": 11,
-                "y": 22
+                "x": 6,
+                "y": 10
             },
             {
                 "step": 13,
-                "x": 10,
-                "y": 22
+                "x": 6,
+                "y": 11
             },
             {
                 "step": 14,
-                "x": 9,
-                "y": 22
+                "x": 6,
+                "y": 12
             },
             {
                 "step": 15,
-                "x": 8,
-                "y": 22
+                "x": 6,
+                "y": 13
             },
             {
                 "step": 16,
-                "x": 8,
-                "y": 21
+                "x": 5,
+                "y": 13
             },
             {
                 "step": 17,
-                "x": 8,
-                "y": 20
+                "x": 4,
+                "y": 14
             },
             {
                 "step": 18,
-                "x": 7,
-                "y": 20
+                "x": 3,
+                "y": 14
             },
             {
                 "step": 19,
-                "x": 6,
-                "y": 20
+                "x": 2,
+                "y": 14
             },
             {
                 "step": 20,
-                "x": 5,
-                "y": 19
+                "x": 2,
+                "y": 13
             },
             {
                 "step": 21,
-                "x": 4,
-                "y": 18
+                "x": 2,
+                "y": 14
             },
             {
                 "step": 22,
                 "x": 3,
-                "y": 18
+                "y": 15
             },
             {
                 "step": 23,
                 "x": 4,
-                "y": 18
+                "y": 16
             },
             {
                 "step": 24,
                 "x": 5,
-                "y": 18
+                "y": 17
             },
             {
                 "step": 25,
                 "x": 5,
-                "y": 17
+                "y": 18
             },
             {
                 "step": 26,
                 "x": 5,
-                "y": 16
+                "y": 19
             },
             {
                 "step": 27,
                 "x": 5,
-                "y": 15
+                "y": 20
             },
             {
                 "step": 28,
                 "x": 5,
-                "y": 14
+                "y": 21
             },
             {
                 "step": 29,
-                "x": 5,
-                "y": 13
+                "x": 6,
+                "y": 21
             },
             {
                 "step": 30,
-                "x": 5,
-                "y": 12
+                "x": 7,
+                "y": 21
             },
             {
                 "step": 31,
-                "x": 5,
-                "y": 11
+                "x": 8,
+                "y": 21
             },
             {
                 "step": 32,
-                "x": 5,
-                "y": 10
+                "x": 9,
+                "y": 21
             },
             {
                 "step": 33,
-                "x": 5,
-                "y": 9
+                "x": 10,
+                "y": 21
             },
             {
                 "step": 34,
-                "x": 5,
-                "y": 8
+                "x": 11,
+                "y": 21
             },
             {
                 "step": 35,
-                "x": 5,
-                "y": 7
+                "x": 12,
+                "y": 22
             },
             {
                 "step": 36,
-                "x": 5,
-                "y": 6
+                "x": 13,
+                "y": 22
             },
             {
                 "step": 37,
-                "x": 6,
-                "y": 5
+                "x": 14,
+                "y": 23
             },
             {
                 "step": 38,
-                "x": 7,
-                "y": 5
+                "x": 15,
+                "y": 23
             },
             {
                 "step": 39,
-                "x": 8,
-                "y": 5
+                "x": 16,
+                "y": 23
             },
             {
                 "step": 40,
-                "x": 9,
-                "y": 5
+                "x": 17,
+                "y": 23
             },
             {
                 "step": 41,
-                "x": 10,
-                "y": 5
+                "x": 18,
+                "y": 23
             },
             {
                 "step": 42,
-                "x": 11,
-                "y": 5
+                "x": 19,
+                "y": 23
             },
             {
                 "step": 43,
-                "x": 12,
-                "y": 5
+                "x": 19,
+                "y": 22
             },
             {
                 "step": 44,
-                "x": 13,
-                "y": 5
+                "x": 18,
+                "y": 22
             },
             {
                 "step": 45,
-                "x": 14,
-                "y": 5
+                "x": 17,
+                "y": 21
             },
             {
                 "step": 46,
-                "x": 15,
-                "y": 5
+                "x": 16,
+                "y": 21
             },
             {
                 "step": 47,
-                "x": 16,
-                "y": 5
+                "x": 15,
+                "y": 21
             },
             {
                 "step": 48,
-                "x": 17,
-                "y": 5
+                "x": 14,
+                "y": 20
             },
             {
                 "step": 49,
-                "x": 18,
-                "y": 5
-            },
-            {
-                "step": 50,
-                "x": 19,
-                "y": 5
-            },
-            {
-                "step": 51,
-                "x": 18,
-                "y": 6
-            },
-            {
-                "step": 52,
-                "x": 17,
-                "y": 6
-            },
-            {
-                "step": 53,
-                "x": 16,
-                "y": 7
-            },
-            {
-                "step": 54,
-                "x": 15,
-                "y": 8
-            },
-            {
-                "step": 55,
-                "x": 15,
-                "y": 9
-            },
-            {
-                "step": 56,
-                "x": 15,
-                "y": 10
-            },
-            {
-                "step": 57,
-                "x": 14,
-                "y": 11
-            },
-            {
-                "step": 58,
-                "x": 14,
-                "y": 12
-            },
-            {
-                "step": 59,
-                "x": 14,
-                "y": 13
-            },
-            {
-                "step": 60,
-                "x": 15,
-                "y": 14
-            },
-            {
-                "step": 61,
-                "x": 15,
-                "y": 15
-            },
-            {
-                "step": 62,
-                "x": 16,
-                "y": 15
-            },
-            {
-                "step": 63,
-                "x": 17,
-                "y": 15
-            },
-            {
-                "step": 64,
-                "x": 17,
-                "y": 16
-            },
-            {
-                "step": 65,
-                "x": 17,
-                "y": 17
-            },
-            {
-                "step": 66,
-                "x": 18,
-                "y": 18
-            },
-            {
-                "step": 67,
-                "x": 19,
-                "y": 18
-            },
-            {
-                "step": 68,
-                "x": 19,
+                "x": 13,
                 "y": 19
             },
             {
-                "step": 69,
+                "step": 50,
+                "x": 14,
+                "y": 19
+            },
+            {
+                "step": 51,
+                "x": 15,
+                "y": 19
+            },
+            {
+                "step": 52,
+                "x": 16,
+                "y": 19
+            },
+            {
+                "step": 53,
+                "x": 17,
+                "y": 19
+            },
+            {
+                "step": 54,
+                "x": 18,
+                "y": 20
+            },
+            {
+                "step": 55,
                 "x": 19,
                 "y": 20
             },
             {
-                "step": 70,
+                "step": 56,
                 "x": 19,
                 "y": 21
             },
             {
+                "step": 57,
+                "x": 20,
+                "y": 21
+            },
+            {
+                "step": 58,
+                "x": 21,
+                "y": 21
+            },
+            {
+                "step": 59,
+                "x": 22,
+                "y": 21
+            },
+            {
+                "step": 60,
+                "x": 23,
+                "y": 21
+            },
+            {
+                "step": 61,
+                "x": 23,
+                "y": 20
+            },
+            {
+                "step": 62,
+                "x": 23,
+                "y": 19
+            },
+            {
+                "step": 63,
+                "x": 23,
+                "y": 18
+            },
+            {
+                "step": 64,
+                "x": 23,
+                "y": 17
+            },
+            {
+                "step": 65,
+                "x": 23,
+                "y": 16
+            },
+            {
+                "step": 66,
+                "x": 24,
+                "y": 16
+            },
+            {
+                "step": 67,
+                "x": 25,
+                "y": 16
+            },
+            {
+                "step": 68,
+                "x": 25,
+                "y": 15
+            },
+            {
+                "step": 69,
+                "x": 25,
+                "y": 14
+            },
+            {
+                "step": 70,
+                "x": 26,
+                "y": 13
+            },
+            {
                 "step": 71,
-                "x": 19,
-                "y": 22
+                "x": 26,
+                "y": 12
             },
             {
                 "step": 72,
-                "x": 20,
-                "y": 22
+                "x": 26,
+                "y": 11
             },
             {
                 "step": 73,
-                "x": 21,
-                "y": 22
+                "x": 26,
+                "y": 10
             },
             {
                 "step": 74,
-                "x": 22,
-                "y": 22
+                "x": 26,
+                "y": 9
             },
             {
                 "step": 75,
-                "x": 23,
-                "y": 22
+                "x": 26,
+                "y": 8
             },
             {
                 "step": 76,
-                "x": 24,
-                "y": 23
+                "x": 26,
+                "y": 7
             },
             {
                 "step": 77,
-                "x": 24,
-                "y": 24
+                "x": 26,
+                "y": 6
             },
             {
                 "step": 78,
-                "x": 24,
-                "y": 25
+                "x": 26,
+                "y": 5
             },
             {
                 "step": 79,
-                "x": 25,
-                "y": 26
+                "x": 27,
+                "y": 4
             },
             {
                 "step": 80,
                 "x": 26,
-                "y": 25
+                "y": 5
             },
             {
                 "step": 81,
-                "x": 26,
-                "y": 24
+                "x": 25,
+                "y": 5
             },
             {
                 "step": 82,
-                "x": 26,
-                "y": 23
+                "x": 24,
+                "y": 5
             },
             {
                 "step": 83,
-                "x": 26,
-                "y": 22
+                "x": 24,
+                "y": 4
             },
             {
                 "step": 84,
-                "x": 26,
-                "y": 21
+                "x": 23,
+                "y": 4
             },
             {
                 "step": 85,
-                "x": 26,
-                "y": 20
+                "x": 22,
+                "y": 4
             },
             {
                 "step": 86,
-                "x": 26,
-                "y": 19
+                "x": 21,
+                "y": 4
             },
             {
                 "step": 87,
-                "x": 26,
-                "y": 18
+                "x": 20,
+                "y": 4
             },
             {
                 "step": 88,
-                "x": 26,
-                "y": 17
+                "x": 19,
+                "y": 4
             },
             {
                 "step": 89,
-                "x": 26,
-                "y": 16
+                "x": 18,
+                "y": 4
             },
             {
                 "step": 90,
-                "x": 26,
-                "y": 15
+                "x": 17,
+                "y": 4
             },
             {
                 "step": 91,
-                "x": 26,
-                "y": 14
+                "x": 16,
+                "y": 4
             },
             {
                 "step": 92,
-                "x": 25,
-                "y": 14
+                "x": 15,
+                "y": 4
             },
             {
                 "step": 93,
-                "x": 24,
-                "y": 14
+                "x": 14,
+                "y": 4
             },
             {
                 "step": 94,
-                "x": 23,
-                "y": 14
+                "x": 13,
+                "y": 4
             },
             {
                 "step": 95,
-                "x": 23,
-                "y": 13
+                "x": 12,
+                "y": 4
             },
             {
                 "step": 96,
-                "x": 23,
-                "y": 12
+                "x": 11,
+                "y": 4
             },
             {
                 "step": 97,
-                "x": 23,
-                "y": 11
+                "x": 12,
+                "y": 4
             },
             {
                 "step": 98,
-                "x": 24,
-                "y": 10
+                "x": 12,
+                "y": 5
             },
             {
                 "step": 99,
-                "x": 25,
-                "y": 10
+                "x": 13,
+                "y": 6
             },
             {
                 "step": 100,
-                "x": 25,
-                "y": 9
-            },
-            {
-                "step": 101,
-                "x": 25,
-                "y": 8
-            },
-            {
-                "step": 102,
-                "x": 25,
+                "x": 14,
                 "y": 7
             },
             {
+                "step": 101,
+                "x": 14,
+                "y": 6
+            },
+            {
+                "step": 102,
+                "x": 15,
+                "y": 6
+            },
+            {
                 "step": 103,
-                "x": 25,
+                "x": 16,
                 "y": 6
             },
             {
                 "step": 104,
-                "x": 26,
+                "x": 17,
                 "y": 6
             },
             {
                 "step": 105,
-                "x": 27,
-                "y": 5
+                "x": 18,
+                "y": 6
             },
             {
                 "step": 106,
-                "x": 28,
-                "y": 5
+                "x": 19,
+                "y": 6
+            },
+            {
+                "step": 107,
+                "x": 20,
+                "y": 6
+            },
+            {
+                "step": 108,
+                "x": 21,
+                "y": 6
+            },
+            {
+                "step": 109,
+                "x": 22,
+                "y": 6
+            },
+            {
+                "step": 110,
+                "x": 23,
+                "y": 6
+            },
+            {
+                "step": 111,
+                "x": 24,
+                "y": 6
+            },
+            {
+                "step": 112,
+                "x": 24,
+                "y": 7
+            },
+            {
+                "step": 113,
+                "x": 24,
+                "y": 8
+            },
+            {
+                "step": 114,
+                "x": 25,
+                "y": 9
+            },
+            {
+                "step": 115,
+                "x": 25,
+                "y": 10
+            },
+            {
+                "step": 116,
+                "x": 25,
+                "y": 11
+            },
+            {
+                "step": 117,
+                "x": 25,
+                "y": 12
+            },
+            {
+                "step": 118,
+                "x": 25,
+                "y": 13
+            },
+            {
+                "step": 119,
+                "x": 25,
+                "y": 14
+            },
+            {
+                "step": 120,
+                "x": 25,
+                "y": 15
+            },
+            {
+                "step": 121,
+                "x": 25,
+                "y": 16
+            },
+            {
+                "step": 122,
+                "x": 25,
+                "y": 17
+            },
+            {
+                "step": 123,
+                "x": 25,
+                "y": 18
+            },
+            {
+                "step": 124,
+                "x": 25,
+                "y": 19
+            },
+            {
+                "step": 125,
+                "x": 25,
+                "y": 20
+            },
+            {
+                "step": 126,
+                "x": 25,
+                "y": 21
+            },
+            {
+                "step": 127,
+                "x": 25,
+                "y": 22
+            },
+            {
+                "step": 128,
+                "x": 25,
+                "y": 23
+            },
+            {
+                "step": 129,
+                "x": 26,
+                "y": 23
+            },
+            {
+                "step": 130,
+                "x": 26,
+                "y": 24
+            },
+            {
+                "step": 131,
+                "x": 26,
+                "y": 25
+            },
+            {
+                "step": 132,
+                "x": 26,
+                "y": 26
+            },
+            {
+                "step": 133,
+                "x": 25,
+                "y": 27
+            },
+            {
+                "step": 134,
+                "x": 25,
+                "y": 28
             }
         ],
-        "initial_energy": 1582,
+        "initial_energy": 1915,
         "pathfinder_algorithm": "A* (Octile Heuristic)",
         "route_mode": "Point A to Point B (Exit)",
         "route_valid": true,
         "steps_taken": 0,
-        "total_energy_cost": 1297,
-        "total_steps": 106,
-        "two_opt_gain_percent": 16.805644644002566,
+        "total_energy_cost": 1570,
+        "total_steps": 134,
+        "two_opt_gain_percent": 5.421686746987952,
         "waypoints": [
             {
                 "item_id": -1,
@@ -678,169 +818,169 @@
                 "value": 0,
                 "weight": 0,
                 "x": 1,
-                "y": 22
+                "y": 4
             },
             {
                 "item_id": 14,
-                "label": "Ліхтарик-маяк",
+                "label": "Радіоприймач Бумбокс",
                 "order_index": 1,
-                "value": 62,
-                "weight": 4,
-                "x": 3,
-                "y": 25
+                "value": 85,
+                "weight": 5,
+                "x": 2,
+                "y": 2
             },
             {
-                "item_id": 9,
-                "label": "Гумове каченя",
+                "item_id": 18,
+                "label": "Флакон парфумів",
                 "order_index": 2,
-                "value": 50,
+                "value": 79,
+                "weight": 2,
+                "x": 6,
+                "y": 6
+            },
+            {
+                "item_id": 13,
+                "label": "Іграшковий вертоліт",
+                "order_index": 3,
+                "value": 86,
+                "weight": 5,
+                "x": 6,
+                "y": 10
+            },
+            {
+                "item_id": 12,
+                "label": "Великоднє яйце",
+                "order_index": 4,
+                "value": 58,
                 "weight": 1,
-                "x": 11,
+                "x": 2,
+                "y": 13
+            },
+            {
+                "item_id": 30,
+                "label": "Пульт дистанційного керування",
+                "order_index": 5,
+                "value": 51,
+                "weight": 1,
+                "x": 5,
+                "y": 20
+            },
+            {
+                "item_id": 19,
+                "label": "Корінь мандрагори",
+                "order_index": 6,
+                "value": 73,
+                "weight": 3,
+                "x": 8,
+                "y": 21
+            },
+            {
+                "item_id": 8,
+                "label": "Клоунський гудок",
+                "order_index": 7,
+                "value": 65,
+                "weight": 2,
+                "x": 12,
                 "y": 22
             },
             {
                 "item_id": 15,
-                "label": "Латунний дзвіночок",
-                "order_index": 3,
-                "value": 57,
-                "weight": 2,
-                "x": 7,
-                "y": 20
-            },
-            {
-                "item_id": 29,
-                "label": "Реакторне ядро комплексу",
-                "order_index": 4,
-                "value": 235,
-                "weight": 17,
-                "x": 3,
-                "y": 18
-            },
-            {
-                "item_id": 19,
-                "label": "Ручний сканер",
-                "order_index": 5,
-                "value": 73,
-                "weight": 4,
-                "x": 5,
-                "y": 16
-            },
-            {
-                "item_id": 7,
-                "label": "Великоднє яйце",
-                "order_index": 6,
-                "value": 59,
-                "weight": 1,
-                "x": 5,
-                "y": 6
-            },
-            {
-                "item_id": 2,
-                "label": "Череп гуманоїда",
-                "order_index": 7,
-                "value": 110,
-                "weight": 4,
-                "x": 11,
-                "y": 5
-            },
-            {
-                "item_id": 1,
-                "label": "Череп гуманоїда",
+                "label": "Броньований сейф",
                 "order_index": 8,
-                "value": 114,
-                "weight": 6,
+                "value": 192,
+                "weight": 18,
                 "x": 16,
-                "y": 5
-            },
-            {
-                "item_id": 28,
-                "label": "Кухонний ніж",
-                "order_index": 9,
-                "value": 46,
-                "weight": 1,
-                "x": 19,
-                "y": 5
-            },
-            {
-                "item_id": 22,
-                "label": "Латунний дзвіночок",
-                "order_index": 10,
-                "value": 62,
-                "weight": 2,
-                "x": 14,
-                "y": 12
-            },
-            {
-                "item_id": 8,
-                "label": "Заводна щелепа",
-                "order_index": 11,
-                "value": 71,
-                "weight": 2,
-                "x": 15,
-                "y": 15
-            },
-            {
-                "item_id": 24,
-                "label": "Маска Комедії",
-                "order_index": 12,
-                "value": 81,
-                "weight": 5,
-                "x": 19,
-                "y": 18
-            },
-            {
-                "item_id": 6,
-                "label": "Подарункова коробка",
-                "order_index": 13,
-                "value": 52,
-                "weight": 4,
-                "x": 19,
-                "y": 21
-            },
-            {
-                "item_id": 23,
-                "label": "Кухонний ніж",
-                "order_index": 14,
-                "value": 48,
-                "weight": 1,
-                "x": 25,
-                "y": 26
-            },
-            {
-                "item_id": 5,
-                "label": "Корінь мандрагори",
-                "order_index": 15,
-                "value": 71,
-                "weight": 2,
-                "x": 26,
                 "y": 23
             },
             {
-                "item_id": 3,
-                "label": "Дзвіночок ресепшена",
-                "order_index": 16,
-                "value": 52,
-                "weight": 1,
-                "x": 26,
-                "y": 17
-            },
-            {
-                "item_id": 12,
-                "label": "Корінь мандрагори",
-                "order_index": 17,
-                "value": 72,
-                "weight": 2,
-                "x": 23,
-                "y": 13
-            },
-            {
                 "item_id": 27,
-                "label": "Іграшковий вертоліт",
+                "label": "Магічна куля",
+                "order_index": 9,
+                "value": 54,
+                "weight": 1,
+                "x": 19,
+                "y": 23
+            },
+            {
+                "item_id": 26,
+                "label": "Дзвіночок ресепшена",
+                "order_index": 10,
+                "value": 46,
+                "weight": 1,
+                "x": 13,
+                "y": 19
+            },
+            {
+                "item_id": 20,
+                "label": "Кухонний ніж",
+                "order_index": 11,
+                "value": 50,
+                "weight": 2,
+                "x": 16,
+                "y": 19
+            },
+            {
+                "item_id": 5,
+                "label": "Повітряний ріжок",
+                "order_index": 12,
+                "value": 60,
+                "weight": 1,
+                "x": 19,
+                "y": 20
+            },
+            {
+                "item_id": 25,
+                "label": "Ручний сканер",
+                "order_index": 13,
+                "value": 72,
+                "weight": 5,
+                "x": 23,
+                "y": 16
+            },
+            {
+                "item_id": 4,
+                "label": "Золота чашка",
+                "order_index": 14,
+                "value": 95,
+                "weight": 3,
+                "x": 26,
+                "y": 9
+            },
+            {
+                "item_id": 3,
+                "label": "Клоунський гудок",
+                "order_index": 15,
+                "value": 64,
+                "weight": 1,
+                "x": 27,
+                "y": 4
+            },
+            {
+                "item_id": 17,
+                "label": "Антикварна лампа",
+                "order_index": 16,
+                "value": 95,
+                "weight": 8,
+                "x": 11,
+                "y": 4
+            },
+            {
+                "item_id": 2,
+                "label": "Золота чашка",
+                "order_index": 17,
+                "value": 90,
+                "weight": 3,
+                "x": 14,
+                "y": 7
+            },
+            {
+                "item_id": 23,
+                "label": "Корінь мандрагори",
                 "order_index": 18,
-                "value": 86,
-                "weight": 6,
+                "value": 66,
+                "weight": 2,
                 "x": 24,
-                "y": 10
+                "y": 6
             },
             {
                 "item_id": -1,
@@ -848,8 +988,8 @@
                 "order_index": 19,
                 "value": 0,
                 "weight": 0,
-                "x": 28,
-                "y": 5
+                "x": 25,
+                "y": 28
             }
         ],
         "waypoints_count": 20
