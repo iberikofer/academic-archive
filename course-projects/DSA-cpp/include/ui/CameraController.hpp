@@ -66,6 +66,10 @@ public:
         isFollowing_ = false;
     }
 
+    void centerOn(const sf::Vector2f& center) {
+        centerOn(center.x, center.y);
+    }
+
     void panBy(float dx, float dy) {
         view_.move({dx, dy});
         targetCenter_ = view_.getCenter();

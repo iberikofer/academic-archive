@@ -658,6 +658,64 @@ int main(int argc, char *argv[]) {
     }
   };
 
+  auto saveActiveSession = [&]() {
+    if (appFlowState == AppFlowState::InGame && maze.getWidth() > 0 && !maze.getItems().empty()) {
+      io::JsonHandler::SessionGuiState gState;
+      gState.sidebarWidth = guiOverlay.getSavedSidebarBaseWidth();
+      gState.sidebarCollapsed = guiOverlay.isSidebarCollapsed();
+      gState.missionPanelWidth = guiOverlay.getSavedMissionPanelBaseWidth();
+      gState.missionPanelCollapsed = guiOverlay.isMissionPanelCollapsed();
+      gState.startupHintDismissed = true;
+      gState.cameraZoom = camera.getZoomLevel();
+      gState.cameraCenterX = camera.getView().getCenter().x;
+      gState.cameraCenterY = camera.getView().getCenter().y;
+      gState.knapsackAlgoIndex = uiState.appliedKnapsackAlgoIndex;
+      gState.pathfinderAlgoIndex = uiState.appliedPathfinderAlgoIndex;
+
+      io::JsonHandler::saveSessionState("session_state.json", config, gState, maze, engine, benchmarkRows);
+    }
+  };
+
+  // Attempt to restore persistent session from previous run
+  io::JsonHandler::SessionGuiState loadedGui;
+  if (!testOnly && io::JsonHandler::loadSessionState("session_state.json", config, loadedGui, maze, engine, benchmarkRows)) {
+    guiOverlay.setSavedSidebarBaseWidth(loadedGui.sidebarWidth);
+    guiOverlay.setSidebarCollapsed(loadedGui.sidebarCollapsed);
+    guiOverlay.setSidebarOpenProgress(loadedGui.sidebarCollapsed ? 0.0f : 1.0f);
+    guiOverlay.setSavedMissionPanelBaseWidth(loadedGui.missionPanelWidth);
+    guiOverlay.setMissionPanelCollapsed(loadedGui.missionPanelCollapsed);
+    guiOverlay.setMissionPanelOpenProgress(loadedGui.missionPanelCollapsed ? 0.0f : 1.0f);
+    guiOverlay.setStartupHintDismissed(true);
+
+    uiState.knapsackAlgoIndex = loadedGui.knapsackAlgoIndex;
+    uiState.pathfinderAlgoIndex = loadedGui.pathfinderAlgoIndex;
+    uiState.appliedKnapsackAlgoIndex = loadedGui.knapsackAlgoIndex;
+    uiState.appliedPathfinderAlgoIndex = loadedGui.pathfinderAlgoIndex;
+    uiState.appliedBackpackCapacity = config.manualBackpackCapacity;
+    uiState.appliedCompanyQuota = config.companyQuota;
+    uiState.appliedRouteMode = config.routeMode;
+    uiState.appliedInitialEnergy = config.initialEnergy;
+    uiState.appliedEnergyLimitEnabled = config.energyLimitEnabled;
+    uiState.appliedBackpackLimitEnabled = config.backpackLimitEnabled;
+
+    window.setVerticalSyncEnabled(config.vsyncEnabled);
+    camera.updateViewportSize(windowW, windowH);
+    camera.setZoomLevel(loadedGui.cameraZoom);
+    if (config.cameraFollowAgent) {
+      float agentX = (engine.getAgent().getPosition().x + 0.5f) * ui::ProceduralRenderer::TILE_SIZE;
+      float agentY = (engine.getAgent().getPosition().y + 0.5f) * ui::ProceduralRenderer::TILE_SIZE;
+      camera.centerOn(agentX, agentY);
+    } else {
+      camera.centerOn(loadedGui.cameraCenterX, loadedGui.cameraCenterY);
+    }
+
+    minimap.setIntroOffsetY(0.0f);
+    minimap.setPoweredOnImmediate();
+    renderer.setWaitingForDrop(false);
+    appFlowState = AppFlowState::InGame;
+    startScreenFadeAlpha = 0.0f;
+  }
+
   auto renderSplashWelcomeUI = [&](float scrW, float scrH, float fadeMultiplier) {
     if (fadeMultiplier <= 0.001f)
       return;
@@ -824,13 +882,20 @@ int main(int argc, char *argv[]) {
           }
         };
 
-        // Centered Paragraph 1
+        // Centered Paragraph 1: Greeting line
         renderCenteredWrapped(
-            "Ласкаво просимо до «Lethal Labyrinth»! Проєкт натхненний атмосферою гри "
-            "Lethal Company та адаптований як навчально-дослідницька система з "
-            "дискретних структур та алгоритмів. Комплекс моделює процедурну BSP-генерацію "
-            "лабіринтів, алгоритми пошуку найкоротших шляхів (A*, Dijkstra, BFS) та "
-            "розв'язання задачі про рюкзак (Knapsack Problem) для збору цінностей.",
+            "Ласкаво просимо до «Lethal Labyrinth»!",
+            textMaxW, scrW, ImVec4(0.88f, 0.86f, 0.84f, effectiveWelcomeAlpha));
+
+        ImGui::Dummy(ImVec2(0.0f, 6.0f));
+
+        // Centered Paragraph 1: Main description
+        renderCenteredWrapped(
+            "Проєкт натхненний атмосферою гри Lethal Company та адаптований як "
+            "навчально-дослідницька система з дискретних структур та алгоритмів. "
+            "Комплекс моделює процедурну BSP-генерацію лабіринтів, алгоритми пошуку "
+            "найкоротших шляхів (A*, Dijkstra, BFS) та розв'язання задачі про рюкзак "
+            "(Knapsack Problem) для збору цінностей.",
             textMaxW, scrW, ImVec4(0.88f, 0.86f, 0.84f, effectiveWelcomeAlpha));
 
         ImGui::Dummy(ImVec2(0.0f, 14.0f));
@@ -839,7 +904,7 @@ int main(int argc, char *argv[]) {
         renderCenteredWrapped(
             "У грі навігаційна система автоматично розраховує «найоптимальніший» маршрут "
             "за заданими параметрами квоти. Проте ви можете особисто спробувати пройти "
-            "лабіринт у ручному режимі (клавіші [W, A, S, D]), зважаючи на обмежений ліміт "
+            "лабіринт у ручному режимі (клавіші W, A, S, D), зважаючи на обмежений ліміт "
             "заряду енергії робітника та місткість рюкзака.",
             textMaxW, scrW, ImVec4(0.88f, 0.86f, 0.84f, effectiveWelcomeAlpha));
 
@@ -915,6 +980,7 @@ int main(int argc, char *argv[]) {
 
     while (const auto event = window.pollEvent()) {
       if (event->is<sf::Event::Closed>()) {
+        saveActiveSession();
         window.close();
         continue;
       }
@@ -1013,6 +1079,22 @@ int main(int argc, char *argv[]) {
               } else {
                 uiState.statusNotice = "Центрування недоступне під час генерації та трасування маршруту";
               }
+            }
+          }
+          if (key->code == sf::Keyboard::Key::X || key->scancode == sf::Keyboard::Scan::X) {
+            if (!ImGui::GetIO().WantTextInput && guiOverlay.getHudAttachEase() > 0.01f) {
+              bool collapse = !guiOverlay.isMissionPanelCollapsed();
+              guiOverlay.setMissionPanelCollapsed(collapse);
+              uiState.statusNotice = collapse
+                                         ? "Показники місії сховано [X]"
+                                         : "Показники місії відкрито [X]";
+            }
+          }
+          if (key->code == sf::Keyboard::Key::V || key->scancode == sf::Keyboard::Scan::V) {
+            if (!ImGui::GetIO().WantTextInput && !transition.isTransitionActive() &&
+                engine.isManualMode() && !engine.isAtEvacuationCell() &&
+                engine.getAgent().getStatus() != simulation::AgentStatus::Success) {
+              uiState.requestReturnToLastAutoStep = true;
             }
           }
         }
@@ -1720,7 +1802,8 @@ int main(int argc, char *argv[]) {
           maze, engine, worldPos, mouseOverUI, mousePixel, windowW, windowH,
           isExitDisabled, activeScanRadius, activeScanOrigin,
           transition.isSonarScanning(), transition.getRouteProgress(),
-          transition.isFadingOut() || transition.isWaitingForIntro());
+          transition.isFadingOut() || transition.isWaitingForIntro(),
+          config.showOptimalRoute, config.showWalkedCells);
     }
 
     camera.setViewport(
@@ -1922,7 +2005,9 @@ int main(int argc, char *argv[]) {
                      transition.getFadeAlpha(),
                      config.showOptimalRoute ? &engine.getPlan() : nullptr,
                      transition.getRouteProgress(), isExitDisabled, 1.0f,
-                     !transition.isWaitingForIntro());
+                     !transition.isWaitingForIntro(),
+                     guiOverlay.getHoveredCatalogItemName(),
+                     guiOverlay.getHoveredCatalogCategory());
     }
 
     ImGui::SFML::Render(window);
@@ -1934,6 +2019,8 @@ int main(int argc, char *argv[]) {
     }
 #endif
   }
+
+  saveActiveSession();
 
   ImGui::SFML::Shutdown();
 #ifdef _WIN32

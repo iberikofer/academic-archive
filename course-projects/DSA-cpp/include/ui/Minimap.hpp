@@ -136,6 +136,11 @@ public:
     powerAnimProgress_ = 0.0f;
   }
 
+  void setPoweredOnImmediate() noexcept {
+    powerState_ = PowerState::On;
+    powerAnimProgress_ = 1.0f;
+  }
+
   void powerOn() noexcept {
     powerState_ = PowerState::TurningOn;
     powerAnimProgress_ = 0.0f;
@@ -226,7 +231,9 @@ public:
               sf::Vector2f scanOrigin = {0.0f, 0.0f}, float fadeAlpha = 0.0f,
               const algorithms::routing::RoutePlan *routePlan = nullptr,
               float routeProgress = 1.0f, bool isExitDisabled = false,
-              float monitorAlpha = 1.0f, bool showMapContent = true) {
+              float monitorAlpha = 1.0f, bool showMapContent = true,
+              const std::string &hoveredCatalogItemName = "",
+              int hoveredCatalogCategory = -1) {
     if (monitorAlpha <= 0.001f) {
       return;
     }
@@ -236,6 +243,7 @@ public:
     float dt = glowClock_.restart().asSeconds();
     if (dt > 0.1f)
       dt = 0.1f;
+    animTime_ += dt;
 
     if (routeCompletionTimer_ > 0.0f) {
       routeCompletionTimer_ = std::max(0.0f, routeCompletionTimer_ - dt);
@@ -394,9 +402,9 @@ public:
           if (cell.isWalked() && cell.getType() != core::CellType::Start &&
               cell.getType() != core::CellType::Exit) {
             if (cell.getType() == core::CellType::Mud) {
-              baseColor = sf::Color(88, 125, 115);
+              baseColor = sf::Color(115, 88, 54);
               hasOutline = true;
-              outlineColor = sf::Color(65, 225, 215, 220);
+              outlineColor = sf::Color(0, 230, 245, 200);
             } else {
               baseColor = sf::Color(0, 95, 125);
               hasOutline = true;
@@ -532,9 +540,32 @@ public:
         float itemRadius =
             std::max(2.0f, std::min(tileScaledW, tileScaledH) * 0.45f);
 
-        sf::CircleShape miniItem(itemRadius);
-        miniItem.setOrigin({itemRadius, itemRadius});
+        bool isTargeted = false;
+        if (!hoveredCatalogItemName.empty() && item.name == hoveredCatalogItemName) {
+          isTargeted = true;
+        } else if (hoveredCatalogCategory >= 0 &&
+                   static_cast<int>(item.category) == hoveredCatalogCategory) {
+          isTargeted = true;
+        }
+
+        if (isTargeted) {
+          float pulse = 0.5f + 0.5f * std::sin(animTime_ * 8.0f);
+          float haloR = itemRadius * (2.0f + 0.6f * pulse);
+          sf::CircleShape halo(haloR);
+          halo.setOrigin({haloR, haloR});
+          halo.setPosition({ix, iy});
+          halo.setFillColor(
+              sf::Color(255, 255, 255, static_cast<uint8_t>(90 + 90 * pulse)));
+          target.draw(halo);
+        }
+
+        sf::CircleShape miniItem(isTargeted ? (itemRadius * 1.35f) : itemRadius);
+        miniItem.setOrigin({miniItem.getRadius(), miniItem.getRadius()});
         miniItem.setPosition({ix, iy});
+        if (isTargeted) {
+          miniItem.setOutlineThickness(1.2f);
+          miniItem.setOutlineColor(sf::Color(255, 255, 255, 240));
+        }
 
         switch (item.category) {
         case core::ItemCategory::LightGem:
@@ -1185,6 +1216,7 @@ private:
   float routeCompletionTimer_ = 0.0f;
   bool wasRouteCompleted_ = false;
   float introOffsetY_ = 0.0f;
+  float animTime_ = 0.0f;
   sf::VertexArray minimapQuads_{sf::PrimitiveType::Triangles};
   sf::VertexArray minimapBorders_{sf::PrimitiveType::Lines};
 };

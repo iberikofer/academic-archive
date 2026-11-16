@@ -158,6 +158,14 @@ public:
     return std::nullopt;
   }
 
+  [[nodiscard]] const core::Item *getItemAt(int x, int y) const noexcept {
+    for (const auto &item : items_) {
+      if (item.position.x == x && item.position.y == y)
+        return &item;
+    }
+    return nullptr;
+  }
+
   [[nodiscard]] int getTotalItemWeight() const noexcept {
     return std::accumulate(
         items_.begin(), items_.end(), 0,

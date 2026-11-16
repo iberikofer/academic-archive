@@ -93,6 +93,29 @@ public:
     sidebarWidth_ = w;
     savedSidebarBaseWidth_ = (uiScale > 0.001f) ? (w / uiScale) : w;
   }
+  [[nodiscard]] float getSavedSidebarBaseWidth() const noexcept {
+    return savedSidebarBaseWidth_;
+  }
+  void setSavedSidebarBaseWidth(float w) noexcept {
+    savedSidebarBaseWidth_ = w;
+    sidebarWidth_ = w;
+  }
+  [[nodiscard]] float getSidebarOpenProgress() const noexcept {
+    return sidebarOpenProgress_;
+  }
+  void setSidebarOpenProgress(float progress) noexcept {
+    sidebarOpenProgress_ = progress;
+  }
+  void setStartupHintDismissed(bool dismissed) noexcept {
+    startupHintDismissed_ = dismissed;
+  }
+  [[nodiscard]] float getSavedMissionPanelBaseWidth() const noexcept {
+    return savedMissionPanelBaseWidth_;
+  }
+  void setSavedMissionPanelBaseWidth(float w) noexcept {
+    savedMissionPanelBaseWidth_ = w;
+    missionPanelWidth_ = w;
+  }
 
   void toggleSidebar(float uiScale = 1.0f) noexcept {
     sidebarCollapsed_ = !sidebarCollapsed_;
@@ -155,27 +178,8 @@ public:
   }
 
   [[nodiscard]] bool isMouseInLegendMarginDeadzone(
-      float mx, float my, const core::Config &config, float windowWidth,
-      float windowHeight) const noexcept {
-    float legendW = 355.0f * config.uiScale;
-    float btnX = windowWidth - legendW - Minimap::PADDING;
-    float btnY = Minimap::PADDING;
-    float btnH =
-        std::max(34.0f * config.uiScale, ImGui::GetFrameHeight() + 6.0f);
-
-    // Strip above and right of the Legend toggle button (and right edge beside legend)
-    if (mx >= btnX - 2.0f && mx <= windowWidth && my >= 0.0f &&
-        my <= btnY + 1.0f) {
-      return true;
-    }
-    if (mx >= windowWidth - Minimap::PADDING - 1.0f && mx <= windowWidth &&
-        my >= 0.0f && my <= btnY + btnH + 2.0f) {
-      return true;
-    }
-    if (config.showLegend && mx >= windowWidth - Minimap::PADDING - 1.0f &&
-        mx <= windowWidth && my >= 0.0f && my <= windowHeight) {
-      return true;
-    }
+      float /*mx*/, float /*my*/, const core::Config & /*config*/,
+      float /*windowWidth*/, float /*windowHeight*/) const noexcept {
     return false;
   }
 
@@ -481,12 +485,17 @@ public:
       ImGui::GetIO().FontGlobalScale =
           (BASE_FONT_SIZE / NATIVE_FONT_SIZE) * config.uiScale;
       sidebarWidth_ = savedSidebarBaseWidth_ * config.uiScale;
+      missionPanelWidth_ = savedMissionPanelBaseWidth_ * config.uiScale;
       appliedScale = config.uiScale;
     }
 
     float minSidebarW = MIN_SIDEBAR_WIDTH * config.uiScale;
     float maxSidebarWidth = ImGui::GetIO().DisplaySize.x * 0.55f;
     sidebarWidth_ = std::clamp(sidebarWidth_, minSidebarW, maxSidebarWidth);
+
+    float minPanelW = std::round(235.0f * config.uiScale);
+    float maxPanelW = std::round(415.0f * config.uiScale);
+    missionPanelWidth_ = std::clamp(missionPanelWidth_, minPanelW, maxPanelW);
 
     float dt = ImGui::GetIO().DeltaTime;
     const float SIDEBAR_ANIM_DURATION =
@@ -627,33 +636,6 @@ public:
                           "пройдених робітником клітинок.");
       }
 
-      // Camera follow & center on agent
-      if (state.isTransitionActive) {
-        ImGui::BeginDisabled(true);
-      }
-      if (ImGui::Checkbox("Прив'язка камери до агента",
-                          &config.cameraFollowAgent)) {
-        if (config.cameraFollowAgent) {
-          state.requestCenterCameraOnAgent = true;
-        } else {
-          state.requestCenterCameraOnMaze = true;
-        }
-      }
-      if (state.isTransitionActive) {
-        ImGui::EndDisabled();
-      }
-      if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        if (state.isTransitionActive) {
-          ImGui::SetTooltip("Центрування недоступне під час генерації та "
-                            "трасування маршруту.");
-        } else {
-          ImGui::SetTooltip("Якщо увімкнено: камера автоматично слідує за "
-                            "робітником при кожному його кроці.\n"
-                            "Якщо вимкнено: вільний огляд без прив'язки камери "
-                            "(пересувайте стрілочками або ПКМ).");
-        }
-      }
-
       // VSync
       if (ImGui::Checkbox("Вертикальна синхронізація (VSync)",
                           &config.vsyncEnabled)) {
@@ -685,9 +667,16 @@ public:
       ImGui::TextColored(ImVec4(0.85f, 0.75f, 0.50f, 1.0f),
                          "Гарячі клавіші та керування:");
       ImGui::TextDisabled(
+          "- [Esc] - Відкрити / сховати бічну панель керування");
+      ImGui::TextDisabled("- [F11] - увімкнути / вимкнути повний екран");
+      ImGui::TextDisabled(
           "- [W, A, S, D] - ручне керування переміщенням робітника");
+      ImGui::TextDisabled("- [X] - Показати / сховати показники місії");
+      ImGui::TextDisabled(
+          "- [C] - Центрувати / прив'язати камеру до робітника");
+      ImGui::TextDisabled(
+          "- [V] - Повернутись до останнього автоматичного кроку");
       ImGui::TextDisabled("- [M] - Показати / сховати легенду позначок");
-      ImGui::TextDisabled("- [C] - Центрувати / прив'язати камеру до агента");
       ImGui::TextDisabled(
           "- [Space] - Крок вперед (затиснути для швидкого руху)");
       ImGui::TextDisabled("- [Shift+Space] - Крок назад (перемотування)");
@@ -698,7 +687,6 @@ public:
       ImGui::TextDisabled("- [Колесо миші] - масштабування в точку курсора");
       ImGui::TextDisabled(
           "- [Колесо на міні-карті] - масштабування загальної карти");
-      ImGui::TextDisabled("- [F11] - увімкнути / вимкнути повний екран");
       ImGui::Spacing();
     }
 
@@ -1410,18 +1398,6 @@ public:
       ImGui::Spacing();
       const auto &agent = engine.getAgent();
 
-      if (engine.getExtraCollectedCount() > 0) {
-        ImGui::Spacing();
-        ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.30f, 1.0f),
-                           "[+] Попутно зібрано: +%zu од. брухту",
-                           engine.getExtraCollectedCount());
-        if (ImGui::IsItemHovered()) {
-          ImGui::SetTooltip(
-              "На шляху агента лежав брухт, який помістився у рюкзак,\n"
-              "тому агент зібрав більше, ніж планувалося спочатку.");
-        }
-      }
-
       bool atEvacOrSuccess =
           engine.isAtEvacuationCell() ||
           agent.getStatus() == simulation::AgentStatus::Success;
@@ -1637,7 +1613,7 @@ public:
 
       const auto &plan = engine.getPlan();
       if (plan.routeValid) {
-        ImGui::Separator();
+        ImGui::Spacing();
         ImGui::Text("Оптимізація TSP (2-Opt):");
         ImGui::Text(" - До 2-Opt: %d од. енергії", plan.energyBefore2Opt);
         ImGui::Text(" - Після 2-Opt: %d од. енергії", plan.totalEnergyCost);
@@ -1665,11 +1641,6 @@ public:
       if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip("Експортувати результати вимірювання, параметри карти та "
                           "траєкторію робітника у файл report_route.json.");
-      }
-
-      if (!state.statusNotice.empty()) {
-        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "%s",
-                           state.statusNotice.c_str());
       }
       ImGui::Spacing();
     }
@@ -1763,14 +1734,13 @@ public:
         if (sidebarCollapsed_) {
           ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
           showStyledTooltip(uiScale,
-                            "[Клік / Потягніть вправо / Esc]: Відкрити бічну "
-                            "панель керування");
+                            "[Клік / Esc]: Відкрити бічну панель керування");
         } else {
           ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
           showStyledTooltip(
               uiScale,
               "[Клік / Esc]: Сховати бічну панель\n[Потягніть мишею]: Змінити "
-              "ширину меню (640px .. 55%% екрану)");
+              "ширину меню");
         }
       }
 
@@ -1950,9 +1920,10 @@ public:
 
       float slideOffset = (1.0f - animT) * 16.0f;
       float hintX = handleX + handleW + 14.0f * uiScale + slideOffset;
-      float hintY = handleY + (handleH * 0.5f) - 78.0f * uiScale;
+      float centerY = handleY + (handleH * 0.5f);
 
-      ImGui::SetNextWindowPos(ImVec2(hintX, hintY), ImGuiCond_Always);
+      ImGui::SetNextWindowPos(ImVec2(hintX, centerY), ImGuiCond_Always,
+                              ImVec2(0.0f, 0.5f));
       ImGui::SetNextWindowBgAlpha(0.94f * animT);
 
       ImGuiWindowFlags hintFlags =
@@ -1982,10 +1953,11 @@ public:
         ImGui::SameLine(0, 0);
         ImGui::TextUnformatted(" або на цю кнопку ліворуч,");
         ImGui::TextUnformatted("щоб відкрити бічну панель керування:");
-        ImGui::TextDisabled("- Вибір алгоритмів пошуку шляху та TSP");
-        ImGui::TextDisabled("- Генерація лабіринтів та аналіз");
-        ImGui::TextDisabled("- Параметри швидкості та запас енергії");
-        ImGui::TextDisabled("- Налаштування UI, тем оформлення та масштабу");
+        ImGui::TextDisabled("- Відображення та огляд");
+        ImGui::TextDisabled("- Налаштування лабіринту BSP");
+        ImGui::TextDisabled("- Керування експедицією");
+        ImGui::TextDisabled("- Керування симуляцією");
+        ImGui::TextDisabled("- Порівняльний аналіз");
         ImGui::Spacing();
 
         if (ImGui::Button("Зрозуміло", ImVec2(-1.0f, 26.0f * uiScale))) {
@@ -1994,9 +1966,9 @@ public:
 
         // Pointer triangle pointing left directly to the handle
         ImDrawList *hintDrawList = ImGui::GetWindowDrawList();
-        ImVec2 pTip(hintX - 7.0f, handleY + handleH * 0.5f);
-        ImVec2 pTop(hintX + 1.0f, handleY + handleH * 0.5f - 8.0f * uiScale);
-        ImVec2 pBot(hintX + 1.0f, handleY + handleH * 0.5f + 8.0f * uiScale);
+        ImVec2 pTip(hintX - 7.0f, centerY);
+        ImVec2 pTop(hintX + 1.0f, centerY - 8.0f * uiScale);
+        ImVec2 pBot(hintX + 1.0f, centerY + 8.0f * uiScale);
         hintDrawList->AddTriangleFilled(
             pTip, pTop, pBot,
             ImColor(
@@ -2054,8 +2026,6 @@ public:
                            it.name.c_str());
       }
       ImGui::Separator();
-      ImGui::TextColored(ImVec4(0.35f, 0.95f, 0.55f, 1.0f),
-                         "Статус: Вже підібрано робітником у рюкзак");
       if (isOpportunistic) {
         ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.30f, 1.0f),
                            "Збір: Попутний брухт (лежав на шляху)");
@@ -2066,6 +2036,9 @@ public:
       ImGui::Text("Цінність: %d грн", it.value);
       ImGui::Text("Питома цінність (V/W): %.2f грн/кг", it.getValueDensity());
       ImGui::Text("Координати: [%d, %d]", it.position.x, it.position.y);
+      ImGui::Separator();
+      ImGui::TextColored(ImVec4(0.35f, 0.95f, 0.55f, 1.0f),
+                         "Вже підібрано робітником у рюкзак");
 
       ImGui::PopTextWrapPos();
       ImGui::End();
@@ -2100,27 +2073,17 @@ public:
         355.0f * config.uiScale; // Compact width with balanced column spacing
     float padX = 10.0f * config.uiScale;
     float padY = 8.0f * config.uiScale;
-    float commonBtnW = legendW;
     float commonBtnH =
         std::max(34.0f * config.uiScale,
                  ImGui::GetFrameHeight() + 6.0f); // Taller button up-and-down
 
     float hudEase = getHudIntroEase();
-    float btnX = windowWidth - legendW - Minimap::PADDING;
-    float targetBtnY = Minimap::PADDING;
-    float curBtnY =
-        -commonBtnH - 6.0f + (targetBtnY + commonBtnH + 6.0f) * hudEase;
+    float btnX = windowWidth - legendW;
+    float targetBtnY = 0.0f;
+    float curBtnY = -commonBtnH + commonBtnH * hudEase;
 
-    // 1. Single unified persistent toggle button sliding in from top edge;
-    // when settled, extend invisible window bounds to top/right screen edges so hovering/clicking
-    // the outer 2px margin never leaks to camera drag or changes cursor.
-    bool introDone = (hudEase >= 0.999f);
-    float winPosY = introDone ? 0.0f : curBtnY;
-    float winSizeW = introDone ? (commonBtnW + Minimap::PADDING) : commonBtnW;
-    float winSizeH = introDone ? (targetBtnY + commonBtnH) : commonBtnH;
-
-    ImGui::SetNextWindowPos(ImVec2(btnX, winPosY), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(winSizeW, winSizeH), ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2(btnX, curBtnY), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(legendW, commonBtnH), ImGuiCond_Always);
 
     ImGuiWindowFlags btnFlags =
         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
@@ -2131,19 +2094,16 @@ public:
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     if (ImGui::Begin("##MinimapLegendUnifiedToggle", nullptr, btnFlags)) {
-      if (introDone) {
-        ImGui::SetCursorPos(ImVec2(0.0f, targetBtnY));
-      }
       const char *btnLabel =
           config.showLegend ? "[M] Сховати легенду" : "[M] Показати легенду";
-      if (ImGui::Button(btnLabel, ImVec2(commonBtnW, commonBtnH))) {
+      if (ImGui::Button(btnLabel, ImVec2(legendW, commonBtnH))) {
         config.showLegend = !config.showLegend;
       }
       if (ImGui::IsItemHovered()) {
         showStyledTooltip(config.uiScale, "%s",
                           config.showLegend
-                              ? "Сховати детальну легенду позначок мапи [M]."
-                              : "Показати детальну легенду позначок мапи [M].");
+                              ? "Сховати детальну легенду позначок мапи."
+                              : "Показати детальну легенду позначок мапи.");
       }
     }
     ImGui::End();
@@ -2175,8 +2135,7 @@ public:
       float baseLegendH = ImGui::GetTextLineHeightWithSpacing() * 2.0f +
                           9.0f * (std::max(18.0f, ImGui::GetTextLineHeight()) +
                                   ImGui::GetStyle().ItemSpacing.y + 6.0f) +
-                          ImGui::GetFrameHeightWithSpacing() + padY * 2.0f +
-                          (isQuotaMet ? (ImGui::GetTextLineHeightWithSpacing() + 38.0f * config.uiScale) : 28.0f * config.uiScale);
+                          ImGui::GetFrameHeightWithSpacing() + padY * 2.0f + 4.0f * config.uiScale;
 
       float collapsedH =
           (collapsedLegendH_ > 50.0f) ? collapsedLegendH_ : baseLegendH;
@@ -2220,16 +2179,22 @@ public:
       float legendH = collapsedH + std::max(catalogAddedH, collectedAddedH);
       legendH = std::min(legendH, maxLegendH);
 
+      bool legendInteractable = (easeT >= 0.995f && config.showLegend);
+      float curWindowH = std::max(1.0f, std::round(legendH * easeT));
       float legendX = btnX;
-      float legendY = targetLegendY - (1.0f - easeT) * (legendH + 10.0f);
-
-      ImGui::SetNextWindowPos(ImVec2(legendX, legendY), ImGuiCond_Always);
-      ImGui::SetNextWindowSize(ImVec2(legendW, legendH), ImGuiCond_Always);
+      // Anchor top edge strictly below toggle button so it never overlaps, dims, or steals hover
+      ImGui::SetNextWindowPos(ImVec2(legendX, targetLegendY), ImGuiCond_Always);
+      ImGui::SetNextWindowSize(ImVec2(legendW, curWindowH), ImGuiCond_Always);
 
       ImGuiWindowFlags flags =
           ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
           ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-          ImGuiWindowFlags_NoScrollWithMouse;
+          ImGuiWindowFlags_NoScrollWithMouse |
+          ImGuiWindowFlags_NoBringToFrontOnFocus |
+          ImGuiWindowFlags_NoFocusOnAppearing;
+      if (!legendInteractable) {
+        flags |= ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoScrollbar;
+      }
 
       ImGui::PushStyleColor(ImGuiCol_WindowBg,
                             ImVec4(0.08f, 0.07f, 0.08f, 0.70f));
@@ -2249,11 +2214,18 @@ public:
       ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padX, padY));
       ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 10.0f * config.uiScale);
       ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 4.0f);
+      ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(1.0f, 1.0f));
 
       if (ImGui::Begin("MinimapLegendWindow", nullptr, flags)) {
         ImGui::GetWindowDrawList()->PushClipRect(
             ImVec2(btnX - 10.0f, targetLegendY - 2.0f),
-            ImVec2(btnX + legendW + 10.0f, windowHeight), true);
+            ImVec2(btnX + legendW + 10.0f,
+                   std::min(windowHeight, targetLegendY + curWindowH + 2.0f)),
+            true);
+        float revealShiftY = -(1.0f - easeT) * 24.0f * config.uiScale;
+        if (!legendInteractable) {
+          ImGui::SetCursorPosY(padY + revealShiftY);
+        }
         ImGui::SetScrollX(0.0f);
         ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f),
                            "Легенда позначок:");
@@ -2266,9 +2238,9 @@ public:
           return IM_COL32(r, g, b, a);
         };
 
-        auto drawLegendItem = [scale = config.uiScale](const char *label,
-                                                     const char *tooltip,
-                                                     auto iconFunc) {
+        auto drawLegendItem = [this, scale = config.uiScale, legendInteractable](
+                                  const char *label, const char *tooltip,
+                                  auto iconFunc, int categoryId = -1) {
           ImVec2 p = ImGui::GetCursorScreenPos();
           float iconSize = 18.0f;
           ImDrawList *drawList = ImGui::GetWindowDrawList();
@@ -2278,16 +2250,21 @@ public:
           ImGui::SameLine(0, 8.0f);
           ImGui::TextUnformatted(label);
 
-          if (ImGui::IsItemHovered() ||
-              ImGui::IsMouseHoveringRect(
-                  p, ImVec2(p.x + iconSize, p.y + iconSize))) {
+          if (legendInteractable &&
+              ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows) &&
+              (ImGui::IsItemHovered() ||
+               ImGui::IsMouseHoveringRect(
+                   p, ImVec2(p.x + iconSize, p.y + iconSize)))) {
             showStyledTooltip(scale, "%s", tooltip);
+            if (categoryId >= 0) {
+              hoveredCatalogCategory_ = categoryId;
+            }
           }
           ImGui::Spacing();
         };
 
         drawLegendItem(
-            "Робітник (Агент)",
+            "Робітник",
             "Автономний робітник у захисному костюмі Lethal Company",
             [&colA, &renderer](ImDrawList *dl, ImVec2 p, float s) {
               ImVec2 center(p.x + s * 0.5f, p.y + s * 0.5f);
@@ -2392,41 +2369,43 @@ public:
               });
         }
 
-        // 4. Mud / Swamp / Water hazard tile (original style with round
-        // bubbles)
+        // 4. Mud / Swamp / Water hazard tile (styled after labyrinth mud hazards)
         drawLegendItem(
             "Багнюка / Болото / Вода",
-            "Важкопрохідна ділянка з бульбашками: витрата енергії +25 прямо, "
+            "Важкопрохідна ділянка: витрата енергії +25 прямо, "
             "+35 по діагоналі",
             [&colA](ImDrawList *dl, ImVec2 p, float s) {
               dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s),
-                                colA(32, 22, 14, 255), 2.0f);
+                                colA(58, 44, 28, 255), 2.0f);
               dl->AddRectFilled(ImVec2(p.x + 2, p.y + 2),
                                 ImVec2(p.x + s - 2, p.y + s - 2),
-                                colA(44, 32, 18, 255), 2.0f);
-              dl->AddRect(ImVec2(p.x + 4.5f, p.y + 4.5f),
-                          ImVec2(p.x + s - 4.5f, p.y + s - 4.5f),
-                          colA(88, 68, 44, 220), 1.0f);
-              // Mud bubbles
-              dl->AddCircleFilled(ImVec2(p.x + s * 0.35f, p.y + s * 0.40f),
-                                  2.2f, colA(115, 88, 54, 255));
-              dl->AddCircle(ImVec2(p.x + s * 0.35f, p.y + s * 0.40f), 2.2f,
-                            colA(152, 122, 80, 240), 0, 0.8f);
-              dl->AddCircleFilled(ImVec2(p.x + s * 0.68f, p.y + s * 0.62f),
-                                  1.6f, colA(115, 88, 54, 255));
+                                colA(72, 54, 32, 255), 2.0f);
+              dl->AddRect(ImVec2(p.x + 3.5f, p.y + 3.5f),
+                          ImVec2(p.x + s - 3.5f, p.y + s - 3.5f),
+                          colA(118, 92, 54, 220), 1.0f);
+              // Mud square sludge bubbles matching labyrinth style
+              dl->AddRectFilled(ImVec2(p.x + s * 0.30f, p.y + s * 0.35f),
+                                ImVec2(p.x + s * 0.30f + 3.5f, p.y + s * 0.35f + 3.5f),
+                                colA(135, 105, 62, 255));
+              dl->AddRect(ImVec2(p.x + s * 0.30f, p.y + s * 0.35f),
+                          ImVec2(p.x + s * 0.30f + 3.5f, p.y + s * 0.35f + 3.5f),
+                          colA(175, 142, 90, 240), 0, 0.8f);
+              dl->AddRectFilled(ImVec2(p.x + s * 0.65f, p.y + s * 0.60f),
+                                ImVec2(p.x + s * 0.65f + 2.5f, p.y + s * 0.60f + 2.5f),
+                                colA(135, 105, 62, 255));
               // Corner safety rivets
               dl->AddRectFilled(ImVec2(p.x + 1, p.y + 1),
                                 ImVec2(p.x + 3, p.y + 3),
-                                colA(120, 95, 55, 200));
+                                colA(155, 125, 75, 220));
               dl->AddRectFilled(ImVec2(p.x + s - 3, p.y + 1),
                                 ImVec2(p.x + s - 1, p.y + 3),
-                                colA(120, 95, 55, 200));
+                                colA(155, 125, 75, 220));
               dl->AddRectFilled(ImVec2(p.x + 1, p.y + s - 3),
                                 ImVec2(p.x + 3, p.y + s - 1),
-                                colA(120, 95, 55, 200));
+                                colA(155, 125, 75, 220));
               dl->AddRectFilled(ImVec2(p.x + s - 3, p.y + s - 3),
                                 ImVec2(p.x + s - 1, p.y + s - 1),
-                                colA(120, 95, 55, 200));
+                                colA(155, 125, 75, 220));
             });
 
         // 5. Light, medium, and heavy scrap items
@@ -2437,7 +2416,8 @@ public:
               ImVec2 center(p.x + s * 0.5f, p.y + s * 0.5f);
               dl->AddCircleFilled(center, 5.0f, colA(50, 105, 255, 255));
               dl->AddCircle(center, 5.0f, colA(255, 255, 255, 240), 0, 1.8f);
-            });
+            },
+            static_cast<int>(core::ItemCategory::LightScrap));
 
         drawLegendItem(
             "Побутовий брухт (4-8 кг)",
@@ -2446,7 +2426,8 @@ public:
               ImVec2 center(p.x + s * 0.5f, p.y + s * 0.5f);
               dl->AddCircleFilled(center, 6.0f, colA(255, 255, 0, 255));
               dl->AddCircle(center, 6.0f, colA(255, 255, 255, 240), 0, 1.8f);
-            });
+            },
+            static_cast<int>(core::ItemCategory::MediumScrap));
 
         drawLegendItem(
             "Важкий брухт (10-18 кг)",
@@ -2456,7 +2437,8 @@ public:
               ImVec2 center(p.x + s * 0.5f, p.y + s * 0.5f);
               dl->AddCircleFilled(center, 7.0f, colA(255, 0, 255, 255));
               dl->AddCircle(center, 7.0f, colA(255, 255, 255, 240), 0, 1.8f);
-            });
+            },
+            static_cast<int>(core::ItemCategory::HeavyScrap));
 
         // 6. Walked cell (Trail) - clean maze floor square without inner dots
         drawLegendItem("Пройдена клітинка (Слід)",
@@ -2530,7 +2512,7 @@ public:
             catalogScrollOnCloseStart_ = ImGui::GetScrollY();
           }
         }
-        if (ImGui::IsItemHovered()) {
+        if (legendInteractable && ImGui::IsItemHovered()) {
           showStyledTooltip(
               config.uiScale, "%s",
               (isCatalogOpen_ && !isCatalogClosing_)
@@ -2611,7 +2593,7 @@ public:
               std::snprintf(bannerId, sizeof(bannerId), "##CatBanner_%d",
                             static_cast<int>(it.category));
               ImGui::InvisibleButton(bannerId, ImVec2(availW, bannerH));
-              bool isCatHovered = ImGui::IsItemHovered();
+              bool isCatHovered = legendInteractable && ImGui::IsItemHovered();
               if (isCatHovered) {
                 hoveredCatalogCategory_ = static_cast<int>(it.category);
               }
@@ -2705,13 +2687,13 @@ public:
               }
             }
 
-            if (ImGui::IsItemHovered()) {
+            if (legendInteractable && ImGui::IsItemHovered()) {
               isRowHovered = true;
             }
 
             ImGui::TableSetColumnIndex(1);
             ImGui::TextDisabled("%d кг, %d грн", it.baseWeight, it.baseValue);
-            if (ImGui::IsItemHovered()) {
+            if (legendInteractable && ImGui::IsItemHovered()) {
               isRowHovered = true;
             }
 
@@ -2748,7 +2730,7 @@ public:
             isCatalogClosing_ = true;
             catalogScrollOnCloseStart_ = ImGui::GetScrollY();
           }
-          if (ImGui::IsItemHovered()) {
+          if (legendInteractable && ImGui::IsItemHovered()) {
             showStyledTooltip(config.uiScale,
                               "Повернутися до початкового списку легенди.");
           }
@@ -2775,28 +2757,15 @@ public:
         bool isQuotaMet = (curCollectedVal >= quota);
 
         char collectedBtnText[128];
-        if (isQuotaMet) {
-          if (hasExtraScrap) {
-            std::snprintf(collectedBtnText, sizeof(collectedBtnText),
-                          "(%d/%d грн | %zu од. [+%zu])###CollectedBtn",
-                          curCollectedVal, quota, collectedCount, extraCount);
-          } else {
-            std::snprintf(collectedBtnText, sizeof(collectedBtnText),
-                          "(%d/%d грн | %zu/%zu од.)###CollectedBtn",
-                          curCollectedVal, quota, collectedCount,
-                          targetItemsCount);
-          }
+        if (hasExtraScrap) {
+          std::snprintf(collectedBtnText, sizeof(collectedBtnText),
+                        "Квота: %d / %d грн (%zu од. [+%zu])###CollectedBtn",
+                        curCollectedVal, quota, collectedCount, extraCount);
         } else {
-          if (hasExtraScrap) {
-            std::snprintf(collectedBtnText, sizeof(collectedBtnText),
-                          "Квота: %d / %d грн (%zu од. [+%zu])###CollectedBtn",
-                          curCollectedVal, quota, collectedCount, extraCount);
-          } else {
-            std::snprintf(collectedBtnText, sizeof(collectedBtnText),
-                          "Квота: %d / %d грн (%zu/%zu од.)###CollectedBtn",
-                          curCollectedVal, quota, collectedCount,
-                          targetItemsCount);
-          }
+          std::snprintf(collectedBtnText, sizeof(collectedBtnText),
+                        "Квота: %d / %d грн (%zu/%zu од.)###CollectedBtn",
+                        curCollectedVal, quota, collectedCount,
+                        targetItemsCount);
         }
 
         ImVec4 btnNormalCol =
@@ -2846,17 +2815,26 @@ public:
             collectedScrollOnCloseStart_ = ImGui::GetScrollY();
           }
         }
-        if (ImGui::IsItemHovered()) {
+        if (legendInteractable && ImGui::IsItemHovered()) {
           if (isQuotaMet) {
-            showStyledTooltip(config.uiScale,
-                              "Мінімальну квоту Компанії успішно виконано!\n"
-                              "Зібрано %d грн із необхідних %d грн.",
-                              curCollectedVal, quota);
+            bool isExceeded = (curCollectedVal >= quota + 50);
+            if (isExceeded) {
+              showStyledTooltip(
+                  config.uiScale,
+                  "Квоту Компанії ПЕРЕВИКОНАНО!\n"
+                  "Зібрано %d грн із необхідних %d грн (+%d грн перевиконання).",
+                  curCollectedVal, quota, curCollectedVal - quota);
+            } else {
+              showStyledTooltip(config.uiScale,
+                                "Мінімальну квоту Компанії успішно виконано!\n"
+                                "Зібрано %d грн із необхідних %d грн.",
+                                curCollectedVal, quota);
+            }
           } else if (hasExtraScrap) {
             showStyledTooltip(
                 config.uiScale,
-                "На шляху агента лежав брухт, який помістився в рюкзак,\n"
-                "тому агент зібрав на %zu од. більше, ніж планувалося!",
+                "На шляху робітника лежав брухт, який помістився в рюкзак,\n"
+                "тому робітник зібрав на %zu од. більше, ніж планувалося!",
                 extraCount);
           } else {
             showStyledTooltip(
@@ -2868,33 +2846,14 @@ public:
         }
         ImGui::PopStyleColor(4);
 
-        if (isQuotaMet) {
-          ImGui::Spacing();
-          const char *quotaSuccessText = "Мінімальну квоту виконано!";
-          float textW = ImGui::CalcTextSize(quotaSuccessText).x;
-          float availW = ImGui::GetContentRegionAvail().x;
-          if (availW > textW) {
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (availW - textW) * 0.5f);
-          }
-          ImGui::TextColored(ImVec4(0.35f, 0.95f, 0.55f, 1.0f), "%s", quotaSuccessText);
-          ImGui::Dummy(ImVec2(0.0f, 6.0f * config.uiScale));
-        }
-
         if (isCollectedOpen_ || collectedOpenProgress_ > 0.001f) {
           ImGui::Spacing();
-          float collectedEase = collectedOpenProgress_ *
-                                collectedOpenProgress_ *
-                                (3.0f - 2.0f * collectedOpenProgress_);
-          float clipBoxH =
-              std::max(10.0f, measuredCollectedContentH_ * collectedEase);
-          ImGui::BeginChild(
-              "##CollectedScrapAnimBox", ImVec2(0.0f, clipBoxH), false,
-              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
-          float childStartY = ImGui::GetCursorPosY();
+          float collectedContentStartY = ImGui::GetCursorPosY();
 
-          // Quota status notification banner at the top of the expanded card
+          // Unified Quota status and opportunistic scrap card
           if (isQuotaMet) {
             int surplusVal = curCollectedVal - quota;
+            bool isExceeded = (curCollectedVal >= quota + 50);
             ImGui::PushStyleColor(ImGuiCol_Border,
                                   ImVec4(0.25f, 0.95f, 0.50f, 0.95f));
             ImGui::PushStyleColor(ImGuiCol_ChildBg,
@@ -2903,15 +2862,29 @@ public:
             ImGui::PushStyleVar(
                 ImGuiStyleVar_WindowPadding,
                 ImVec2(8.0f * config.uiScale, 6.0f * config.uiScale));
-            ImGui::BeginChild("##QuotaSuccessNotice", ImVec2(0.0f, 0.0f),
+            ImGui::BeginChild("##UnifiedQuotaSuccessNotice", ImVec2(0.0f, 0.0f),
                               ImGuiChildFlags_Border |
                                   ImGuiChildFlags_AutoResizeY);
-            ImGui::TextColored(ImVec4(0.40f, 1.0f, 0.60f, 1.0f),
-                               "[OK] МІНІМАЛЬНУ КВОТУ ВИКОНАНО!");
+            ImGui::TextColored(
+                ImVec4(0.40f, 1.0f, 0.60f, 1.0f), "%s",
+                isExceeded ? "[OK] КВОТУ ПЕРЕВИКОНАНО!"
+                           : "[OK] МІНІМАЛЬНУ КВОТУ ВИКОНАНО!");
             ImGui::TextWrapped(
                 "Зібрано %d грн із необхідних %d грн (+%d грн перевиконання). "
                 "Евакуація гарантує 100%% успіх!",
                 curCollectedVal, quota, surplusVal);
+
+            if (hasExtraScrap) {
+              ImGui::Spacing();
+              ImGui::Separator();
+              ImGui::Spacing();
+              ImGui::TextColored(
+                  ImVec4(1.0f, 0.85f, 0.30f, 1.0f),
+                  "[!] Понадплановий збір (+%zu од.):", extraCount);
+              ImGui::TextWrapped(
+                  "На шляху робітника лежав брухт, який помістився в рюкзак, "
+                  "тому робітник зібрав більше ніж потрібно було!");
+            }
             ImGui::EndChild();
             ImGui::PopStyleVar(2);
             ImGui::PopStyleColor(2);
@@ -2935,30 +2908,17 @@ public:
             ImGui::TextWrapped("До виконання вимоги Компанії залишилося "
                                "підібрати брухту на %d грн.",
                                remainingVal);
-            ImGui::EndChild();
-            ImGui::PopStyleVar(2);
-            ImGui::PopStyleColor(2);
-            ImGui::Spacing();
-          }
-
-          if (hasExtraScrap) {
-            ImGui::PushStyleColor(ImGuiCol_Border,
-                                  ImVec4(0.95f, 0.75f, 0.20f, 0.85f));
-            ImGui::PushStyleColor(ImGuiCol_ChildBg,
-                                  ImVec4(0.18f, 0.14f, 0.08f, 0.85f));
-            ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 4.0f);
-            ImGui::PushStyleVar(
-                ImGuiStyleVar_WindowPadding,
-                ImVec2(8.0f * config.uiScale, 6.0f * config.uiScale));
-            ImGui::BeginChild("##OpportunisticScrapNotice", ImVec2(0.0f, 0.0f),
-                              ImGuiChildFlags_Border |
-                                  ImGuiChildFlags_AutoResizeY);
-            ImGui::TextColored(
-                ImVec4(1.0f, 0.85f, 0.30f, 1.0f),
-                "[!] Понадплановий збір (+%zu од.):", extraCount);
-            ImGui::TextWrapped(
-                "На шляху агента лежав брухт, який помістився в рюкзак, "
-                "тому агент зібрав більше ніж потрібно було!");
+            if (hasExtraScrap) {
+              ImGui::Spacing();
+              ImGui::Separator();
+              ImGui::Spacing();
+              ImGui::TextColored(
+                  ImVec4(1.0f, 0.85f, 0.30f, 1.0f),
+                  "[!] Понадплановий збір (+%zu од.):", extraCount);
+              ImGui::TextWrapped(
+                  "На шляху робітника лежав брухт, який помістився в рюкзак, "
+                  "тому робітник зібрав більше ніж потрібно було!");
+            }
             ImGui::EndChild();
             ImGui::PopStyleVar(2);
             ImGui::PopStyleColor(2);
@@ -2966,21 +2926,52 @@ public:
           }
 
           if (collectedIds.empty()) {
-            ImGui::TextDisabled("Робітник ще не зібрав жодного брухту.");
+            ImGui::TextDisabled("  Робітник ще не зібрав жодного брухту.");
           } else {
-            if (ImGui::BeginTable("CollectedScrapTable", 2,
+            ImGui::PushStyleVar(
+                ImGuiStyleVar_CellPadding,
+                ImVec2(8.0f * config.uiScale, 3.5f * config.uiScale));
+
+            if (ImGui::BeginTable("CollectedScrapTable", 3,
                                   ImGuiTableFlags_RowBg |
+                                      ImGuiTableFlags_PadOuterX |
                                       ImGuiTableFlags_SizingStretchProp)) {
-              ImGui::TableSetupColumn("Зібраний предмет",
+              ImGui::TableSetupColumn("Назва",
                                       ImGuiTableColumnFlags_WidthStretch);
-              ImGui::TableSetupColumn("Вага / Ціна",
+              ImGui::TableSetupColumn("Вага",
                                       ImGuiTableColumnFlags_WidthFixed,
-                                      92.0f * config.uiScale);
+                                      48.0f * config.uiScale);
+              ImGui::TableSetupColumn("Ціна",
+                                      ImGuiTableColumnFlags_WidthFixed,
+                                      56.0f * config.uiScale);
 
               ImGui::PushStyleColor(ImGuiCol_TableHeaderBg,
                                     ImVec4(0.12f, 0.20f, 0.16f, 0.95f));
-              ImGui::TableHeadersRow();
+              ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
+              const char *headers[3] = {"Назва", "Вага", "Ціна"};
+              for (int colIdx = 0; colIdx < 3; ++colIdx) {
+                ImGui::TableSetColumnIndex(colIdx);
+                char hdrId[16];
+                std::snprintf(hdrId, sizeof(hdrId), "##Hdr_%d", colIdx);
+                ImGui::TableHeader(hdrId);
+                ImVec2 hMin = ImGui::GetItemRectMin();
+                ImVec2 hMax = ImGui::GetItemRectMax();
+                float textW = ImGui::CalcTextSize(headers[colIdx]).x;
+                float textH = ImGui::GetTextLineHeight();
+                float tx = hMin.x + (hMax.x - hMin.x - textW) * 0.5f;
+                float ty = hMin.y + (hMax.y - hMin.y - textH) * 0.5f;
+                ImGui::GetWindowDrawList()->AddText(
+                    ImVec2(tx, ty), ImGui::GetColorU32(ImGuiCol_Text),
+                    headers[colIdx]);
+              }
               ImGui::PopStyleColor();
+
+              ImVec2 legendMin(btnX, targetLegendY);
+              ImVec2 legendMax(btnX + legendW, targetLegendY + curWindowH);
+              ImVec2 mouse = ImGui::GetMousePos();
+              bool mouseInLegend =
+                  (mouse.x >= legendMin.x && mouse.x <= legendMax.x &&
+                   mouse.y >= legendMin.y && mouse.y <= legendMax.y);
 
               for (size_t i = 0; i < collectedIds.size(); ++i) {
                 int itemId = collectedIds[i];
@@ -2995,20 +2986,81 @@ public:
                              : (it.category == core::ItemCategory::MediumScrap)
                                  ? ImVec4(1.00f, 1.00f, 0.00f, 1.0f)
                                  : ImVec4(1.0f, 0.0f, 1.0f, 1.0f);
+
                 ImGui::TableNextRow();
+                ImVec2 rowStart = ImGui::GetCursorScreenPos();
+                bool isRowHovered = false;
+
                 ImGui::TableSetColumnIndex(0);
-                ImGui::TextColored(col, "%zu. %s", i + 1, it.name.c_str());
                 if (!isPlanned) {
-                  ImGui::SameLine();
+                  // Opportunistic item: number with dot is highlighted in golden/amber color
                   ImGui::TextColored(ImVec4(1.0f, 0.82f, 0.25f, 1.0f),
-                                     "[+Попутний]");
+                                     "%zu. ", i + 1);
+                  if (legendInteractable && ImGui::IsItemHovered()) {
+                    isRowHovered = true;
+                  }
+                  ImGui::SameLine(0.0f, 0.0f);
+                  ImGui::TextColored(col, "%s", it.name.c_str());
+                  if (legendInteractable && ImGui::IsItemHovered()) {
+                    isRowHovered = true;
+                  }
+                  // Underline opportunistic item with matching gold color
+                  ImVec2 nameMin = ImGui::GetItemRectMin();
+                  ImVec2 nameMax = ImGui::GetItemRectMax();
+                  ImGui::GetWindowDrawList()->AddLine(
+                      ImVec2(nameMin.x, nameMax.y - 1.0f),
+                      ImVec2(nameMax.x, nameMax.y - 1.0f),
+                      IM_COL32(255, 210, 64, 255), 1.5f);
+                } else {
+                  ImGui::TextColored(col, "%zu. %s", i + 1, it.name.c_str());
+                  if (legendInteractable && ImGui::IsItemHovered()) {
+                    isRowHovered = true;
+                  }
                 }
 
-                bool isRowHovered = ImGui::IsItemHovered();
                 ImGui::TableSetColumnIndex(1);
-                ImGui::TextDisabled("%d кг, %d грн", it.weight, it.value);
-                if (ImGui::IsItemHovered()) {
+                char wBuf[32];
+                std::snprintf(wBuf, sizeof(wBuf), "%d кг", it.weight);
+                float wW = ImGui::CalcTextSize(wBuf).x;
+                float availW1 = ImGui::GetContentRegionAvail().x;
+                if (availW1 > wW) {
+                  ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
+                                       (availW1 - wW) * 0.5f);
+                }
+                ImGui::TextDisabled("%s", wBuf);
+                if (legendInteractable && ImGui::IsItemHovered()) {
                   isRowHovered = true;
+                }
+
+                ImGui::TableSetColumnIndex(2);
+                char vBuf[32];
+                std::snprintf(vBuf, sizeof(vBuf), "%d грн", it.value);
+                float vW = ImGui::CalcTextSize(vBuf).x;
+                float availW2 = ImGui::GetContentRegionAvail().x;
+                if (availW2 > vW) {
+                  ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
+                                       (availW2 - vW) * 0.5f);
+                }
+                ImGui::TextDisabled("%s", vBuf);
+                if (legendInteractable && ImGui::IsItemHovered()) {
+                  isRowHovered = true;
+                }
+
+                // Check entire row bounding box for seamless hover strictly within the visible legend bounds
+                float rowH = ImGui::GetTextLineHeight();
+                float rowTop = rowStart.y;
+                float rowBottom = rowStart.y + rowH + 4.0f;
+                bool isRowVisibleInWindow =
+                    (rowBottom >= targetLegendY && rowTop <= targetLegendY + curWindowH);
+
+                if (legendInteractable && mouseInLegend && isRowVisibleInWindow) {
+                  if (isRowHovered ||
+                      (mouse.y >= rowTop - 1.0f && mouse.y <= rowBottom &&
+                       mouse.x >= btnX && mouse.x <= btnX + legendW)) {
+                    isRowHovered = true;
+                  }
+                } else {
+                  isRowHovered = false;
                 }
 
                 if (isRowHovered) {
@@ -3027,6 +3079,7 @@ public:
               }
               ImGui::EndTable();
             }
+            ImGui::PopStyleVar();
           }
 
           ImGui::Spacing();
@@ -3035,14 +3088,13 @@ public:
             isCollectedClosing_ = true;
             collectedScrollOnCloseStart_ = ImGui::GetScrollY();
           }
-          if (ImGui::IsItemHovered()) {
+          if (legendInteractable && ImGui::IsItemHovered()) {
             showStyledTooltip(config.uiScale,
                               "Повернутися до початкового списку легенди.");
           }
 
           measuredCollectedContentH_ =
-              std::max(40.0f, ImGui::GetCursorPosY() - childStartY + 12.0f);
-          ImGui::EndChild();
+              std::max(40.0f, ImGui::GetCursorPosY() - collectedContentStartY + 12.0f);
         }
 
         if (hoveredCatalogItemName_.empty()) {
@@ -3052,11 +3104,11 @@ public:
           lastHoveredCatalogCategory_ = -1;
         }
 
-        // Measure collapsed height only when both catalog and collected lists
-        // are completely closed
-        if (!isCatalogOpen_ && catalogOpenProgress_ <= 0.0f &&
-            !isCollectedOpen_ && collectedOpenProgress_ <= 0.0f) {
-          float measuredH = std::ceil(ImGui::GetCursorPosY() + padY + 10.0f * config.uiScale);
+        // Measure collapsed height only when completely open and both sublists closed
+        if (legendInteractable && easeT >= 0.999f && !isCatalogOpen_ &&
+            catalogOpenProgress_ <= 0.0f && !isCollectedOpen_ &&
+            collectedOpenProgress_ <= 0.0f) {
+          float measuredH = std::ceil(ImGui::GetCursorPosY() + padY);
           if (measuredH > 50.0f) {
             collapsedLegendH_ = measuredH;
           }
@@ -3129,7 +3181,7 @@ public:
       }
       ImGui::End();
 
-      ImGui::PopStyleVar(5);
+      ImGui::PopStyleVar(6);
       ImGui::PopStyleColor(6);
     }
   }
@@ -3185,7 +3237,7 @@ public:
         ImGui::BeginDisabled(true);
       }
 
-      if (ImGui::Button("[C] Центрувати на агенті", ImVec2(btnW, btnH))) {
+      if (ImGui::Button("[C] Центрувати на робітнику", ImVec2(btnW, btnH))) {
         config.cameraFollowAgent = !config.cameraFollowAgent;
         if (config.cameraFollowAgent) {
           state.requestCenterCameraOnAgent = true;
@@ -3211,8 +3263,8 @@ public:
           showStyledTooltip(
               config.uiScale, "%s",
               config.cameraFollowAgent
-                  ? "Вимкнути стеження камери за агентом [C]."
-                  : "Центрувати та увімкнути стеження камери за агентом [C].");
+                  ? "Вимкнути стеження камери за робітником."
+                  : "Центрувати та увімкнути стеження камери за робітником.");
         }
       }
 
@@ -3330,19 +3382,36 @@ public:
     float cardEaseT = manualBannerOpenProgress_ * manualBannerOpenProgress_ *
                       (3.0f - 2.0f * manualBannerOpenProgress_);
 
+    float mmScale = Minimap::getFrameScale(config.minimapScale);
     float mmFrameW = Minimap::getFrameWidth(config.minimapScale);
+    float mmFrameH = Minimap::getFrameHeight(config.minimapScale);
     float monitorLeftX = std::round(
         windowWidth - mmFrameW - Minimap::PADDING +
         Minimap::getVisualLeftInset(config.minimapScale));
 
-    float panelW = std::round(345.0f * config.uiScale);
-    float panelH = std::round(154.0f * config.uiScale);
+    // Visual vertical bounds of the CRT monitor casing (matches map.png alpha bbox)
+    float monitorFrameTopY = windowHeight - mmFrameH - Minimap::PADDING;
+    float monitorVisTopY = monitorFrameTopY + 14.0f * mmScale;
+    float monitorVisBotY = windowHeight - Minimap::PADDING - 16.0f * mmScale;
+    float monitorVisH = std::max(80.0f, monitorVisBotY - monitorVisTopY);
+
+    float minPanelW = std::round(235.0f * config.uiScale);
+    float maxPanelW = std::round(415.0f * config.uiScale);
+    missionPanelWidth_ = std::clamp(missionPanelWidth_, minPanelW, maxPanelW);
+    float panelW = std::round(missionPanelWidth_);
+    float panelPadX = std::round(10.0f * config.uiScale);
+    float panelPadY = std::round(8.0f * config.uiScale);
+    float panelGapY = std::round(6.0f * config.uiScale);
+    float barH =
+        std::max(19.0f * config.uiScale, ImGui::GetFontSize() + 5.0f);
+    float panelH = std::round(panelPadY * 2.0f + ImGui::GetTextLineHeight() +
+                              3.0f * barH + 3.0f * panelGapY + 2.0f);
 
     float cardPadX = 10.0f * config.uiScale;
     float cardPadY = 8.0f * config.uiScale;
     float cardBtnH =
         std::max(28.0f * config.uiScale, ImGui::GetFrameHeight() + 4.0f);
-    const char *returnBtnLabel = "Повернутись до останнього автоматичного кроку";
+    const char *returnBtnLabel = "[V] Повернутись до останнього автоматичного кроку";
     float btnTextW = ImGui::CalcTextSize(returnBtnLabel).x;
     float cardW = std::max(
         panelW, std::round(btnTextW + cardPadX * 2.0f + 22.0f * config.uiScale));
@@ -3353,12 +3422,16 @@ public:
     float cardH =
         std::round(cardPadY * 2.0f + cardTextH + cardBtnGapY + cardBtnH);
     float cardGap = std::round(8.0f * config.uiScale);
-    float cardBottomMargin = std::round(Minimap::PADDING + 18.0f * config.uiScale);
-    float cardY = std::round(windowHeight - cardBottomMargin - cardH);
 
-    // Raise "Стан робітника" panel higher so the return-to-auto-step card fits underneath it
-    float bottomMargin = cardBottomMargin + cardH + cardGap;
-    float panelY = std::round(windowHeight - bottomMargin - panelH);
+    // Anchor "Стан робітника" vertically inside the monitor frame; only lift if Manual Card opens underneath
+    float restPanelY = std::round(
+        monitorVisTopY + std::max(0.0f, (monitorVisH - panelH) * 0.56f));
+    float combinedH = panelH + cardGap + cardH;
+    float manualTargetPanelY = std::round(
+        std::min(restPanelY, std::max(12.0f, monitorVisBotY - 4.0f - combinedH)));
+    float panelY =
+        std::round(restPanelY + (manualTargetPanelY - restPanelY) * cardEaseT);
+    float cardY = panelY + panelH + cardGap;
     lastMissionPanelTopY_ = (easeT > 0.001f) ? panelY : -1.0f;
 
     // Slide the mission panel (with its handle already open) out from under the monitor after monitor rises
@@ -3368,8 +3441,12 @@ public:
       return;
     }
 
+    float maxGripSpan =
+        std::max(44.0f, std::min(panelH, monitorVisH) - 10.0f);
     float handleW = std::round(18.0f * config.uiScale);
-    float handleH = std::round(76.0f * config.uiScale);
+    float handleH =
+        std::round(std::min(76.0f * config.uiScale, maxGripSpan * 0.68f));
+    float maxFlare = std::max(6.0f, (maxGripSpan - handleH) * 0.5f);
     float introShiftX =
         std::round((panelW * easeT + handleW) * (1.0f - attachEase));
     float panelX = std::round(monitorLeftX - panelW * easeT) + introShiftX;
@@ -3388,9 +3465,10 @@ public:
 
       ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
       ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-      ImGui::PushStyleVar(
-          ImGuiStyleVar_WindowPadding,
-          ImVec2(10.0f * config.uiScale, 8.0f * config.uiScale));
+      ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
+                          ImVec2(panelPadX, panelPadY));
+      ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
+                          ImVec2(8.0f * config.uiScale, panelGapY));
 
       if (ImGui::Begin("##MissionStatusPanelWindow", nullptr, pFlags)) {
         float clipX = std::floor(monitorLeftX);
@@ -3411,13 +3489,18 @@ public:
                     panelBorderCol, roundRadius, ImDrawFlags_RoundCornersLeft, 1.0f);
         auto statusDisp = getAgentStatusDisplay(engine, maze, renderer,
                                                engine.isManualMode());
+        if (savedMissionPanelBaseWidth_ < DEFAULT_MISSION_PANEL_WIDTH - 2.0f) {
+          const std::string targetWord = "Автономне";
+          size_t posWord = statusDisp.text.find(targetWord);
+          if (posWord != std::string::npos) {
+            statusDisp.text.replace(posWord, targetWord.length(), "Авто");
+          }
+        }
 
         ImGui::Text("Стан робітника:");
         ImGui::SameLine();
         ImGui::TextColored(statusDisp.color, "%s", statusDisp.text.c_str());
 
-        float barH =
-            std::max(20.0f * config.uiScale, ImGui::GetFontSize() + 5.0f);
         const auto &agent = engine.getAgent();
 
         ImGui::PushStyleColor(ImGuiCol_FrameBg,
@@ -3440,8 +3523,6 @@ public:
                             "Поточний рівень заряду енергії робітника.");
         }
 
-        ImGui::Spacing();
-
         if (engine.getConfig().backpackLimitEnabled) {
           float bpFraction =
               static_cast<float>(agent.getBackpack().getUtilizationPercent()) /
@@ -3458,8 +3539,6 @@ public:
           showStyledTooltip(config.uiScale, "Заповненість рюкзака робітника.");
         }
 
-        ImGui::Spacing();
-
         int curValue = agent.getBackpack().getCurrentValue();
         int targetQuota = config.companyQuota;
         float quotaFraction =
@@ -3467,9 +3546,32 @@ public:
                            static_cast<float>(std::max(1, targetQuota)),
                        0.0f, 1.0f);
         char quotaBuf[64];
-        if (curValue >= targetQuota) {
-          std::snprintf(quotaBuf, sizeof(quotaBuf),
-                        "Квота: %d / %d грн [ВИКОНАНО!]", curValue, targetQuota);
+        bool isQuotaMet = (curValue >= targetQuota);
+        bool isPanelShrunk =
+            (savedMissionPanelBaseWidth_ < DEFAULT_MISSION_PANEL_WIDTH - 2.0f);
+        bool isQuotaExceeded = (curValue >= targetQuota + 50);
+        if (isQuotaExceeded) {
+          if (isPanelShrunk) {
+            std::snprintf(quotaBuf, sizeof(quotaBuf), "Квота: %d / %d грн",
+                          curValue, targetQuota);
+          } else {
+            std::snprintf(quotaBuf, sizeof(quotaBuf),
+                          "Квота: %d / %d грн [ПЕРЕВИКОНАНО!]", curValue,
+                          targetQuota);
+          }
+          ImGui::PushStyleColor(ImGuiCol_FrameBg,
+                                ImVec4(0.08f, 0.22f, 0.11f, 0.80f));
+          ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
+                                ImVec4(0.12f, 0.55f, 0.22f, 0.95f));
+        } else if (isQuotaMet) {
+          if (isPanelShrunk) {
+            std::snprintf(quotaBuf, sizeof(quotaBuf), "Квота: %d / %d грн",
+                          curValue, targetQuota);
+          } else {
+            std::snprintf(quotaBuf, sizeof(quotaBuf),
+                          "Квота: %d / %d грн [ВИКОНАНО!]", curValue,
+                          targetQuota);
+          }
           ImGui::PushStyleColor(ImGuiCol_FrameBg,
                                 ImVec4(0.08f, 0.22f, 0.11f, 0.80f));
           ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
@@ -3486,14 +3588,18 @@ public:
         ImGui::ProgressBar(quotaFraction, ImVec2(-1, barH), quotaBuf);
         ImGui::PopStyleColor(2);
         if (ImGui::IsItemHovered()) {
-          showStyledTooltip(config.uiScale,
-                            "Прогрес виконання квоти Компанії.");
+          showStyledTooltip(
+              config.uiScale, "%s",
+              isQuotaExceeded
+                  ? "Квоту Компанії ПЕРЕВИКОНАНО!"
+                  : isQuotaMet ? "Мінімальну квоту Компанії виконано!"
+                               : "Прогрес виконання квоти Компанії.");
         }
 
         ImGui::PopClipRect();
       }
       ImGui::End();
-      ImGui::PopStyleVar(3);
+      ImGui::PopStyleVar(4);
     }
 
     // 1b. Manual mode notice & return-to-auto-step button right underneath the panel
@@ -3569,7 +3675,8 @@ public:
     float morphFactor = std::clamp((0.25f - easeT) / 0.25f, 0.0f, 1.0f);
     float missionWaveMorph = morphFactor * morphFactor * (3.0f - 2.0f * morphFactor);
 
-    float curFlare = 28.0f * config.uiScale * missionWaveMorph;
+    float curFlare = std::min(28.0f * config.uiScale, maxFlare) * missionWaveMorph;
+    float cornerInset = std::min(10.0f * config.uiScale, handleH * 0.14f) * missionWaveMorph;
     float winPad = 4.0f;
     float winY = handleY - curFlare;
     float winH = handleH + 2.0f * curFlare;
@@ -3590,10 +3697,7 @@ public:
       ImGui::PushClipRect(ImVec2(0.0f, 0.0f),
                           ImVec2(std::floor(monitorLeftX), windowHeight), true);
       ImGui::SetCursorPos(ImVec2(winPad, winPad));
-      if (ImGui::InvisibleButton("##MissionGripBtn",
-                                 ImVec2(winW, winH))) {
-        missionPanelCollapsed_ = !missionPanelCollapsed_;
-      }
+      ImGui::InvisibleButton("##MissionGripBtn", ImVec2(winW, winH));
 
       bool isRawHovered = ImGui::IsItemHovered();
       bool isHovered = false;
@@ -3608,13 +3712,13 @@ public:
           if (m.y >= handleY && m.y <= handleY + handleH) {
             isHovered = (m.x >= handleX - 2.0f && m.x <= wallX + 2.0f);
           } else if (m.y < handleY && m.y >= winY) {
-            float span = curFlare + 10.0f * config.uiScale * missionWaveMorph;
+            float span = curFlare + cornerInset;
             float t = span > 0.001f ? (m.y - winY) / span : 1.0f;
             t = std::clamp(t, 0.0f, 1.0f);
             float curveX = wallX - handleW * (t * t * (3.0f - 2.0f * t));
             isHovered = (m.x >= curveX - 2.0f && m.x <= wallX + 2.0f);
           } else if (m.y > handleY + handleH && m.y <= winY + winH) {
-            float span = curFlare + 10.0f * config.uiScale * missionWaveMorph;
+            float span = curFlare + cornerInset;
             float t = span > 0.001f ? ((winY + winH) - m.y) / span : 1.0f;
             t = std::clamp(t, 0.0f, 1.0f);
             float curveX = wallX - handleW * (t * t * (3.0f - 2.0f * t));
@@ -3626,11 +3730,44 @@ public:
       bool isActive = ImGui::IsItemActive();
 
       if (isHovered || isActive) {
-        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-        showStyledTooltip(config.uiScale, "%s",
-                          missionPanelCollapsed_
-                              ? "[Клік]: Показати показники місії"
-                              : "[Клік]: Сховати показники місії");
+        if (missionPanelCollapsed_) {
+          ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+          showStyledTooltip(config.uiScale, "%s",
+                            "[Клік / X]: Показати показники місії");
+        } else {
+          ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+          showStyledTooltip(config.uiScale, "%s",
+                            "[Клік / X]: Сховати показники місії\n"
+                            "[Потягніть мишею]: Змінити ширину панелі");
+        }
+      }
+
+      if (isActive) {
+        float dx = ImGui::GetIO().MouseDelta.x;
+        missionDragAccumX_ += std::abs(dx);
+        if (missionDragAccumX_ > 4.0f) {
+          isDraggingMissionHandle_ = true;
+        }
+
+        if (isDraggingMissionHandle_) {
+          if (missionPanelCollapsed_) {
+            missionPanelCollapsed_ = false;
+          }
+          // The panel extends leftward from the monitor casing, so dragging to the left (dx < 0) increases width
+          missionPanelWidth_ -= dx;
+          missionPanelWidth_ = std::clamp(missionPanelWidth_, minPanelW, maxPanelW);
+          savedMissionPanelBaseWidth_ = (config.uiScale > 0.001f)
+                                            ? (missionPanelWidth_ / config.uiScale)
+                                            : missionPanelWidth_;
+        }
+      }
+
+      if (ImGui::IsItemDeactivated()) {
+        if (!isDraggingMissionHandle_) {
+          missionPanelCollapsed_ = !missionPanelCollapsed_;
+        }
+        missionDragAccumX_ = 0.0f;
+        isDraggingMissionHandle_ = false;
       }
 
       ImDrawList *dl = ImGui::GetWindowDrawList();
@@ -3660,7 +3797,6 @@ public:
       float wallX = panelX;
       float topY = handleY;
       float botY = handleY + handleH;
-      float cornerInset = 10.0f * config.uiScale * missionWaveMorph;
 
       if (missionWaveMorph > 0.01f) {
         // Flowing wave shape merging smoothly into the monitor casing (x = wallX)
@@ -3750,10 +3886,11 @@ public:
                     iconColor, 2.0f);
       }
 
-      // Tactical grip ridges above and below chevron
+      // Tactical grip ridges above and below chevron scaled cleanly to handle height
       float lineInset = 3.5f * config.uiScale;
-      for (float off : {-20.0f * config.uiScale, -12.0f * config.uiScale,
-                        12.0f * config.uiScale, 20.0f * config.uiScale}) {
+      float ridgeScale = handleH / 76.0f;
+      for (float off : {-20.0f * ridgeScale, -12.0f * ridgeScale,
+                        12.0f * ridgeScale, 20.0f * ridgeScale}) {
         dl->AddLine(ImVec2(handleX + lineInset, midY + off),
                     ImVec2(handleX + handleW - lineInset, midY + off),
                     iconColor, 1.2f);
@@ -3771,7 +3908,8 @@ public:
       float windowHeight = 1080.0f, bool isExitDisabled = false,
       float scanRadius = -1.0f, const sf::Vector2f &scanOrigin = {0.0f, 0.0f},
       bool isSonarScanning = false, float routeProgress = 1.0f,
-      bool isFadingOut = false) {
+      bool isFadingOut = false, bool showOptimalRoute = true,
+      bool showWalkedCells = true) {
     if (mouseOverUI || isFadingOut)
       return;
 
@@ -3952,7 +4090,7 @@ public:
     // Check if mouse is directly hovering the drawn route line (within line
     // thickness + glow radius)
     bool isHoveringRouteLine = false;
-    if (pCell && !plan.fullPath.empty() && routeProgress > 0.001f) {
+    if (showOptimalRoute && pCell && !plan.fullPath.empty() && routeProgress > 0.001f) {
       size_t maxSeg = plan.fullPath.size() - 1;
       if (routeProgress < 0.999f) {
         maxSeg = static_cast<size_t>(
@@ -4077,7 +4215,7 @@ public:
         ImGui::Text("Координати шлюзу: [%d, %d]", maze.getExitPoint().x,
                     maze.getExitPoint().y);
       } else if (isHoveringAgent) {
-        ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f), "Робітник (Агент)");
+        ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f), "Робітник");
         ImGui::Separator();
         ImGui::TextUnformatted(
             "Поточна позиція автономного робітника (GPS тактичний маяк)");
@@ -4127,8 +4265,6 @@ public:
                              "Важкий брухт: %s", itemHere->name.c_str());
         }
         ImGui::Separator();
-        ImGui::TextColored(ImVec4(0.35f, 0.95f, 0.55f, 1.0f),
-                           "Статус: Вже підібрано робітником у рюкзак");
         ImGui::Text("Категорія: %s",
                     core::itemCategoryToString(itemHere->category).c_str());
         ImGui::Text("Вага: %d кг", itemHere->weight);
@@ -4136,6 +4272,9 @@ public:
         ImGui::Text("Питома цінність (V/W): %.2f грн/кг",
                     itemHere->getValueDensity());
         ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(0.35f, 0.95f, 0.55f, 1.0f),
+                           "Вже підібрано робітником у рюкзак");
       } else if (pCell && pCell->getType() == core::CellType::Start) {
         ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.1f, 1.0f), "Шлюз (Старт)");
         ImGui::Separator();
@@ -4166,12 +4305,13 @@ public:
         ImGui::TextUnformatted("Важкопрохідна ділянка: витрата енергії +25 "
                                "прямо, +35 по діагоналі");
         ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
-        if (pCell->isWalked()) {
-          ImGui::TextColored(ImVec4(0.35f, 0.88f, 0.80f, 1.0f),
+        if (showWalkedCells && pCell->isWalked()) {
+          ImGui::Separator();
+          ImGui::TextColored(ImVec4(0.85f, 0.65f, 0.35f, 1.0f),
                              "Пройдений слід: Блакитно-коричнева пройдена "
                              "болотяна клітинка");
         }
-      } else if (pCell && pCell->isWalked()) {
+      } else if (showWalkedCells && pCell && pCell->isWalked()) {
         ImGui::TextColored(ImVec4(0.0f, 0.9f, 0.95f, 1.0f), "Пройдений слід");
         ImGui::Separator();
         ImGui::TextUnformatted("Клітинка, яку робітник уже пройшов");
@@ -4380,6 +4520,12 @@ private:
   bool sidebarCollapsed_ = true;
   bool isDraggingHandle_ = false;
   float dragAccumX_ = 0.0f;
+
+  static constexpr float DEFAULT_MISSION_PANEL_WIDTH = 345.0f;
+  float missionPanelWidth_ = DEFAULT_MISSION_PANEL_WIDTH;
+  float savedMissionPanelBaseWidth_ = DEFAULT_MISSION_PANEL_WIDTH;
+  bool isDraggingMissionHandle_ = false;
+  float missionDragAccumX_ = 0.0f;
   float legendAnimT_ = 0.0f;
   float collapsedLegendH_ = 0.0f;
   float lastUiScale_ = 1.0f;

@@ -270,6 +270,46 @@ public:
     [[nodiscard]] size_t getCurrentStepIndex() const noexcept { return currentStepIndex_; }
     [[nodiscard]] size_t getTotalSteps() const noexcept { return plan_.fullPath.empty() ? 0 : plan_.fullPath.size() - 1; }
 
+    void restoreState(const algorithms::routing::RoutePlan& plan,
+                      const core::Point& agentPos,
+                      int currentEnergy, int energySpent, int stepsTaken,
+                      AgentStatus status,
+                      const std::vector<core::Item>& backpackItems,
+                      const std::vector<int>& collectedItemIds,
+                      size_t currentStepIndex,
+                      bool isManualMode,
+                      bool isPaused,
+                      bool isCompleted) {
+        plan_ = plan;
+        agent_.setPosition(agentPos);
+        agent_.setStatus(status);
+        agent_.restoreState(currentEnergy, energySpent, stepsTaken);
+
+        auto& bp = agent_.getBackpack();
+        bp.clear();
+        bp.setUnlimited(!config_.backpackLimitEnabled);
+        for (const auto& it : backpackItems) {
+            bp.addItem(it);
+        }
+
+        collectedItemIds_ = collectedItemIds;
+        plannedItemIds_.clear();
+        for (const auto& wp : plan_.visitOrder) {
+            if (wp.itemId >= 0) {
+                plannedItemIds_.insert(wp.itemId);
+            }
+        }
+
+        currentStepIndex_ = currentStepIndex;
+        isManualMode_ = isManualMode;
+        isPaused_ = isPaused;
+        isCompleted_ = isCompleted;
+        accumulatedTime_ = 0.0f;
+
+        history_.clear();
+        recordHistory();
+    }
+
     Agent& getAgent() noexcept { return agent_; }
     const Agent& getAgent() const noexcept { return agent_; }
 

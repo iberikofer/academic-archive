@@ -692,11 +692,28 @@ public:
           break;
 
         case core::CellType::Mud: {
+          if (!cell.isWalked()) {
+            // Unwalked mud: full-cell outer brown hazard border
+            sf::RectangleShape mudOuterFrame({TILE_SIZE, TILE_SIZE});
+            mudOuterFrame.setPosition({px, py});
+            mudOuterFrame.setFillColor(sf::Color(40, 29, 17, 180));
+            mudOuterFrame.setOutlineThickness(-1.0f);
+            mudOuterFrame.setOutlineColor(sf::Color(118, 92, 54, 220));
+            target.draw(mudOuterFrame);
+          } else {
+            // Walked mud: inner brown hazard frame (2px inset, neatly positioned inside the outer cyan walked border)
+            sf::RectangleShape mudInnerFrame({TILE_SIZE - 4.0f, TILE_SIZE - 4.0f});
+            mudInnerFrame.setPosition({px + 2.0f, py + 2.0f});
+            mudInnerFrame.setFillColor(sf::Color(40, 29, 17, 180));
+            mudInnerFrame.setOutlineThickness(-1.2f);
+            mudInnerFrame.setOutlineColor(sf::Color(140, 105, 55, 230));
+            target.draw(mudInnerFrame);
+          }
 
           // Darker inner sludge puddle
-          sf::RectangleShape puddle({TILE_SIZE - 6.0f, TILE_SIZE - 6.0f});
-          puddle.setPosition({px + 3.0f, py + 3.0f});
-          puddle.setFillColor(sf::Color(40, 29, 17, 230));
+          sf::RectangleShape puddle({TILE_SIZE - 8.0f, TILE_SIZE - 8.0f});
+          puddle.setPosition({px + 4.0f, py + 4.0f});
+          puddle.setFillColor(sf::Color(32, 22, 14, 210));
           target.draw(puddle);
 
           // 1. Animated surface ripple (pulsing square) - slow viscous sludge
@@ -1113,14 +1130,22 @@ public:
             growingOverlay.setFillColor(fillColor);
             target.draw(growingOverlay);
 
-            float growBorderA = (isMud ? (25.0f + 45.0f * t) : (100.0f + 155.0f * t)) *
-                                walkedClamped;
-            sf::Color growBorderRgb =
-                isMud ? sf::Color(0, 220, 235) : sf::Color(0, 230, 245);
+            const auto *pItemOnCell = maze.getItemAt(x, y);
+            sf::Color growBorderRgb = sf::Color(0, 230, 245);
+            if (pItemOnCell) {
+              if (pItemOnCell->category == core::ItemCategory::LightGem) {
+                growBorderRgb = sf::Color(40, 110, 255);
+              } else if (pItemOnCell->category == core::ItemCategory::MediumRelic) {
+                growBorderRgb = sf::Color(255, 230, 40);
+              } else {
+                growBorderRgb = sf::Color(255, 30, 255);
+              }
+            }
+            float growBorderA = (100.0f + 155.0f * t) * walkedClamped;
             float internalMix = gridClamped + (1.0f - gridClamped) * (1.0f - ease);
             drawWalkedBorders(px + TILE_SIZE * 0.5f - halfSize,
                               py + TILE_SIZE * 0.5f - halfSize, curSize,
-                              isMud ? 1.0f : 1.5f, growBorderRgb, growBorderA,
+                              1.5f, growBorderRgb, growBorderA,
                               internalMix);
 
             // 2. High-energy tactical flash edge expanding with the square
@@ -1132,17 +1157,15 @@ public:
                         : sf::Color(0, 235, 255,
                                     static_cast<uint8_t>(flashT * 90.0f * walkedClamped));
               sf::Color flashBorder =
-                  isMud ? sf::Color(140, 255, 250,
-                                    static_cast<uint8_t>(flashT * 60.0f * walkedClamped))
-                        : sf::Color(140, 255, 250,
-                                    static_cast<uint8_t>(flashT * 220.0f * walkedClamped));
+                  sf::Color(140, 255, 250,
+                            static_cast<uint8_t>(flashT * 220.0f * walkedClamped));
 
               sf::RectangleShape flashBox({curSize, curSize});
               flashBox.setOrigin({halfSize, halfSize});
               flashBox.setPosition(
                   {px + TILE_SIZE * 0.5f, py + TILE_SIZE * 0.5f});
               flashBox.setFillColor(flashFill);
-              flashBox.setOutlineThickness(isMud ? 0.8f : 1.2f);
+              flashBox.setOutlineThickness(1.2f);
               flashBox.setOutlineColor(flashBorder);
               target.draw(flashBox);
             }
@@ -1161,10 +1184,19 @@ public:
             walkedOverlay.setFillColor(settledFill);
             target.draw(walkedOverlay);
 
-            float settledBorderA = (isMud ? 65.0f : 230.0f) * walkedClamped;
-            sf::Color settledBorderRgb =
-                isMud ? sf::Color(0, 220, 235) : sf::Color(0, 230, 245);
-            drawWalkedBorders(px, py, TILE_SIZE, isMud ? 1.0f : 1.5f,
+            const auto *pItemOnCell = maze.getItemAt(x, y);
+            sf::Color settledBorderRgb = sf::Color(0, 230, 245);
+            if (pItemOnCell) {
+              if (pItemOnCell->category == core::ItemCategory::LightGem) {
+                settledBorderRgb = sf::Color(40, 110, 255);
+              } else if (pItemOnCell->category == core::ItemCategory::MediumRelic) {
+                settledBorderRgb = sf::Color(255, 230, 40);
+              } else {
+                settledBorderRgb = sf::Color(255, 30, 255);
+              }
+            }
+            float settledBorderA = 230.0f * walkedClamped;
+            drawWalkedBorders(px, py, TILE_SIZE, 1.5f,
                               settledBorderRgb, settledBorderA, gridClamped);
           }
         }
@@ -2395,15 +2427,15 @@ public:
                        : 11.0f;
 
     sf::Color catColor = (item.category == core::ItemCategory::LightGem)
-                             ? sf::Color(50, 105, 255)
+                             ? sf::Color(40, 110, 255)
                          : (item.category == core::ItemCategory::MediumRelic)
                              ? sf::Color(255, 255, 0)
                              : sf::Color(255, 0, 255);
 
     if (!collected) {
-      // Active uncollected scrap item
-      sf::RectangleShape pad({TILE_SIZE - 4.0f, TILE_SIZE - 4.0f});
-      pad.setPosition({px + 2.0f, py + 2.0f});
+      // Active uncollected scrap item fills the entire grid cell
+      sf::RectangleShape pad({TILE_SIZE, TILE_SIZE});
+      pad.setPosition({px, py});
       pad.setFillColor(sf::Color(24, 32, 44, 230));
 
       float pulse = 0.5f + 0.5f * std::sin(animTime_ * 3.5f + item.id * 0.8f);
@@ -2414,8 +2446,8 @@ public:
       target.draw(pad);
 
       // Floor aura under item
-      sf::CircleShape floorAura(radius + 5.0f);
-      floorAura.setOrigin({radius + 5.0f, radius + 5.0f});
+      sf::CircleShape floorAura(radius + 6.0f);
+      floorAura.setOrigin({radius + 6.0f, radius + 6.0f});
       floorAura.setPosition({cx, cy});
       sf::Color auraCol = catColor;
       auraCol.a = static_cast<uint8_t>(35 + 25 * pulse);
@@ -2426,18 +2458,18 @@ public:
       sf::RectangleShape led({2.5f, 2.5f});
       led.setFillColor(sf::Color(catColor.r, catColor.g, catColor.b,
                                  static_cast<uint8_t>(160 + 95 * pulse)));
-      led.setPosition({px + 3.0f, py + 3.0f});
+      led.setPosition({px + 1.5f, py + 1.5f});
       target.draw(led);
-      led.setPosition({px + TILE_SIZE - 5.5f, py + 3.0f});
+      led.setPosition({px + TILE_SIZE - 4.0f, py + 1.5f});
       target.draw(led);
-      led.setPosition({px + 3.0f, py + TILE_SIZE - 5.5f});
+      led.setPosition({px + 1.5f, py + TILE_SIZE - 4.0f});
       target.draw(led);
-      led.setPosition({px + TILE_SIZE - 5.5f, py + TILE_SIZE - 5.5f});
+      led.setPosition({px + TILE_SIZE - 4.0f, py + TILE_SIZE - 4.0f});
       target.draw(led);
 
-      // Tactical corner brackets
+      // Tactical corner brackets (reach outer edges of the full cell)
       float bSize = 6.0f;
-      float off = 13.0f;
+      float off = 14.5f;
       sf::Color bracketColor(catColor.r, catColor.g, catColor.b, 200);
       sf::VertexArray brackets(sf::PrimitiveType::Lines);
       brackets.append({{cx - off, cy - off + bSize}, bracketColor});
@@ -2491,44 +2523,66 @@ public:
       target.draw(glint);
 
     } else {
-      // Empty scavenged pedestal for collected items
-      sf::RectangleShape emptyPad({TILE_SIZE - 4.0f, TILE_SIZE - 4.0f});
-      emptyPad.setPosition({px + 2.0f, py + 2.0f});
-      emptyPad.setFillColor(sf::Color(14, 22, 32, 210));
+      // Empty scavenged pedestal for collected items, themed with category color.
+      // Smoothly insets by 2px from full cell bounds as the cell becomes walked.
+      float walkTransition = 1.0f;
+      auto pIt = std::find_if(paintEffects_.begin(), paintEffects_.end(),
+                              [&item](const CellPaintEffect &e) {
+                                return e.x == item.position.x &&
+                                       e.y == item.position.y;
+                              });
+      if (pIt != paintEffects_.end()) {
+        float t = std::clamp(pIt->elapsed / pIt->duration, 0.0f, 1.0f);
+        walkTransition = 1.0f - std::pow(1.0f - t, 3.0f); // Ease-out cubic: 0.0 -> 1.0
+      }
+
+      float curPadInset = 2.0f * walkTransition;
+      float padSize = TILE_SIZE - 2.0f * curPadInset;
+
+      sf::Color padFill(
+          static_cast<uint8_t>(10 + catColor.r * 0.12f),
+          static_cast<uint8_t>(14 + catColor.g * 0.12f),
+          static_cast<uint8_t>(20 + catColor.b * 0.12f), 220);
+      sf::RectangleShape emptyPad({padSize, padSize});
+      emptyPad.setPosition({px + curPadInset, py + curPadInset});
+      emptyPad.setFillColor(padFill);
       emptyPad.setOutlineThickness(-1.0f);
-      emptyPad.setOutlineColor(sf::Color(52, 72, 94, 150));
+      emptyPad.setOutlineColor(sf::Color(catColor.r, catColor.g, catColor.b, 175));
       target.draw(emptyPad);
 
       sf::CircleShape emptySocket(5.0f);
       emptySocket.setOrigin({5.0f, 5.0f});
       emptySocket.setPosition({cx, cy});
-      emptySocket.setFillColor(sf::Color(10, 14, 20, 240));
+      emptySocket.setFillColor(sf::Color(
+          static_cast<uint8_t>(catColor.r * 0.08f),
+          static_cast<uint8_t>(catColor.g * 0.08f),
+          static_cast<uint8_t>(catColor.b * 0.08f), 240));
       emptySocket.setOutlineThickness(1.0f);
-      emptySocket.setOutlineColor(sf::Color(55, 76, 98, 160));
+      emptySocket.setOutlineColor(sf::Color(catColor.r, catColor.g, catColor.b, 160));
       target.draw(emptySocket);
 
       sf::VertexArray cross(sf::PrimitiveType::Lines);
-      sf::Color crossCol(65, 88, 112, 140);
-      cross.append({{cx - 2.5f, cy - 2.5f}, crossCol});
-      cross.append({{cx + 2.5f, cy + 2.5f}, crossCol});
-      cross.append({{cx + 2.5f, cy - 2.5f}, crossCol});
-      cross.append({{cx - 2.5f, cy + 2.5f}, crossCol});
+      sf::Color crossCol(catColor.r, catColor.g, catColor.b, 200);
+      cross.append({{cx - 3.0f, cy - 3.0f}, crossCol});
+      cross.append({{cx + 3.0f, cy + 3.0f}, crossCol});
+      cross.append({{cx + 3.0f, cy - 3.0f}, crossCol});
+      cross.append({{cx - 3.0f, cy + 3.0f}, crossCol});
       target.draw(cross);
 
       sf::RectangleShape rivet({2.0f, 2.0f});
-      rivet.setFillColor(sf::Color(45, 60, 78, 140));
-      rivet.setPosition({px + 3.0f, py + 3.0f});
+      rivet.setFillColor(sf::Color(catColor.r, catColor.g, catColor.b, 150));
+      rivet.setPosition({px + curPadInset + 1.0f, py + curPadInset + 1.0f});
       target.draw(rivet);
-      rivet.setPosition({px + TILE_SIZE - 5.0f, py + 3.0f});
+      rivet.setPosition({px + TILE_SIZE - curPadInset - 3.0f, py + curPadInset + 1.0f});
       target.draw(rivet);
-      rivet.setPosition({px + 3.0f, py + TILE_SIZE - 5.0f});
+      rivet.setPosition({px + curPadInset + 1.0f, py + TILE_SIZE - curPadInset - 3.0f});
       target.draw(rivet);
-      rivet.setPosition({px + TILE_SIZE - 5.0f, py + TILE_SIZE - 5.0f});
+      rivet.setPosition({px + TILE_SIZE - curPadInset - 3.0f, py + TILE_SIZE - curPadInset - 3.0f});
       target.draw(rivet);
 
       float bSize = 4.5f;
-      float off = 11.5f;
-      sf::Color dimBracket(48, 62, 78, 110);
+      float off = 13.5f - 2.0f * walkTransition;
+      sf::Color dimBracket(catColor.r, catColor.g, catColor.b, 140);
       sf::VertexArray brackets(sf::PrimitiveType::Lines);
       brackets.append({{cx - off, cy - off + bSize}, dimBracket});
       brackets.append({{cx - off, cy - off}, dimBracket});
@@ -2597,41 +2651,76 @@ public:
 
       // 2. High-tech glowing neon pulse ring
       float pulse = 0.5f + 0.5f * std::sin(animTime_ * 6.0f);
-      sf::Color ringCol = (optItem->category == core::ItemCategory::LightGem)
-                              ? sf::Color(50, 105, 255)
-                          : (optItem->category == core::ItemCategory::MediumRelic)
-                              ? sf::Color(255, 255, 0)
-                              : sf::Color(255, 0, 255);
+      sf::Color ringCol;
+      sf::Color coreOutlineCol;
+      sf::Color tickInnerCol;
+      sf::Color tickOuterCol;
+
+      if (optItem->category == core::ItemCategory::LightScrap) {
+        // Blue scrap: electric/royal blue, no white
+        ringCol = sf::Color(35, 100, 255);
+        coreOutlineCol =
+            sf::Color(70, 140, 255, static_cast<uint8_t>(220 + 35 * pulse));
+        tickInnerCol = sf::Color(100, 160, 255, 245);
+        tickOuterCol = sf::Color(35, 100, 255, 255);
+      } else if (optItem->category == core::ItemCategory::MediumScrap) {
+        // Yellow scrap: vibrant warm amber/gold, no white
+        ringCol = sf::Color(255, 220, 0);
+        coreOutlineCol =
+            sf::Color(255, 235, 70, static_cast<uint8_t>(220 + 35 * pulse));
+        tickInnerCol = sf::Color(255, 245, 120, 245);
+        tickOuterCol = sf::Color(255, 220, 0, 255);
+      } else {
+        // Purple / Magenta scrap: vibrant neon magenta, no white
+        ringCol = sf::Color(255, 30, 255);
+        coreOutlineCol =
+            sf::Color(255, 90, 255, static_cast<uint8_t>(220 + 35 * pulse));
+        tickInnerCol = sf::Color(255, 140, 255, 245);
+        tickOuterCol = sf::Color(255, 30, 255, 255);
+      }
 
       sf::CircleShape glowRing(spotR);
       glowRing.setOrigin({spotR, spotR});
       glowRing.setPosition({cx, cy});
       glowRing.setFillColor(sf::Color::Transparent);
-      glowRing.setOutlineThickness(3.0f);
+      glowRing.setOutlineThickness(3.5f);
       glowRing.setOutlineColor(sf::Color(ringCol.r, ringCol.g, ringCol.b,
-                                         static_cast<uint8_t>(100 + 80 * pulse)));
+                                         static_cast<uint8_t>(140 + 90 * pulse)));
       target.draw(glowRing);
 
       sf::CircleShape coreRing(spotR);
       coreRing.setOrigin({spotR, spotR});
       coreRing.setPosition({cx, cy});
       coreRing.setFillColor(sf::Color::Transparent);
-      coreRing.setOutlineThickness(1.5f);
-      coreRing.setOutlineColor(
-          sf::Color(255, 255, 255, static_cast<uint8_t>(200 + 55 * pulse)));
+      coreRing.setOutlineThickness(1.6f);
+      coreRing.setOutlineColor(coreOutlineCol);
       target.draw(coreRing);
 
-      // 4 Crosshair ticks on the ring
+      // 4 Crosshair ticks on the ring (made thicker and clearly visible)
       for (float angleDeg : {0.0f, 90.0f, 180.0f, 270.0f}) {
         float rad = angleDeg * 3.14159265f / 180.0f;
-        float p1x = cx + std::cos(rad) * (spotR - 5.0f);
-        float p1y = cy + std::sin(rad) * (spotR - 5.0f);
-        float p2x = cx + std::cos(rad) * (spotR + 5.0f);
-        float p2y = cy + std::sin(rad) * (spotR + 5.0f);
-        sf::Vertex tick[2] = {
-            {{p1x, p1y}, sf::Color(255, 255, 255, 220)},
-            {{p2x, p2y}, sf::Color(ringCol.r, ringCol.g, ringCol.b, 240)}};
-        target.draw(tick, 2, sf::PrimitiveType::Lines);
+        float cosA = std::cos(rad);
+        float sinA = std::sin(rad);
+        float nx = -sinA;
+        float ny = cosA;
+        float halfThick = 1.35f; // ~2.7px bold line thickness
+        float rInner = spotR - 8.0f;
+        float rOuter = spotR + 8.0f;
+
+        sf::Vertex quad[4] = {
+            {{cx + cosA * rInner + nx * halfThick,
+              cy + sinA * rInner + ny * halfThick},
+             tickInnerCol},
+            {{cx + cosA * rOuter + nx * halfThick,
+              cy + sinA * rOuter + ny * halfThick},
+             tickOuterCol},
+            {{cx + cosA * rOuter - nx * halfThick,
+              cy + sinA * rOuter - ny * halfThick},
+             tickOuterCol},
+            {{cx + cosA * rInner - nx * halfThick,
+              cy + sinA * rInner - ny * halfThick},
+             tickInnerCol}};
+        target.draw(quad, 4, sf::PrimitiveType::TriangleFan);
       }
       return;
     }
