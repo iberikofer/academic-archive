@@ -239,7 +239,9 @@ public:
         bool allowManualEvacReset =
             isAtEvacuationCell() || agent_.getStatus() == AgentStatus::Success;
         if ((isManualMode_ && !allowManualEvacReset) || !plan_.routeValid) return;
-        agent_.reset(maze_.getStartPoint(), agent_.getMaxEnergy(), agent_.getBackpack().getMaxCapacity());
+        int resetEnergy = (config_.initialEnergy > 0) ? config_.initialEnergy : agent_.getMaxEnergy();
+        int resetCap = (config_.manualBackpackCapacity > 0) ? config_.manualBackpackCapacity : agent_.getBackpack().getMaxCapacity();
+        agent_.reset(maze_.getStartPoint(), resetEnergy, resetCap);
         agent_.getBackpack().setUnlimited(!config_.backpackLimitEnabled);
         maze_.resetVisualizationFlags();
         if (maze_.isValid(maze_.getStartPoint())) {
@@ -279,8 +281,13 @@ public:
                       size_t currentStepIndex,
                       bool isManualMode,
                       bool isPaused,
-                      bool isCompleted) {
+                      bool isCompleted,
+                      int maxEnergy = -1, int maxCapacity = -1) {
         plan_ = plan;
+        if (maxEnergy <= 0) maxEnergy = (config_.initialEnergy > 0) ? config_.initialEnergy : 600;
+        if (maxCapacity <= 0) maxCapacity = (config_.manualBackpackCapacity > 0) ? config_.manualBackpackCapacity : 55;
+        agent_.setMaxEnergy(maxEnergy);
+        agent_.getBackpack().setMaxCapacity(maxCapacity);
         agent_.setPosition(agentPos);
         agent_.setStatus(status);
         agent_.restoreState(currentEnergy, energySpent, stepsTaken);
@@ -306,8 +313,60 @@ public:
         isCompleted_ = isCompleted;
         accumulatedTime_ = 0.0f;
 
+        // Reconstruct history so stepBackward() works properly even if resumed at finish
         history_.clear();
-        recordHistory();
+        if (plan_.routeValid && !plan_.fullPath.empty()) {
+            std::vector<core::Item> tempBp;
+            std::vector<int> tempCollected;
+            size_t maxIdx = std::min(currentStepIndex, plan_.fullPath.size() - 1);
+            int simEnergy = maxEnergy;
+            int simSpent = 0;
+
+            for (size_t i = 0; i <= maxIdx; ++i) {
+                core::Point pt = plan_.fullPath[i];
+                if (i > 0) {
+                    core::Point prevPt = plan_.fullPath[i - 1];
+                    bool isDiag = (prevPt.x != pt.x && prevPt.y != pt.y);
+                    int cost = maze_.at(pt).getEnergyCost(isDiag);
+                    simEnergy = std::max(0, simEnergy - cost);
+                    simSpent += cost;
+                }
+                const auto* item = maze_.getItemAt(pt.x, pt.y);
+                if (item && isItemPlanned(item->id)) {
+                    if (std::find(tempCollected.begin(), tempCollected.end(), item->id) == tempCollected.end()) {
+                        tempCollected.push_back(item->id);
+                        tempBp.push_back(*item);
+                    }
+                }
+                HistoryFrame frame;
+                frame.agentPosition = pt;
+                frame.routeStepIndex = i;
+                frame.collectedItemIds = tempCollected;
+                frame.backpackItems = tempBp;
+                frame.currentEnergy = simEnergy;
+                frame.energySpent = simSpent;
+                frame.stepsTaken = static_cast<int>(i);
+                frame.status = (i == maxIdx && !isManualMode) ? status : AgentStatus::Collecting;
+                frame.isManualMode = false;
+                history_.push_back(frame);
+            }
+
+            if (isManualMode) {
+                HistoryFrame manFrame;
+                manFrame.agentPosition = agentPos;
+                manFrame.currentEnergy = currentEnergy;
+                manFrame.energySpent = energySpent;
+                manFrame.stepsTaken = stepsTaken;
+                manFrame.status = status;
+                manFrame.backpackItems = backpackItems;
+                manFrame.collectedItemIds = collectedItemIds;
+                manFrame.routeStepIndex = currentStepIndex;
+                manFrame.isManualMode = true;
+                history_.push_back(manFrame);
+            }
+        } else {
+            recordHistory();
+        }
     }
 
     Agent& getAgent() noexcept { return agent_; }

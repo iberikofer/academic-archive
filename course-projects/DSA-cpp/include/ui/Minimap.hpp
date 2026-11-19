@@ -150,6 +150,10 @@ public:
     return powerState_ == PowerState::On;
   }
 
+  [[nodiscard]] bool isPoweringOn() const noexcept {
+    return powerState_ == PowerState::TurningOn;
+  }
+
   [[nodiscard]] bool isPowerButtonHovered() const noexcept {
     return isButtonHovered_;
   }

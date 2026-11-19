@@ -48,6 +48,7 @@ public:
     void setPosition(const core::Point& pos) noexcept { position_ = pos; }
 
     [[nodiscard]] int getMaxEnergy() const noexcept { return maxEnergy_; }
+    void setMaxEnergy(int maxEnergy) noexcept { maxEnergy_ = maxEnergy; }
     [[nodiscard]] int getCurrentEnergy() const noexcept { return currentEnergy_; }
     [[nodiscard]] int getEnergySpent() const noexcept { return energySpent_; }
     [[nodiscard]] int getStepsTaken() const noexcept { return stepsTaken_; }

@@ -169,7 +169,8 @@ struct GenerationTransition {
       float ease = t * t * (3.0f - 2.0f * t);
       return maxRadius * ease;
     }
-    if (phase == GenerationTransitionPhase::FadeOut || isWaitingForIntro())
+    if (phase == GenerationTransitionPhase::FadeOut || isWaitingForIntro() ||
+        phase == GenerationTransitionPhase::None)
       return -1.0f;
     return maxRadius * 1.5f; // Fully revealed for subsequent phases
   }
@@ -313,6 +314,17 @@ public:
     victoryHopY_ = 0.0f;
     victoryScaleX_ = 1.0f;
     victoryScaleY_ = 1.0f;
+  }
+
+  void initSessionRestored(const map::Maze &maze) {
+    resetAnimation();
+    for (int y = 0; y < maze.getHeight(); ++y) {
+      for (int x = 0; x < maze.getWidth(); ++x) {
+        if (maze.at(x, y).isWalked()) {
+          visitedHistorySet_.insert(y * 10000 + x);
+        }
+      }
+    }
   }
 
   void snapAfterReturn(const std::vector<int> &collectedIds) {

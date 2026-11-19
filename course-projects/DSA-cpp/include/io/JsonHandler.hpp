@@ -366,6 +366,13 @@ public:
         float cameraCenterY = 0.0f;
         int knapsackAlgoIndex = 0;
         int pathfinderAlgoIndex = 0;
+        bool showLegend = false;
+        bool catalogOpen = false;
+        bool collectedOpen = false;
+        bool monitorPoweredOn = true;
+        float sidebarScrollY = 0.0f;
+        std::vector<bool> sectionsOpen = {true, true, true, true, true};
+        bool isFullscreen = true;
     };
 
     static bool saveSessionState(const std::string& filepath,
@@ -411,7 +418,14 @@ public:
                 {"camera_center_x", guiState.cameraCenterX},
                 {"camera_center_y", guiState.cameraCenterY},
                 {"knapsack_algo_index", guiState.knapsackAlgoIndex},
-                {"pathfinder_algo_index", guiState.pathfinderAlgoIndex}
+                {"pathfinder_algo_index", guiState.pathfinderAlgoIndex},
+                {"show_legend", guiState.showLegend},
+                {"catalog_open", guiState.catalogOpen},
+                {"collected_open", guiState.collectedOpen},
+                {"monitor_powered_on", guiState.monitorPoweredOn},
+                {"sidebar_scroll_y", guiState.sidebarScrollY},
+                {"sections_open", guiState.sectionsOpen},
+                {"is_fullscreen", guiState.isFullscreen}
             };
 
             // 3. Maze layout, rooms, items, and cells
@@ -606,6 +620,18 @@ public:
                 if (jg.contains("camera_center_y")) guiState.cameraCenterY = jg["camera_center_y"];
                 if (jg.contains("knapsack_algo_index")) guiState.knapsackAlgoIndex = jg["knapsack_algo_index"];
                 if (jg.contains("pathfinder_algo_index")) guiState.pathfinderAlgoIndex = jg["pathfinder_algo_index"];
+                if (jg.contains("show_legend")) guiState.showLegend = jg["show_legend"];
+                if (jg.contains("catalog_open")) guiState.catalogOpen = jg["catalog_open"];
+                if (jg.contains("collected_open")) guiState.collectedOpen = jg["collected_open"];
+                if (jg.contains("monitor_powered_on")) guiState.monitorPoweredOn = jg["monitor_powered_on"];
+                if (jg.contains("sidebar_scroll_y")) guiState.sidebarScrollY = jg["sidebar_scroll_y"];
+                if (jg.contains("sections_open") && jg["sections_open"].is_array()) {
+                    guiState.sectionsOpen.clear();
+                    for (const auto& v : jg["sections_open"]) {
+                        guiState.sectionsOpen.push_back(v.get<bool>());
+                    }
+                }
+                if (jg.contains("is_fullscreen")) guiState.isFullscreen = jg["is_fullscreen"];
             }
 
             // 3. Maze
@@ -727,8 +753,10 @@ public:
                 }
             }
 
+            int maxEnergy = js.value("max_energy", config.initialEnergy);
+            int maxCap = js.value("max_capacity", config.manualBackpackCapacity);
             engine.updateConfig(config);
-            engine.restoreState(plan, agentPos, curEnergy, energySpent, stepsTaken, status, bpItems, colIds, stepIdx, isManual, isPaused, isCompleted);
+            engine.restoreState(plan, agentPos, curEnergy, energySpent, stepsTaken, status, bpItems, colIds, stepIdx, isManual, isPaused, isCompleted, maxEnergy, maxCap);
 
             // 5. Benchmarks
             benchmarks.clear();

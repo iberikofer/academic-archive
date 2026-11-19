@@ -644,8 +644,70 @@ int main(int argc, char *argv[]) {
     window.resetGLStates();
   };
 
+  bool monitorTargetPowerOn = true;
+  bool isBorderlessFullscreen = true;
+  RECT savedWindowedRect = {0, 0, 0, 0};
+
+  auto setFullscreenMode = [&](bool borderless) {
+    if (isBorderlessFullscreen == borderless) return;
+    isBorderlessFullscreen = borderless;
+#ifdef _WIN32
+    if (hwnd) {
+      if (isBorderlessFullscreen) {
+        GetWindowRect(hwnd, &savedWindowedRect);
+        if (IsZoomed(hwnd)) {
+          ShowWindow(hwnd, SW_RESTORE);
+        }
+        SetWindowLongPtrW(hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+        SetWindowPos(hwnd, HWND_TOP, 0, 0,
+                     static_cast<int>(desktopMode.size.x),
+                     static_cast<int>(desktopMode.size.y),
+                     SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+      } else {
+        SetWindowLongPtrW(hwnd, GWL_STYLE, WS_OVERLAPPEDWINDOW | WS_VISIBLE);
+
+        int defaultW = std::min(1600, static_cast<int>(desktopMode.size.x * 0.82f));
+        int defaultH = std::min(900, static_cast<int>(desktopMode.size.y * 0.82f));
+        int defaultX = (static_cast<int>(desktopMode.size.x) - defaultW) / 2;
+        int defaultY = (static_cast<int>(desktopMode.size.y) - defaultH) / 2;
+
+        int targetW = defaultW;
+        int targetH = defaultH;
+        int targetX = defaultX;
+        int targetY = defaultY;
+
+        if (savedWindowedRect.right > savedWindowedRect.left &&
+            savedWindowedRect.bottom > savedWindowedRect.top) {
+          int sw = savedWindowedRect.right - savedWindowedRect.left;
+          int sh = savedWindowedRect.bottom - savedWindowedRect.top;
+          if (sw < static_cast<int>(desktopMode.size.x) &&
+              sh < static_cast<int>(desktopMode.size.y)) {
+            targetW = sw;
+            targetH = sh;
+            targetX = savedWindowedRect.left;
+            targetY = savedWindowedRect.top;
+          }
+        }
+
+        RECT wr = {targetX, targetY, targetX + targetW, targetY + targetH};
+        AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
+        int adjustedW = wr.right - wr.left;
+        int adjustedH = wr.bottom - wr.top;
+        int adjustedX = std::max(0, targetX);
+        int adjustedY = std::max(0, targetY);
+
+        SetWindowPos(hwnd, HWND_NOTOPMOST, adjustedX, adjustedY,
+                     adjustedW, adjustedH,
+                     SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+      }
+      ForceForegroundAndTop(hwnd);
+    }
+#endif
+  };
+
   auto triggerStartGame = [&]() {
     if (appFlowState == AppFlowState::Welcome) {
+      monitorTargetPowerOn = true;
       guiOverlay.setMissionPanelCollapsed(false);
       guiOverlay.setMissionPanelOpenProgress(1.0f);
       guiOverlay.startHudIntro();
@@ -671,14 +733,42 @@ int main(int argc, char *argv[]) {
       gState.cameraCenterY = camera.getView().getCenter().y;
       gState.knapsackAlgoIndex = uiState.appliedKnapsackAlgoIndex;
       gState.pathfinderAlgoIndex = uiState.appliedPathfinderAlgoIndex;
+      gState.showLegend = config.showLegend;
+      gState.catalogOpen = guiOverlay.isCatalogOpen();
+      gState.collectedOpen = guiOverlay.isCollectedOpen();
+      gState.monitorPoweredOn = (minimap.isPoweredOn() || minimap.isPoweringOn());
+      gState.sidebarScrollY = guiOverlay.getSidebarScrollY();
+      gState.sectionsOpen = guiOverlay.getSectionsOpen();
+      gState.isFullscreen = isBorderlessFullscreen;
 
       io::JsonHandler::saveSessionState("session_state.json", config, gState, maze, engine, benchmarkRows);
     }
   };
 
-  // Attempt to restore persistent session from previous run
-  io::JsonHandler::SessionGuiState loadedGui;
-  if (!testOnly && io::JsonHandler::loadSessionState("session_state.json", config, loadedGui, maze, engine, benchmarkRows)) {
+  // Check if a valid saved session exists from a previous run
+  auto checkHasSavedSession = []() -> bool {
+    try {
+      std::ifstream f("session_state.json");
+      if (!f.is_open()) return false;
+      nlohmann::json j;
+      f >> j;
+      return j.contains("has_active_session") && j["has_active_session"].get<bool>();
+    } catch (...) {
+      return false;
+    }
+  };
+
+  bool hasSavedSession = !testOnly && checkHasSavedSession();
+
+  auto triggerResumeSession = [&]() -> bool {
+    if (appFlowState != AppFlowState::Welcome) return false;
+
+    io::JsonHandler::SessionGuiState loadedGui;
+    if (!io::JsonHandler::loadSessionState("session_state.json", config, loadedGui, maze, engine, benchmarkRows)) {
+      triggerStartGame();
+      return false;
+    }
+
     guiOverlay.setSavedSidebarBaseWidth(loadedGui.sidebarWidth);
     guiOverlay.setSidebarCollapsed(loadedGui.sidebarCollapsed);
     guiOverlay.setSidebarOpenProgress(loadedGui.sidebarCollapsed ? 0.0f : 1.0f);
@@ -686,6 +776,18 @@ int main(int argc, char *argv[]) {
     guiOverlay.setMissionPanelCollapsed(loadedGui.missionPanelCollapsed);
     guiOverlay.setMissionPanelOpenProgress(loadedGui.missionPanelCollapsed ? 0.0f : 1.0f);
     guiOverlay.setStartupHintDismissed(true);
+
+    config.showLegend = loadedGui.showLegend;
+    guiOverlay.setLegendAnimT(loadedGui.showLegend ? 1.0f : 0.0f);
+    guiOverlay.setCatalogOpen(loadedGui.catalogOpen);
+    guiOverlay.setCollectedOpen(loadedGui.collectedOpen);
+    guiOverlay.setSidebarScrollY(loadedGui.sidebarScrollY);
+    guiOverlay.setSectionsOpen(loadedGui.sectionsOpen);
+    if (loadedGui.isFullscreen != isBorderlessFullscreen) {
+      setFullscreenMode(loadedGui.isFullscreen);
+    }
+
+    monitorTargetPowerOn = loadedGui.monitorPoweredOn;
 
     uiState.knapsackAlgoIndex = loadedGui.knapsackAlgoIndex;
     uiState.pathfinderAlgoIndex = loadedGui.pathfinderAlgoIndex;
@@ -709,12 +811,20 @@ int main(int argc, char *argv[]) {
       camera.centerOn(loadedGui.cameraCenterX, loadedGui.cameraCenterY);
     }
 
-    minimap.setIntroOffsetY(0.0f);
-    minimap.setPoweredOnImmediate();
-    renderer.setWaitingForDrop(false);
-    appFlowState = AppFlowState::InGame;
-    startScreenFadeAlpha = 0.0f;
-  }
+    guiOverlay.startHudIntro();
+    float hideOffsetY = ui::Minimap::getFrameHeight(config.minimapScale) +
+                        ui::Minimap::PADDING + 14.0f;
+    minimap.setIntroOffsetY(hideOffsetY);
+    minimap.setPoweredOffImmediate();
+    renderer.initSessionRestored(maze);
+    transition.phase = ui::GenerationTransitionPhase::None;
+    transition.timer = 0.0f;
+    transition.hasPendingRegen = false;
+
+    startScreenFadeAlpha = 1.0f;
+    appFlowState = AppFlowState::FadingOut;
+    return true;
+  };
 
   auto renderSplashWelcomeUI = [&](float scrW, float scrH, float fadeMultiplier) {
     if (fadeMultiplier <= 0.001f)
@@ -731,6 +841,7 @@ int main(int argc, char *argv[]) {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
     if (ImGui::Begin("SplashWelcomeWindow", nullptr, splashWinFlags)) {
+      ImGui::SetWindowFontScale(1.0f / ImGui::GetIO().FontGlobalScale);
       float logoDim = std::clamp(scrH * 0.20f, 150.0f, 210.0f);
       float logoX = (scrW - logoDim) * 0.5f;
 
@@ -910,29 +1021,87 @@ int main(int argc, char *argv[]) {
 
         ImGui::Dummy(ImVec2(0.0f, 22.0f));
 
-        // Centered Button
-        float btnW = std::clamp(textMaxW * 0.56f, 320.0f, 400.0f);
-        float btnH = 50.0f;
-        float btnX = (scrW - btnW) * 0.5f;
-        ImGui::SetCursorPosX(btnX);
+        if (!hasSavedSession) {
+          // Case 1: First launch ever - single button: "Згенерувати перший лабіринт"
+          float btnW = std::clamp(textMaxW * 0.56f, 320.0f, 400.0f);
+          float btnH = 50.0f;
+          float btnX = (scrW - btnW) * 0.5f;
+          ImGui::SetCursorPosX(btnX);
 
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.80f, 0.20f, 0.16f, effectiveWelcomeAlpha));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.96f, 0.35f, 0.16f, effectiveWelcomeAlpha));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.00f, 0.55f, 0.20f, effectiveWelcomeAlpha));
-        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.00f, 0.80f, 0.25f, 0.95f * effectiveWelcomeAlpha));
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.00f, 1.00f, 1.00f, effectiveWelcomeAlpha));
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.8f);
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+          ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.80f, 0.20f, 0.16f, effectiveWelcomeAlpha));
+          ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.96f, 0.35f, 0.16f, effectiveWelcomeAlpha));
+          ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.00f, 0.55f, 0.20f, effectiveWelcomeAlpha));
+          ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.00f, 0.80f, 0.25f, 0.95f * effectiveWelcomeAlpha));
+          ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.00f, 1.00f, 1.00f, effectiveWelcomeAlpha));
+          ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.8f);
+          ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
 
-        if (ImGui::Button("Згенерувати перший лабіринт!", ImVec2(btnW, btnH))) {
-          triggerStartGame();
+          if (ImGui::Button("Згенерувати перший лабіринт", ImVec2(btnW, btnH))) {
+            triggerStartGame();
+          }
+          if (ImGui::IsItemHovered()) {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            ui::ImGuiOverlay::showStyledTooltip(
+                1.0f, "%s",
+                "Згенерувати перший комплекс з процедурною BSP-генерацією [Enter / Space]");
+          }
+
+          ImGui::PopStyleVar(2);
+          ImGui::PopStyleColor(5);
+        } else {
+          // Case 2: Returning player - two buttons: 1) "Нова експедиція", 2) "Продовжити останню експедицію"
+          float btnW = std::clamp(textMaxW * 0.60f, 340.0f, 420.0f);
+          float btnH = 46.0f;
+          float btnX = (scrW - btnW) * 0.5f;
+
+          // Button 1: Нова експедиція
+          ImGui::SetCursorPosX(btnX);
+          ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.80f, 0.20f, 0.16f, effectiveWelcomeAlpha));
+          ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.96f, 0.35f, 0.16f, effectiveWelcomeAlpha));
+          ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.00f, 0.55f, 0.20f, effectiveWelcomeAlpha));
+          ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.00f, 0.80f, 0.25f, 0.95f * effectiveWelcomeAlpha));
+          ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.00f, 1.00f, 1.00f, effectiveWelcomeAlpha));
+          ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.8f);
+          ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+
+          if (ImGui::Button("Нова експедиція", ImVec2(btnW, btnH))) {
+            triggerStartGame();
+          }
+          if (ImGui::IsItemHovered()) {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            ui::ImGuiOverlay::showStyledTooltip(
+                1.0f, "%s",
+                "Створити новий лабіринт з процедурною BSP-генерацією та новим розміщенням цінностей");
+          }
+
+          ImGui::PopStyleVar(2);
+          ImGui::PopStyleColor(5);
+
+          ImGui::Dummy(ImVec2(0.0f, 10.0f));
+
+          // Button 2: Продовжити останню експедицію
+          ImGui::SetCursorPosX(btnX);
+          ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.12f, 0.38f, 0.24f, effectiveWelcomeAlpha));
+          ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.16f, 0.52f, 0.32f, effectiveWelcomeAlpha));
+          ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.20f, 0.65f, 0.40f, effectiveWelcomeAlpha));
+          ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.35f, 0.95f, 0.55f, 0.95f * effectiveWelcomeAlpha));
+          ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.00f, 1.00f, 1.00f, effectiveWelcomeAlpha));
+          ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.8f);
+          ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+
+          if (ImGui::Button("Продовжити останню експедицію", ImVec2(btnW, btnH))) {
+            triggerResumeSession();
+          }
+          if (ImGui::IsItemHovered()) {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            ui::ImGuiOverlay::showStyledTooltip(
+                1.0f, "%s",
+                "Відновити збережений стан лабіринту, позицію робітника, рюкзак та маршрути [Enter / Space]");
+          }
+
+          ImGui::PopStyleVar(2);
+          ImGui::PopStyleColor(5);
         }
-        if (ImGui::IsItemHovered()) {
-          ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-        }
-
-        ImGui::PopStyleVar(2);
-        ImGui::PopStyleColor(5);
       }
     }
     ImGui::End();
@@ -1047,17 +1216,34 @@ int main(int argc, char *argv[]) {
             continue;
           }
         } else if (appFlowState == AppFlowState::Welcome) {
-          if (key->code == sf::Keyboard::Key::Space ||
-              key->code == sf::Keyboard::Key::Enter) {
-            if (welcomeFadeAlpha >= 0.8f) {
-              triggerStartGame();
-              continue;
+          if (welcomeFadeAlpha >= 0.8f) {
+            if (hasSavedSession) {
+              if (key->code == sf::Keyboard::Key::Enter ||
+                  key->code == sf::Keyboard::Key::Space) {
+                triggerResumeSession();
+                continue;
+              }
+            } else {
+              if (key->code == sf::Keyboard::Key::Space ||
+                  key->code == sf::Keyboard::Key::Enter) {
+                triggerStartGame();
+                continue;
+              }
             }
           }
         }
         if (appFlowState == AppFlowState::InGame && !transition.isWaitingForIntro()) {
+          if (guiOverlay.isTourActive()) {
+            if (key->code != sf::Keyboard::Key::Escape &&
+                key->code != sf::Keyboard::Key::Left &&
+                key->code != sf::Keyboard::Key::Right) {
+              continue;
+            }
+          }
           if (key->code == sf::Keyboard::Key::Escape) {
-            guiOverlay.toggleSidebar(config.uiScale);
+            if (!guiOverlay.isTourActive()) {
+              guiOverlay.toggleSidebar(config.uiScale);
+            }
           }
           if (key->code == sf::Keyboard::Key::M || key->scancode == sf::Keyboard::Scan::M) {
             if (!ImGui::GetIO().WantTextInput) {
@@ -1081,13 +1267,13 @@ int main(int argc, char *argv[]) {
               }
             }
           }
-          if (key->code == sf::Keyboard::Key::X || key->scancode == sf::Keyboard::Scan::X) {
+          if (key->code == sf::Keyboard::Key::B || key->scancode == sf::Keyboard::Scan::B) {
             if (!ImGui::GetIO().WantTextInput && guiOverlay.getHudAttachEase() > 0.01f) {
               bool collapse = !guiOverlay.isMissionPanelCollapsed();
               guiOverlay.setMissionPanelCollapsed(collapse);
               uiState.statusNotice = collapse
-                                         ? "Показники місії сховано [X]"
-                                         : "Показники місії відкрито [X]";
+                                         ? "Показники місії сховано [B]"
+                                         : "Показники місії відкрито [B]";
             }
           }
           if (key->code == sf::Keyboard::Key::V || key->scancode == sf::Keyboard::Scan::V) {
@@ -1099,62 +1285,8 @@ int main(int argc, char *argv[]) {
           }
         }
         if (key->code == sf::Keyboard::Key::F11) {
-          static bool isBorderless = true;
-          static RECT savedWindowedRect = {0, 0, 0, 0};
-          isBorderless = !isBorderless;
-#ifdef _WIN32
-          if (hwnd) {
-            if (isBorderless) {
-              GetWindowRect(hwnd, &savedWindowedRect);
-              if (IsZoomed(hwnd)) {
-                ShowWindow(hwnd, SW_RESTORE);
-              }
-              SetWindowLongPtrW(hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
-              SetWindowPos(hwnd, HWND_TOP, 0, 0,
-                           static_cast<int>(desktopMode.size.x),
-                           static_cast<int>(desktopMode.size.y),
-                           SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-            } else {
-              SetWindowLongPtrW(hwnd, GWL_STYLE, WS_OVERLAPPEDWINDOW | WS_VISIBLE);
-
-              int defaultW = std::min(1600, static_cast<int>(desktopMode.size.x * 0.82f));
-              int defaultH = std::min(900, static_cast<int>(desktopMode.size.y * 0.82f));
-              int defaultX = (static_cast<int>(desktopMode.size.x) - defaultW) / 2;
-              int defaultY = (static_cast<int>(desktopMode.size.y) - defaultH) / 2;
-
-              int targetW = defaultW;
-              int targetH = defaultH;
-              int targetX = defaultX;
-              int targetY = defaultY;
-
-              if (savedWindowedRect.right > savedWindowedRect.left &&
-                  savedWindowedRect.bottom > savedWindowedRect.top) {
-                int sw = savedWindowedRect.right - savedWindowedRect.left;
-                int sh = savedWindowedRect.bottom - savedWindowedRect.top;
-                if (sw < static_cast<int>(desktopMode.size.x) &&
-                    sh < static_cast<int>(desktopMode.size.y)) {
-                  targetW = sw;
-                  targetH = sh;
-                  targetX = savedWindowedRect.left;
-                  targetY = savedWindowedRect.top;
-                }
-              }
-
-              RECT wr = {targetX, targetY, targetX + targetW, targetY + targetH};
-              AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
-              int adjustedW = wr.right - wr.left;
-              int adjustedH = wr.bottom - wr.top;
-              int adjustedX = std::max(0, targetX);
-              int adjustedY = std::max(0, targetY);
-
-              SetWindowPos(hwnd, HWND_NOTOPMOST, adjustedX, adjustedY,
-                           adjustedW, adjustedH,
-                           SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-            }
-            ForceForegroundAndTop(hwnd);
-          }
-#endif
-          uiState.statusNotice = isBorderless ? "Повноекранний режим" : "Віконний режим";
+          setFullscreenMode(!isBorderlessFullscreen);
+          uiState.statusNotice = isBorderlessFullscreen ? "Повноекранний режим" : "Віконний режим";
         }
         if (!ImGui::GetIO().WantCaptureKeyboard) {
           bool agentReadyOnGround =
@@ -1305,6 +1437,7 @@ int main(int argc, char *argv[]) {
               static_cast<float>(wheel->position.x), static_cast<float>(wheel->position.y),
               config, windowW, windowH);
         } else if (const auto *mouseBtn = event->getIf<sf::Event::MouseButtonPressed>()) {
+          monitorTargetPowerOn = (minimap.isPoweredOn() || minimap.isPoweringOn());
           isEventOverMinimap = minimap.isMouseOver(mouseBtn->position.x, mouseBtn->position.y,
                                                   windowW, windowH, config.minimapScale);
           isEventInLegendDeadzone = guiOverlay.isMouseInLegendMarginDeadzone(
@@ -1480,13 +1613,19 @@ int main(int argc, char *argv[]) {
     }
     wasDraggingCamera = isDraggingCamera;
 
-    if (appFlowState == AppFlowState::InGame) {
+    if (appFlowState == AppFlowState::InGame || appFlowState == AppFlowState::FadingOut) {
       guiOverlay.updateHudIntro(dtSeconds);
+      if (guiOverlay.isHudIntroComplete() && monitorTargetPowerOn && !minimap.isPoweredOn() &&
+          !minimap.isPoweringOn() && !transition.isWaitingForHudIntro()) {
+        minimap.powerOn();
+      }
     }
 
     // Handle generation transition (WaitingForHudIntro -> WaitingForMonitorPower -> FadeOut -> Regenerate -> SonarScan -> PostSonarPause -> RouteTracing -> PostRoutePause -> CameraZoomingToAgent -> None)
     if (transition.isWaitingForHudIntro()) {
-      if (appFlowState == AppFlowState::InGame && guiOverlay.isHudIntroComplete()) {
+      if ((appFlowState == AppFlowState::InGame ||
+           appFlowState == AppFlowState::FadingOut) &&
+          guiOverlay.isHudIntroComplete()) {
         minimap.powerOn();
         transition.phase = ui::GenerationTransitionPhase::WaitingForMonitorPower;
         transition.timer = 0.0f;
@@ -1717,7 +1856,7 @@ int main(int argc, char *argv[]) {
     uiState.isRouteTracing = transition.isRouteTracing();
     uiState.routeProgress = transition.getRouteProgress();
     uiState.isCameraZooming = transition.isCameraZooming();
-    if (appFlowState == AppFlowState::InGame) {
+    if (appFlowState == AppFlowState::InGame || appFlowState == AppFlowState::FadingOut) {
       float monHideY =
           (ui::Minimap::getFrameHeight(config.minimapScale) +
            ui::Minimap::PADDING + 14.0f) *
@@ -1734,9 +1873,12 @@ int main(int argc, char *argv[]) {
       }
       guiOverlay.renderMinimapLegend(config, maze, engine, camera, window,
                                      renderer, windowW, windowH);
-      guiOverlay.renderMapTopControls(uiState, config, windowW, windowH);
       guiOverlay.renderMissionStatusPanel(uiState, config, maze, engine,
                                           renderer, windowW, windowH);
+      if (appFlowState == AppFlowState::InGame) {
+        guiOverlay.renderTourOverlay(windowW, windowH, config.uiScale, config,
+                                     uiState, engine, maze);
+      }
       if (uiState.requestReturnToLastAutoStep) {
         uiState.requestReturnToLastAutoStep = false;
         if (engine.returnToLastAutoStep()) {
@@ -1747,7 +1889,9 @@ int main(int argc, char *argv[]) {
           }
         }
       }
-    } else if (appFlowState == AppFlowState::FadingOut && startScreenFadeAlpha > 0.001f) {
+    }
+
+    if (appFlowState == AppFlowState::FadingOut && startScreenFadeAlpha > 0.001f) {
       renderSplashWelcomeUI(windowW, windowH, startScreenFadeAlpha);
     }
 
@@ -1813,7 +1957,7 @@ int main(int argc, char *argv[]) {
     // Handle keyboard arrow keys for camera panning only when window has focus and transition is inactive
     bool isPanningWithArrows = false;
     static sf::Vector2f s_arrowVelocity(0.0f, 0.0f);
-    if (hasFocus && !io.WantCaptureKeyboard && !transition.isTransitionActive() && appFlowState == AppFlowState::InGame) {
+    if (hasFocus && !io.WantCaptureKeyboard && !transition.isTransitionActive() && appFlowState == AppFlowState::InGame && !guiOverlay.isTourActive()) {
       float panDirX = 0.0f;
       float panDirY = 0.0f;
       if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left))
@@ -1998,7 +2142,7 @@ int main(int argc, char *argv[]) {
       window.draw(curtain);
     }
 
-    if (appFlowState == AppFlowState::InGame) {
+    if (appFlowState == AppFlowState::InGame || appFlowState == AppFlowState::FadingOut) {
       minimap.render(window, maze, camera.getView(), engine.getAgent(),
                      collectedIds, windowW, windowH, renderer.getVisualAgentPos(),
                      config.minimapScale, activeScanRadius, activeScanOrigin,
