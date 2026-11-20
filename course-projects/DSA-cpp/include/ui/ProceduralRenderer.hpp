@@ -2621,7 +2621,10 @@ public:
       int hoveredCollectedItemId,
       const std::string &hoveredCatalogItemName,
       int hoveredCatalogCategory,
-      const std::vector<int> &collectedIds) {
+      const std::vector<int> &collectedIds,
+      const simulation::SimulationEngine &engine,
+      const core::Config &config) {
+    (void)config;
     // Smooth fade in / out animation for catalog item spotlight
     bool hasActiveTarget = (!hoveredCatalogItemName.empty() || hoveredCatalogCategory >= 0);
     float targetCatalogFade = hasActiveTarget ? 1.0f : 0.0f;
@@ -2740,13 +2743,13 @@ public:
     if (catalogHoverAlpha_ > 0.001f &&
         (!lastActiveCatalogItemName_.empty() || lastActiveCatalogCategory_ >= 0)) {
       std::vector<const core::Item *> matchedItems;
-      if (lastActiveCatalogCategory_ >= 0) {
+      if (lastActiveCatalogCategory_ >= 0 && lastActiveCatalogCategory_ <= 2) {
         for (const auto &item : maze.getItems()) {
           if (static_cast<int>(item.category) == lastActiveCatalogCategory_) {
             matchedItems.push_back(&item);
           }
         }
-      } else {
+      } else if (lastActiveCatalogCategory_ < 0) {
         for (const auto &item : maze.getItems()) {
           if (item.name == lastActiveCatalogItemName_) {
             matchedItems.push_back(&item);
@@ -2765,6 +2768,384 @@ public:
       target.draw(darkVeil);
 
       float pulse = 0.5f + 0.5f * std::sin(animTime_ * 6.0f);
+
+      if (lastActiveCatalogCategory_ == 10) {
+        // --- 10. Worker / Agent Highlight ---
+        float px = std::floor(visualAgentPos_.x / TILE_SIZE) * TILE_SIZE;
+        float py = std::floor(visualAgentPos_.y / TILE_SIZE) * TILE_SIZE;
+        sf::RectangleShape cellBg({TILE_SIZE, TILE_SIZE});
+        cellBg.setPosition({px, py});
+        cellBg.setFillColor(sf::Color(44, 52, 64, static_cast<uint8_t>(255.0f * catalogHoverAlpha_)));
+        target.draw(cellBg);
+
+        renderAgent(target, engine.getAgent());
+
+        float outRingR = 1.45f * TILE_SIZE;
+        sf::CircleShape beaconRing(outRingR);
+        beaconRing.setOrigin({outRingR, outRingR});
+        beaconRing.setPosition(visualAgentPos_);
+        beaconRing.setFillColor(sf::Color::Transparent);
+        beaconRing.setOutlineThickness(2.2f);
+        beaconRing.setOutlineColor(sf::Color(255, 195, 40, static_cast<uint8_t>((150 + 90 * pulse) * catalogHoverAlpha_)));
+        target.draw(beaconRing);
+      } else if (lastActiveCatalogCategory_ == 11) {
+        // --- 11. Start entrance cell ---
+        core::Point pt = maze.getStartPoint();
+        float px = pt.x * TILE_SIZE;
+        float py = pt.y * TILE_SIZE;
+        float cx = px + TILE_SIZE * 0.5f;
+        float cy = py + TILE_SIZE * 0.5f;
+
+        // Dark underlying floor pad
+        sf::RectangleShape cellBg({TILE_SIZE, TILE_SIZE});
+        cellBg.setPosition({px, py});
+        cellBg.setFillColor(sf::Color(52, 40, 24, static_cast<uint8_t>(255.0f * catalogHoverAlpha_)));
+        target.draw(cellBg);
+
+        // Industrial Airlock Entry with Hazard Striping & Pulsing Beacon
+        // Inner reinforced airlock hatch
+        sf::RectangleShape hatch({TILE_SIZE - 6.0f, TILE_SIZE - 6.0f});
+        hatch.setPosition({px + 3.0f, py + 3.0f});
+        hatch.setFillColor(sf::Color(240, 135, 18, static_cast<uint8_t>(255.0f * catalogHoverAlpha_)));
+        hatch.setOutlineThickness(1.5f);
+        hatch.setOutlineColor(sf::Color(255, 210, 90, static_cast<uint8_t>(255.0f * catalogHoverAlpha_)));
+        target.draw(hatch);
+
+        // Inward contracting entrance beacon rings (strictly shrinking into airlock)
+        float inPhase = std::fmod(animTime_ * 1.35f, 1.0f);
+        for (float offset : {0.0f, 0.5f}) {
+          float t = std::fmod(inPhase + offset, 1.0f);
+          float sRingR = 11.2f * (1.0f - t) + 2.2f * t;
+          float alphaNorm = std::sin(t * 3.14159265f);
+          uint8_t alpha = static_cast<uint8_t>(
+              std::clamp(alphaNorm * 220.0f * catalogHoverAlpha_, 0.0f, 255.0f));
+
+          sf::CircleShape sRing(sRingR);
+          sRing.setOrigin({sRingR, sRingR});
+          sRing.setPosition({cx, cy});
+          sRing.setFillColor(sf::Color::Transparent);
+          sRing.setOutlineThickness(1.5f);
+          sRing.setOutlineColor(sf::Color(255, 235, 120, alpha));
+          target.draw(sRing);
+        }
+
+        // 4 corner amber beacon LEDs
+        float cornerPulse = 0.5f + 0.5f * std::sin(animTime_ * 5.0f);
+        uint8_t ledAlpha = static_cast<uint8_t>((160 + 95 * cornerPulse) * catalogHoverAlpha_);
+        sf::RectangleShape led({3.0f, 3.0f});
+        led.setFillColor(sf::Color(255, 220, 60, ledAlpha));
+        led.setPosition({px + 2.0f, py + 2.0f});
+        target.draw(led);
+        led.setPosition({px + TILE_SIZE - 5.0f, py + 2.0f});
+        target.draw(led);
+        led.setPosition({px + 2.0f, py + TILE_SIZE - 5.0f});
+        target.draw(led);
+        led.setPosition({px + TILE_SIZE - 5.0f, py + TILE_SIZE - 5.0f});
+        target.draw(led);
+
+        // Outer halo frame & pulsing beacon ring
+        sf::RectangleShape hFrame({TILE_SIZE + 4.0f, TILE_SIZE + 4.0f});
+        hFrame.setOrigin({(TILE_SIZE + 4.0f) * 0.5f, (TILE_SIZE + 4.0f) * 0.5f});
+        hFrame.setPosition({cx, cy});
+        hFrame.setFillColor(sf::Color::Transparent);
+        hFrame.setOutlineThickness(2.0f);
+        hFrame.setOutlineColor(sf::Color(255, 170, 30, static_cast<uint8_t>((180 + 75 * pulse) * catalogHoverAlpha_)));
+        target.draw(hFrame);
+
+        float outRingR = 1.45f * TILE_SIZE;
+        sf::CircleShape beaconRing(outRingR);
+        beaconRing.setOrigin({outRingR, outRingR});
+        beaconRing.setPosition({cx, cy});
+        beaconRing.setFillColor(sf::Color::Transparent);
+        beaconRing.setOutlineThickness(1.8f);
+        beaconRing.setOutlineColor(sf::Color(255, 200, 60, static_cast<uint8_t>((120 + 80 * pulse) * catalogHoverAlpha_)));
+        target.draw(beaconRing);
+      } else if (lastActiveCatalogCategory_ == 12) {
+        // --- 12. Exit evacuation cell ---
+        core::Point pt = maze.getExitPoint();
+        float px = pt.x * TILE_SIZE;
+        float py = pt.y * TILE_SIZE;
+        float cx = px + TILE_SIZE * 0.5f;
+        float cy = py + TILE_SIZE * 0.5f;
+
+        bool isExitDisabled = (config.routeMode == core::RouteMode::RoundTrip);
+
+        sf::RectangleShape cellBg({TILE_SIZE, TILE_SIZE});
+        cellBg.setPosition({px, py});
+        cellBg.setFillColor(sf::Color(24, 48, 34, static_cast<uint8_t>(255.0f * catalogHoverAlpha_)));
+        target.draw(cellBg);
+
+        if (isExitDisabled) {
+          sf::RectangleShape pad({TILE_SIZE - 6.0f, TILE_SIZE - 6.0f});
+          pad.setPosition({px + 3.0f, py + 3.0f});
+          pad.setFillColor(sf::Color(52, 56, 66, static_cast<uint8_t>(255.0f * catalogHoverAlpha_)));
+          pad.setOutlineThickness(1.5f);
+          pad.setOutlineColor(sf::Color(80, 85, 96, static_cast<uint8_t>(255.0f * catalogHoverAlpha_)));
+          target.draw(pad);
+
+          float crossLen = 22.0f;
+          float barThick = 4.0f;
+          for (float rot : {45.0f, -45.0f}) {
+            sf::RectangleShape bar({crossLen, barThick});
+            bar.setOrigin({crossLen * 0.5f, barThick * 0.5f});
+            bar.setPosition({cx, cy});
+            bar.setRotation(sf::degrees(rot));
+            bar.setFillColor(sf::Color(225, 55, 55, static_cast<uint8_t>(240.0f * catalogHoverAlpha_)));
+            target.draw(bar);
+          }
+
+          sf::RectangleShape dLed({3.0f, 3.0f});
+          dLed.setFillColor(sf::Color(75, 42, 42, static_cast<uint8_t>(170.0f * catalogHoverAlpha_)));
+          dLed.setPosition({px + 2.0f, py + 2.0f});
+          target.draw(dLed);
+          dLed.setPosition({px + TILE_SIZE - 5.0f, py + 2.0f});
+          target.draw(dLed);
+          dLed.setPosition({px + 2.0f, py + TILE_SIZE - 5.0f});
+          target.draw(dLed);
+          dLed.setPosition({px + TILE_SIZE - 5.0f, py + TILE_SIZE - 5.0f});
+          target.draw(dLed);
+        } else {
+          // Landing pad
+          sf::RectangleShape pad({TILE_SIZE - 6.0f, TILE_SIZE - 6.0f});
+          pad.setPosition({px + 3.0f, py + 3.0f});
+          pad.setFillColor(sf::Color(40, 185, 100, static_cast<uint8_t>(255.0f * catalogHoverAlpha_)));
+          pad.setOutlineThickness(1.5f);
+          pad.setOutlineColor(sf::Color(140, 255, 185, static_cast<uint8_t>(255.0f * catalogHoverAlpha_)));
+          target.draw(pad);
+
+          // Outward expanding extraction radar rings
+          float outPhase = std::fmod(animTime_ * 1.35f, 1.0f);
+          for (float offset : {0.0f, 0.5f}) {
+            float t = std::fmod(outPhase + offset, 1.0f);
+            float eRingR = 2.2f * (1.0f - t) + 11.5f * t;
+            float alphaNorm = std::sin(t * 3.14159265f);
+            uint8_t alpha = static_cast<uint8_t>(
+                std::clamp(alphaNorm * 220.0f * catalogHoverAlpha_, 0.0f, 255.0f));
+
+            sf::CircleShape eRing(eRingR);
+            eRing.setOrigin({eRingR, eRingR});
+            eRing.setPosition({cx, cy});
+            eRing.setFillColor(sf::Color::Transparent);
+            eRing.setOutlineThickness(1.5f);
+            eRing.setOutlineColor(sf::Color(140, 255, 190, alpha));
+            target.draw(eRing);
+          }
+
+          // 4 corner emerald beacon LEDs
+          float cornerExitPulse = 0.5f + 0.5f * std::sin(animTime_ * 5.0f);
+          uint8_t eLedAlpha = static_cast<uint8_t>((170 + 85 * cornerExitPulse) * catalogHoverAlpha_);
+          sf::RectangleShape eLed({3.0f, 3.0f});
+          eLed.setFillColor(sf::Color(80, 255, 160, eLedAlpha));
+          eLed.setPosition({px + 2.0f, py + 2.0f});
+          target.draw(eLed);
+          eLed.setPosition({px + TILE_SIZE - 5.0f, py + 2.0f});
+          target.draw(eLed);
+          eLed.setPosition({px + 2.0f, py + TILE_SIZE - 5.0f});
+          target.draw(eLed);
+          eLed.setPosition({px + TILE_SIZE - 5.0f, py + TILE_SIZE - 5.0f});
+          target.draw(eLed);
+        }
+
+        sf::RectangleShape hFrame({TILE_SIZE + 4.0f, TILE_SIZE + 4.0f});
+        hFrame.setOrigin({(TILE_SIZE + 4.0f) * 0.5f, (TILE_SIZE + 4.0f) * 0.5f});
+        hFrame.setPosition({cx, cy});
+        hFrame.setFillColor(sf::Color::Transparent);
+        hFrame.setOutlineThickness(2.0f);
+        hFrame.setOutlineColor(sf::Color(40, 255, 110, static_cast<uint8_t>((180 + 75 * pulse) * catalogHoverAlpha_)));
+        target.draw(hFrame);
+
+        float outRingR = 1.45f * TILE_SIZE;
+        sf::CircleShape beaconRing(outRingR);
+        beaconRing.setOrigin({outRingR, outRingR});
+        beaconRing.setPosition({cx, cy});
+        beaconRing.setFillColor(sf::Color::Transparent);
+        beaconRing.setOutlineThickness(1.8f);
+        beaconRing.setOutlineColor(sf::Color(80, 255, 140, static_cast<uint8_t>((120 + 80 * pulse) * catalogHoverAlpha_)));
+        target.draw(beaconRing);
+      } else if (lastActiveCatalogCategory_ == 13) {
+        // --- 13. Mud / Swamp cells with full animated effects ---
+        auto mudHash = [](int cx, int cy, int s) -> float {
+          uint32_t n = static_cast<uint32_t>(cx * 73856093 ^ cy * 19349663 ^
+                                             s * 83492791);
+          n = (n ^ (n >> 13)) * 1274126177;
+          return static_cast<float>((n ^ (n >> 16)) & 0xFFFF) / 65535.0f;
+        };
+
+        struct SludgeBubble {
+          float relX, relY;
+          float speed;
+          float phaseOffset;
+          float maxSize;
+        };
+
+        constexpr float MARGIN_MIN = 6.5f;
+        constexpr float MARGIN_MAX = 29.5f;
+        constexpr float SPAN = MARGIN_MAX - MARGIN_MIN;
+        constexpr float MIN_DIST_SQ = 9.0f * 9.0f;
+
+        for (int y = 0; y < maze.getHeight(); ++y) {
+          for (int x = 0; x < maze.getWidth(); ++x) {
+            if (maze.at(x, y).getType() == core::CellType::Mud) {
+              float px = x * TILE_SIZE;
+              float py = y * TILE_SIZE;
+
+              // Outer hazard base
+              sf::RectangleShape mudOuterFrame({TILE_SIZE, TILE_SIZE});
+              mudOuterFrame.setPosition({px, py});
+              mudOuterFrame.setFillColor(sf::Color(40, 29, 17, static_cast<uint8_t>(230.0f * catalogHoverAlpha_)));
+              mudOuterFrame.setOutlineThickness(-1.0f);
+              mudOuterFrame.setOutlineColor(sf::Color(118, 92, 54, static_cast<uint8_t>(230.0f * catalogHoverAlpha_)));
+              target.draw(mudOuterFrame);
+
+              // Darker inner sludge puddle
+              sf::RectangleShape puddle({TILE_SIZE - 8.0f, TILE_SIZE - 8.0f});
+              puddle.setPosition({px + 4.0f, py + 4.0f});
+              puddle.setFillColor(sf::Color(32, 22, 14, static_cast<uint8_t>(230.0f * catalogHoverAlpha_)));
+              target.draw(puddle);
+
+              // 1. Animated surface ripple (pulsing square)
+              float ripPhase = std::fmod(
+                  animTime_ * 0.32f + (x * 7.0f + y * 13.0f) * 0.2f, 1.0f);
+              if (ripPhase < 0.0f)
+                ripPhase += 1.0f;
+              float ripSize = 4.0f + ripPhase * 16.0f;
+              sf::RectangleShape rippleSquare({ripSize, ripSize});
+              rippleSquare.setOrigin({ripSize * 0.5f, ripSize * 0.5f});
+              rippleSquare.setPosition(
+                  {px + TILE_SIZE * 0.5f, py + TILE_SIZE * 0.5f});
+              rippleSquare.setFillColor(sf::Color::Transparent);
+              rippleSquare.setOutlineThickness(1.0f);
+              rippleSquare.setOutlineColor(sf::Color(
+                  88, 68, 44, static_cast<uint8_t>((1.0f - ripPhase) * 160.0f * catalogHoverAlpha_)));
+              target.draw(rippleSquare);
+
+              // 2. Animated sludge bubbles
+              sf::Vector2f b0{MARGIN_MIN + mudHash(x, y, 101) * SPAN,
+                              MARGIN_MIN + mudHash(x, y, 102) * SPAN};
+              sf::Vector2f b1{0.0f, 0.0f};
+              for (int i = 0; i < 16; ++i) {
+                float bcx = MARGIN_MIN + mudHash(x, y, 200 + i * 2) * SPAN;
+                float bcy = MARGIN_MIN + mudHash(x, y, 201 + i * 2) * SPAN;
+                float dx = bcx - b0.x;
+                float dy = bcy - b0.y;
+                if (dx * dx + dy * dy >= MIN_DIST_SQ) {
+                  b1 = {bcx, bcy};
+                  break;
+                }
+              }
+              if (b1.x == 0.0f && b1.y == 0.0f) {
+                float fallbackX = (b0.x > 18.0f) ? (b0.x - 11.0f) : (b0.x + 11.0f);
+                float fallbackY = (b0.y > 18.0f) ? (b0.y - 11.0f) : (b0.y + 11.0f);
+                b1 = {std::clamp(fallbackX, MARGIN_MIN, MARGIN_MAX),
+                      std::clamp(fallbackY, MARGIN_MIN, MARGIN_MAX)};
+              }
+
+              sf::Vector2f b2{0.0f, 0.0f};
+              for (int i = 0; i < 32; ++i) {
+                float bcx = MARGIN_MIN + mudHash(x, y, 300 + i * 2) * SPAN;
+                float bcy = MARGIN_MIN + mudHash(x, y, 301 + i * 2) * SPAN;
+                float d0x = bcx - b0.x, d0y = bcy - b0.y;
+                float d1x = bcx - b1.x, d1y = bcy - b1.y;
+                if (d0x * d0x + d0y * d0y >= MIN_DIST_SQ &&
+                    d1x * d1x + d1y * d1y >= MIN_DIST_SQ) {
+                  b2 = {bcx, bcy};
+                  break;
+                }
+              }
+              if (b2.x == 0.0f && b2.y == 0.0f) {
+                float candX[4] = {MARGIN_MIN + 3.0f, MARGIN_MAX - 3.0f,
+                                  MARGIN_MIN + 3.0f, MARGIN_MAX - 3.0f};
+                float candY[4] = {MARGIN_MIN + 3.0f, MARGIN_MIN + 3.0f,
+                                  MARGIN_MAX - 3.0f, MARGIN_MAX - 3.0f};
+                float bestDist = -1.0f;
+                for (int k = 0; k < 4; ++k) {
+                  float d0 = std::hypot(candX[k] - b0.x, candY[k] - b0.y);
+                  float d1 = std::hypot(candX[k] - b1.x, candY[k] - b1.y);
+                  float minD = std::min(d0, d1);
+                  if (minD > bestDist) {
+                    bestDist = minD;
+                    b2 = {candX[k], candY[k]};
+                  }
+                }
+              }
+
+              const SludgeBubble bubbles[3] = {
+                  {b0.x, b0.y, 0.38f + mudHash(x, y, 401) * 0.22f,
+                   mudHash(x, y, 501) * 6.28f, 3.0f + mudHash(x, y, 601) * 1.2f},
+                  {b1.x, b1.y, 0.38f + mudHash(x, y, 402) * 0.22f,
+                   mudHash(x, y, 502) * 6.28f, 2.9f + mudHash(x, y, 602) * 1.1f},
+                  {b2.x, b2.y, 0.38f + mudHash(x, y, 403) * 0.22f,
+                   mudHash(x, y, 503) * 6.28f, 3.2f + mudHash(x, y, 603) * 1.2f}};
+
+              for (const auto &b : bubbles) {
+                float cycle = std::fmod(animTime_ * b.speed + b.phaseOffset, 1.0f);
+                if (cycle < 0.0f)
+                  cycle += 1.0f;
+
+                if (cycle < 0.70f) {
+                  float lifeNorm = cycle / 0.70f;
+                  float growNorm = std::sin(lifeNorm * 3.14159265f);
+
+                  float curSize = 1.2f + growNorm * (b.maxSize - 1.2f);
+                  uint8_t alpha = static_cast<uint8_t>(
+                      std::clamp(growNorm * 220.0f * catalogHoverAlpha_, 0.0f, 220.0f));
+
+                  sf::RectangleShape sqBubble({curSize, curSize});
+                  sqBubble.setOrigin({curSize * 0.5f, curSize * 0.5f});
+                  sqBubble.setPosition({px + b.relX, py + b.relY});
+                  sqBubble.setFillColor(sf::Color(112, 86, 54, alpha));
+                  sqBubble.setOutlineThickness(0.8f);
+                  sqBubble.setOutlineColor(
+                      sf::Color(152, 122, 80, static_cast<uint8_t>(alpha * 0.95f)));
+                  target.draw(sqBubble);
+                }
+              }
+
+              // Corner warning rivets
+              sf::RectangleShape rivet({2.5f, 2.5f});
+              rivet.setFillColor(sf::Color(120, 95, 55, static_cast<uint8_t>(180.0f * catalogHoverAlpha_)));
+              rivet.setPosition({px + 1.0f, py + 1.0f});
+              target.draw(rivet);
+              rivet.setPosition({px + TILE_SIZE - 3.5f, py + 1.0f});
+              target.draw(rivet);
+              rivet.setPosition({px + 1.0f, py + TILE_SIZE - 3.5f});
+              target.draw(rivet);
+              rivet.setPosition({px + TILE_SIZE - 3.5f, py + TILE_SIZE - 3.5f});
+              target.draw(rivet);
+
+              // Glowing highlight frame
+              sf::RectangleShape hFrame({TILE_SIZE + 2.0f, TILE_SIZE + 2.0f});
+              hFrame.setOrigin({(TILE_SIZE + 2.0f) * 0.5f, (TILE_SIZE + 2.0f) * 0.5f});
+              hFrame.setPosition({px + TILE_SIZE * 0.5f, py + TILE_SIZE * 0.5f});
+              hFrame.setFillColor(sf::Color::Transparent);
+              hFrame.setOutlineThickness(1.5f);
+              hFrame.setOutlineColor(sf::Color(230, 150, 60, static_cast<uint8_t>((160 + 80 * pulse) * catalogHoverAlpha_)));
+              target.draw(hFrame);
+            }
+          }
+        }
+      } else if (lastActiveCatalogCategory_ == 14) {
+        // --- 14. Walked cells (trail) ---
+        for (int y = 0; y < maze.getHeight(); ++y) {
+          for (int x = 0; x < maze.getWidth(); ++x) {
+            if (maze.at(x, y).isWalked() &&
+                maze.at(x, y).getType() != core::CellType::Start &&
+                maze.at(x, y).getType() != core::CellType::Exit) {
+              float px = x * TILE_SIZE;
+              float py = y * TILE_SIZE;
+              sf::RectangleShape hFrame({TILE_SIZE - 2.0f, TILE_SIZE - 2.0f});
+              hFrame.setPosition({px + 1.0f, py + 1.0f});
+              hFrame.setFillColor(sf::Color(0, 180, 220, static_cast<uint8_t>(90.0f * catalogHoverAlpha_)));
+              hFrame.setOutlineThickness(1.6f);
+              hFrame.setOutlineColor(sf::Color(0, 240, 255, static_cast<uint8_t>((180 + 75 * pulse) * catalogHoverAlpha_)));
+              target.draw(hFrame);
+            }
+          }
+        }
+      } else if (lastActiveCatalogCategory_ == 15) {
+        // --- 15. Route TSP trajectory line ---
+        renderRoute(target, engine.getPlan(), 1.0f, 1.0f);
+      }
 
       // Re-render matching items and their cells with bright illumination
       for (const auto *pItem : matchedItems) {

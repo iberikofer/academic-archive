@@ -22,7 +22,7 @@ inline std::string itemCategoryToString(ItemCategory cat) {
     switch (cat) {
         case ItemCategory::LightScrap:  return "Дрібний брухт (1-3 кг)";
         case ItemCategory::MediumScrap: return "Побутовий брухт (4-8 кг)";
-        case ItemCategory::HeavyScrap:  return "Важкий брухт (10-18 кг)";
+        case ItemCategory::HeavyScrap:  return "Дорогоцінний брухт (10-18 кг)";
         default: return "Брухт";
     }
 }

@@ -33,8 +33,17 @@ public:
   static constexpr float BTN_Y = 1455.0f;
   static constexpr float BTN_W = 86.0f;
   static constexpr float BTN_H = 86.0f;
-  static constexpr float LED_X = 1346.0f;
-  static constexpr float LED_Y = 1491.0f;
+  static constexpr float LED_X = 1349.5f;
+  static constexpr float LED_Y = 1492.5f;
+
+  // Monitor hardware tactical layers toggle switch and indicator LED on bezel
+  static constexpr float TOGGLE_SW_X = 1020.0f;
+  static constexpr float TOGGLE_SW_Y = 1445.0f;
+  static constexpr float TOGGLE_SW_W = 44.0f;
+  static constexpr float TOGGLE_SW_H = 90.0f;
+  static constexpr float TOGGLE_LED_X = 1091.5f;
+  static constexpr float TOGGLE_LED_UPPER_Y = 1463.0f;
+  static constexpr float TOGGLE_LED_LOWER_Y = 1508.0f;
 
   enum class PowerState { On, TurningOff, Off, TurningOn };
 
@@ -158,6 +167,31 @@ public:
     return isButtonHovered_;
   }
 
+  [[nodiscard]] bool isToggleSwitchHovered() const noexcept {
+    return isSwitchHovered_;
+  }
+
+  [[nodiscard]] bool consumeTacticalLayersToggle() noexcept {
+    bool r = requestToggleTacticalLayers_;
+    requestToggleTacticalLayers_ = false;
+    return r;
+  }
+
+  void setTacticalLayersActive(bool active) noexcept {
+    areTacticalLayersActive_ = active;
+  }
+
+  [[nodiscard]] bool isOverToggleSwitch(int px, int py,
+                                        const Layout &l) const noexcept {
+    float swX = l.frameX + TOGGLE_SW_X * l.s;
+    float swY = l.frameY + TOGGLE_SW_Y * l.s;
+    float swW = TOGGLE_SW_W * l.s;
+    float swH = TOGGLE_SW_H * l.s;
+    float m = 6.0f * l.s;
+    return px >= swX - m && px <= swX + swW + m && py >= swY - m &&
+           py <= swY + swH + m;
+  }
+
   [[nodiscard]] bool isOverPowerButton(int px, int py,
                                        const Layout &l) const noexcept {
     float btnX = l.frameX + BTN_X * l.s;
@@ -237,7 +271,8 @@ public:
               float routeProgress = 1.0f, bool isExitDisabled = false,
               float monitorAlpha = 1.0f, bool showMapContent = true,
               const std::string &hoveredCatalogItemName = "",
-              int hoveredCatalogCategory = -1) {
+              int hoveredCatalogCategory = -1,
+              bool showWalkedCells = true) {
     if (monitorAlpha <= 0.001f) {
       return;
     }
@@ -403,7 +438,7 @@ public:
           bool hasOutline = false;
           sf::Color outlineColor = sf::Color::Transparent;
 
-          if (cell.isWalked() && cell.getType() != core::CellType::Start &&
+          if (showWalkedCells && cell.isWalked() && cell.getType() != core::CellType::Start &&
               cell.getType() != core::CellType::Exit) {
             if (cell.getType() == core::CellType::Mud) {
               baseColor = sf::Color(115, 88, 54);
@@ -1031,36 +1066,51 @@ public:
     // 10. Power LED indicator on bezel next to button
     float ledX = l.frameX + LED_X * l.s;
     float ledY = l.frameY + LED_Y * l.s;
-    float ledR = 4.2f * l.s;
+    float ledR = 4.0f * l.s;
+    float pCoverR = 7.8f * l.s;
 
-    if (powerState_ == PowerState::On || powerState_ == PowerState::TurningOn) {
-      // Soft outer green glow
+    // Mask/cover the baked green LED from map.png with an unlit metallic socket (same as toggle indicators)
+    sf::CircleShape powerCover(pCoverR);
+    powerCover.setOrigin({pCoverR, pCoverR});
+    powerCover.setPosition({ledX, ledY});
+    powerCover.setFillColor(sf::Color(38, 52, 24, static_cast<uint8_t>(255 * safeAlpha)));
+    target.draw(powerCover);
+
+    sf::CircleShape powerRing(ledR * 1.15f);
+    powerRing.setOrigin({ledR * 1.15f, ledR * 1.15f});
+    powerRing.setPosition({ledX, ledY});
+    powerRing.setFillColor(sf::Color(28, 36, 22, static_cast<uint8_t>(255 * safeAlpha)));
+    powerRing.setOutlineThickness(1.0f * l.s);
+    powerRing.setOutlineColor(sf::Color(65, 78, 50, static_cast<uint8_t>(200 * safeAlpha)));
+    target.draw(powerRing);
+
+    sf::CircleShape powerHole(ledR * 0.72f);
+    powerHole.setOrigin({ledR * 0.72f, ledR * 0.72f});
+    powerHole.setPosition({ledX, ledY});
+    powerHole.setFillColor(sf::Color(14, 18, 12, static_cast<uint8_t>(255 * safeAlpha)));
+    target.draw(powerHole);
+
+    // Smoothly fade in/out the glowing green LED based on powerAnimProgress_
+    if (powerAnimProgress_ > 0.005f) {
+      float pAlpha = powerAnimProgress_ * safeAlpha;
+
       sf::CircleShape ledGlow(ledR * 2.2f);
       ledGlow.setOrigin({ledR * 2.2f, ledR * 2.2f});
       ledGlow.setPosition({ledX, ledY});
-      ledGlow.setFillColor(sf::Color(40, 255, 75, static_cast<uint8_t>(80 * safeAlpha)));
+      ledGlow.setFillColor(sf::Color(40, 255, 75, static_cast<uint8_t>(80 * pAlpha)));
       target.draw(ledGlow);
 
-      // Core bright green LED
       sf::CircleShape led(ledR);
       led.setOrigin({ledR, ledR});
       led.setPosition({ledX, ledY});
-      led.setFillColor(sf::Color(65, 255, 95, static_cast<uint8_t>(255 * safeAlpha)));
+      led.setFillColor(sf::Color(65, 255, 95, static_cast<uint8_t>(255 * pAlpha)));
       target.draw(led);
 
-      // Specular highlight
       sf::CircleShape ledCore(ledR * 0.45f);
       ledCore.setOrigin({ledR * 0.45f, ledR * 0.45f});
       ledCore.setPosition({ledX - ledR * 0.15f, ledY - ledR * 0.15f});
-      ledCore.setFillColor(sf::Color(220, 255, 230, static_cast<uint8_t>(255 * safeAlpha)));
+      ledCore.setFillColor(sf::Color(220, 255, 230, static_cast<uint8_t>(255 * pAlpha)));
       target.draw(ledCore);
-    } else {
-      // Powered off: dark red/unlit diode
-      sf::CircleShape led(ledR * 0.85f);
-      led.setOrigin({ledR * 0.85f, ledR * 0.85f});
-      led.setPosition({ledX, ledY});
-      led.setFillColor(sf::Color(135, 25, 25, static_cast<uint8_t>(210 * safeAlpha)));
-      target.draw(led);
     }
 
     // 11. Power Button tactile feedback / hover
@@ -1084,6 +1134,126 @@ public:
       hoverGlow.setOutlineColor(sf::Color(0, 255, 240, static_cast<uint8_t>(130 * safeAlpha)));
       target.draw(hoverGlow);
     }
+
+    // 12. Tactical Layers Toggle Switch tactile feedback / LEDs
+    float swX = l.frameX + TOGGLE_SW_X * l.s;
+    float swY = l.frameY + TOGGLE_SW_Y * l.s;
+    float swW = TOGGLE_SW_W * l.s;
+    float swH = TOGGLE_SW_H * l.s;
+
+    if (switchPressVisual_ > 0.01f) {
+      sf::RectangleShape pressTint({swW, swH});
+      pressTint.setPosition({swX, swY});
+      pressTint.setFillColor(sf::Color(
+          0, 0, 0, static_cast<uint8_t>(switchPressVisual_ * 120.0f * safeAlpha)));
+      target.draw(pressTint);
+      switchPressVisual_ = std::max(0.0f, switchPressVisual_ - dt * 6.0f);
+    } else if (isSwitchHovered_) {
+      sf::RectangleShape hoverGlow({swW, swH});
+      hoverGlow.setPosition({swX, swY});
+      hoverGlow.setFillColor(sf::Color(0, 230, 245, static_cast<uint8_t>(35 * safeAlpha)));
+      hoverGlow.setOutlineThickness(1.2f);
+      hoverGlow.setOutlineColor(sf::Color(0, 255, 240, static_cast<uint8_t>(130 * safeAlpha)));
+      target.draw(hoverGlow);
+    }
+
+    // Toggle switch indicator LEDs (UPPER = layers ON, LOWER = layers OFF)
+    float swLedX = l.frameX + TOGGLE_LED_X * l.s;
+    float upperLedY = l.frameY + TOGGLE_LED_UPPER_Y * l.s;
+    float lowerLedY = l.frameY + TOGGLE_LED_LOWER_Y * l.s;
+    float swLedR = 3.8f * l.s;
+    float coverR = 8.5f * l.s;
+
+    // Smooth transition animation between upper (ON) and lower (OFF) states
+    if (areTacticalLayersActive_) {
+      tacticalLayersAnim_ = std::min(1.0f, tacticalLayersAnim_ + dt * 6.0f);
+    } else {
+      tacticalLayersAnim_ = std::max(0.0f, tacticalLayersAnim_ - dt * 6.0f);
+    }
+    float upperAlpha = tacticalLayersAnim_;
+    float lowerAlpha = 1.0f - tacticalLayersAnim_;
+
+    // --- 1. UPPER HOLE: Mask baked green light from map.png and draw metallic socket ---
+    sf::CircleShape upperCover(coverR);
+    upperCover.setOrigin({coverR, coverR});
+    upperCover.setPosition({swLedX, upperLedY});
+    upperCover.setFillColor(sf::Color(51, 60, 41, static_cast<uint8_t>(255 * safeAlpha)));
+    target.draw(upperCover);
+
+    sf::CircleShape upperRing(swLedR * 1.1f);
+    upperRing.setOrigin({swLedR * 1.1f, swLedR * 1.1f});
+    upperRing.setPosition({swLedX, upperLedY});
+    upperRing.setFillColor(sf::Color(32, 38, 28, static_cast<uint8_t>(255 * safeAlpha)));
+    upperRing.setOutlineThickness(1.0f * l.s);
+    upperRing.setOutlineColor(sf::Color(70, 80, 58, static_cast<uint8_t>(200 * safeAlpha)));
+    target.draw(upperRing);
+
+    sf::CircleShape upperHole(swLedR * 0.7f);
+    upperHole.setOrigin({swLedR * 0.7f, swLedR * 0.7f});
+    upperHole.setPosition({swLedX, upperLedY});
+    upperHole.setFillColor(sf::Color(14, 18, 12, static_cast<uint8_t>(255 * safeAlpha)));
+    target.draw(upperHole);
+
+    // Glowing green diode at UPPER socket when tactical layers are ON
+    if (upperAlpha > 0.005f) {
+      float uA = upperAlpha * safeAlpha;
+
+      sf::CircleShape glow(swLedR * 2.2f);
+      glow.setOrigin({swLedR * 2.2f, swLedR * 2.2f});
+      glow.setPosition({swLedX, upperLedY});
+      glow.setFillColor(sf::Color(40, 255, 75, static_cast<uint8_t>(75 * uA)));
+      target.draw(glow);
+
+      sf::CircleShape diode(swLedR);
+      diode.setOrigin({swLedR, swLedR});
+      diode.setPosition({swLedX, upperLedY});
+      diode.setFillColor(sf::Color(65, 255, 95, static_cast<uint8_t>(255 * uA)));
+      target.draw(diode);
+
+      sf::CircleShape diodeCore(swLedR * 0.45f);
+      diodeCore.setOrigin({swLedR * 0.45f, swLedR * 0.45f});
+      diodeCore.setPosition({swLedX - swLedR * 0.15f, upperLedY - swLedR * 0.15f});
+      diodeCore.setFillColor(sf::Color(220, 255, 230, static_cast<uint8_t>(255 * uA)));
+      target.draw(diodeCore);
+    }
+
+    // --- 2. LOWER HOLE: Draw metallic socket and glow when layers are OFF ---
+    sf::CircleShape lowerRing(swLedR * 1.1f);
+    lowerRing.setOrigin({swLedR * 1.1f, swLedR * 1.1f});
+    lowerRing.setPosition({swLedX, lowerLedY});
+    lowerRing.setFillColor(sf::Color(32, 38, 28, static_cast<uint8_t>(255 * safeAlpha)));
+    lowerRing.setOutlineThickness(1.0f * l.s);
+    lowerRing.setOutlineColor(sf::Color(70, 80, 58, static_cast<uint8_t>(200 * safeAlpha)));
+    target.draw(lowerRing);
+
+    sf::CircleShape lowerHole(swLedR * 0.7f);
+    lowerHole.setOrigin({swLedR * 0.7f, swLedR * 0.7f});
+    lowerHole.setPosition({swLedX, lowerLedY});
+    lowerHole.setFillColor(sf::Color(14, 18, 12, static_cast<uint8_t>(255 * safeAlpha)));
+    target.draw(lowerHole);
+
+    // Glowing green diode at LOWER socket when tactical layers are OFF
+    if (lowerAlpha > 0.005f) {
+      float lA = lowerAlpha * safeAlpha;
+
+      sf::CircleShape glow(swLedR * 2.2f);
+      glow.setOrigin({swLedR * 2.2f, swLedR * 2.2f});
+      glow.setPosition({swLedX, lowerLedY});
+      glow.setFillColor(sf::Color(40, 255, 75, static_cast<uint8_t>(75 * lA)));
+      target.draw(glow);
+
+      sf::CircleShape diode(swLedR);
+      diode.setOrigin({swLedR, swLedR});
+      diode.setPosition({swLedX, lowerLedY});
+      diode.setFillColor(sf::Color(65, 255, 95, static_cast<uint8_t>(255 * lA)));
+      target.draw(diode);
+
+      sf::CircleShape diodeCore(swLedR * 0.45f);
+      diodeCore.setOrigin({swLedR * 0.45f, swLedR * 0.45f});
+      diodeCore.setPosition({swLedX - swLedR * 0.15f, lowerLedY - swLedR * 0.15f});
+      diodeCore.setFillColor(sf::Color(220, 255, 230, static_cast<uint8_t>(255 * lA)));
+      target.draw(diodeCore);
+    }
   }
 
   bool handleEvent(const sf::Event &event, float windowWidth,
@@ -1100,9 +1270,11 @@ public:
     if (const auto *mouseMove = event.getIf<sf::Event::MouseMoved>()) {
       isButtonHovered_ =
           isOverPowerButton(mouseMove->position.x, mouseMove->position.y, l);
+      isSwitchHovered_ =
+          isOverToggleSwitch(mouseMove->position.x, mouseMove->position.y, l);
     }
 
-    // Power button click on LMB
+    // Power button or Tactical Layers toggle switch click on LMB
     if (const auto *mouseBtn = event.getIf<sf::Event::MouseButtonPressed>()) {
       if (mouseBtn->button == sf::Mouse::Button::Left) {
         if (isOverPowerButton(mouseBtn->position.x, mouseBtn->position.y, l)) {
@@ -1111,6 +1283,13 @@ public:
           isDragging_ = false;
           outIsDragging = false;
           return false; // Handled power button, do not pan world camera!
+        }
+        if (isOverToggleSwitch(mouseBtn->position.x, mouseBtn->position.y, l)) {
+          requestToggleTacticalLayers_ = true;
+          switchPressVisual_ = 1.0f;
+          isDragging_ = false;
+          outIsDragging = false;
+          return false; // Handled toggle switch!
         }
       }
     }
@@ -1217,6 +1396,11 @@ private:
   float powerAnimProgress_ = 1.0f;
   bool isButtonHovered_ = false;
   float buttonPressVisual_ = 0.0f;
+  bool isSwitchHovered_ = false;
+  float switchPressVisual_ = 0.0f;
+  bool requestToggleTacticalLayers_ = false;
+  bool areTacticalLayersActive_ = true;
+  float tacticalLayersAnim_ = 1.0f;
   float routeCompletionTimer_ = 0.0f;
   bool wasRouteCompleted_ = false;
   float introOffsetY_ = 0.0f;

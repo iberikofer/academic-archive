@@ -533,6 +533,19 @@ int main(int argc, char *argv[]) {
   io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/tahoma.ttf", 26.0f, &fontCfg,
                                customGlyphRanges);
 
+  ImFontConfig boldFontCfg = fontCfg;
+  ImFont *boldFont = nullptr;
+  if (std::filesystem::exists("C:/Windows/Fonts/tahomabd.ttf")) {
+    boldFont = io.Fonts->AddFontFromFileTTF(
+        "C:/Windows/Fonts/tahomabd.ttf", 26.0f, &boldFontCfg, customGlyphRanges);
+  } else if (std::filesystem::exists("C:/Windows/Fonts/arialbd.ttf")) {
+    boldFont = io.Fonts->AddFontFromFileTTF(
+        "C:/Windows/Fonts/arialbd.ttf", 26.0f, &boldFontCfg, customGlyphRanges);
+  } else if (std::filesystem::exists("C:/Windows/Fonts/segoeuib.ttf")) {
+    boldFont = io.Fonts->AddFontFromFileTTF(
+        "C:/Windows/Fonts/segoeuib.ttf", 26.0f, &boldFontCfg, customGlyphRanges);
+  }
+
   ImFontConfig titleFontCfg = fontCfg;
   ImFont *titleFont = io.Fonts->AddFontFromFileTTF(
       "C:/Windows/Fonts/tahoma.ttf", 46.0f, &titleFontCfg,
@@ -558,6 +571,7 @@ int main(int argc, char *argv[]) {
   ImGui::SFML::ProcessEvent(window, initialFocusEvent);
 
   ui::ImGuiOverlay guiOverlay;
+  guiOverlay.setBoldFont(boldFont);
   ui::ImGuiOverlay::UIState uiState;
   uiState.knapsackAlgoIndex = 0;
   uiState.pathfinderAlgoIndex = 0;
@@ -1241,7 +1255,7 @@ int main(int argc, char *argv[]) {
             }
           }
           if (key->code == sf::Keyboard::Key::Escape) {
-            if (!guiOverlay.isTourActive()) {
+            if (!guiOverlay.isTourActive() && !guiOverlay.shouldIgnoreEscKey()) {
               guiOverlay.toggleSidebar(config.uiScale);
             }
           }
@@ -1276,7 +1290,7 @@ int main(int argc, char *argv[]) {
                                          : "Показники місії відкрито [B]";
             }
           }
-          if (key->code == sf::Keyboard::Key::V || key->scancode == sf::Keyboard::Scan::V) {
+          if (key->code == sf::Keyboard::Key::Z || key->scancode == sf::Keyboard::Scan::Z) {
             if (!ImGui::GetIO().WantTextInput && !transition.isTransitionActive() &&
                 engine.isManualMode() && !engine.isAtEvacuationCell() &&
                 engine.getAgent().getStatus() != simulation::AgentStatus::Success) {
@@ -1288,7 +1302,7 @@ int main(int argc, char *argv[]) {
           setFullscreenMode(!isBorderlessFullscreen);
           uiState.statusNotice = isBorderlessFullscreen ? "Повноекранний режим" : "Віконний режим";
         }
-        if (!ImGui::GetIO().WantCaptureKeyboard) {
+        if (!ImGui::GetIO().WantTextInput) {
           bool agentReadyOnGround =
               (appFlowState == AppFlowState::InGame) &&
               !transition.isTransitionActive() &&
@@ -1404,7 +1418,7 @@ int main(int argc, char *argv[]) {
       }
 
       if (const auto *wheel = event->getIf<sf::Event::MouseWheelScrolled>()) {
-        if (wheel->wheel == sf::Mouse::Wheel::Vertical) {
+        if (wheel->wheel == sf::Mouse::Wheel::Vertical && !guiOverlay.isTourActive()) {
           s_zoomIndicatorTimer = 2.4f;
         }
       }
@@ -1413,7 +1427,8 @@ int main(int argc, char *argv[]) {
         sf::Vector2f targetWorld;
         bool isMinimapDrag = false;
         float minimapZoomFactor = 1.0f;
-        if (minimap.handleEvent(*event, windowW, windowH, maze, targetWorld,
+        if (!guiOverlay.isTourActive() &&
+            minimap.handleEvent(*event, windowW, windowH, maze, targetWorld,
                                 isMinimapDrag, minimapZoomFactor, config.minimapScale)) {
           if (std::abs(minimapZoomFactor - 1.0f) > 0.001f) {
             // Mouse wheel on minimap -> Zoom labyrinth camera anchored to hovered position
@@ -1425,6 +1440,21 @@ int main(int argc, char *argv[]) {
             float panSmoothness = isMinimapDrag ? 45.0f : 14.0f;
             camera.panTo(targetWorld.x, targetWorld.y, panSmoothness);
             config.cameraFollowAgent = false;
+          }
+        }
+
+        if (minimap.consumeTacticalLayersToggle()) {
+          bool anyOff = (!config.showGrid || !config.showOptimalRoute || !config.showWalkedCells);
+          if (anyOff) {
+            config.showGrid = true;
+            config.showOptimalRoute = true;
+            config.showWalkedCells = true;
+            uiState.statusNotice = "Тактичні шари увімкнено [СІТКА | МАРШРУТ | СЛІД]";
+          } else {
+            config.showGrid = false;
+            config.showOptimalRoute = false;
+            config.showWalkedCells = false;
+            uiState.statusNotice = "Тактичні шари вимкнено";
           }
         }
 
@@ -1462,6 +1492,10 @@ int main(int argc, char *argv[]) {
           }
         }
       }
+    }
+
+    if (!sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Escape)) {
+      guiOverlay.onEscKeyReleased();
     }
 
     float dtSeconds = deltaClock.restart().asSeconds();
@@ -1897,7 +1931,8 @@ int main(int argc, char *argv[]) {
 
     // Zoom badge state on minimap screen
     float currentCameraZoom = camera.getZoomLevel();
-    if (std::abs(currentCameraZoom - s_lastCameraZoom) > 0.0015f || camera.isZoomingSmoothly()) {
+    if (!guiOverlay.isTourActive() &&
+        (std::abs(currentCameraZoom - s_lastCameraZoom) > 0.0015f || camera.isZoomingSmoothly())) {
       s_lastCameraZoom = currentCameraZoom;
       s_zoomIndicatorTimer = 2.4f;
     }
@@ -1910,7 +1945,10 @@ int main(int argc, char *argv[]) {
     bool isOverMinimapScreen = minimap.isInsideMinimap(
         mousePixel.x, mousePixel.y, windowW, windowH, config.minimapScale);
     float zoomBadgeAlpha = 0.0f;
-    if (s_zoomIndicatorTimer > 0.0f) {
+    if (guiOverlay.isTourActive()) {
+      s_zoomIndicatorTimer = 0.0f;
+      zoomBadgeAlpha = 0.0f;
+    } else if (s_zoomIndicatorTimer > 0.0f) {
       zoomBadgeAlpha = (s_zoomIndicatorTimer < 0.6f) ? (s_zoomIndicatorTimer / 0.6f) : 1.0f;
     } else if (isOverMinimapScreen && minimap.isPoweredOn()) {
       zoomBadgeAlpha = 0.85f;
@@ -2116,7 +2154,7 @@ int main(int argc, char *argv[]) {
       renderer.renderSpotlightOverlay(
           window, maze, renderView, guiOverlay.getHoveredCollectedItemId(),
           guiOverlay.getHoveredCatalogItemName(),
-          guiOverlay.getHoveredCatalogCategory(), collectedIds);
+          guiOverlay.getHoveredCatalogCategory(), collectedIds, engine, config);
 
       if (transition.isSonarScanning()) {
         renderer.renderSonarScanEffects(window, activeScanOrigin, activeScanRadius,
@@ -2143,6 +2181,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (appFlowState == AppFlowState::InGame || appFlowState == AppFlowState::FadingOut) {
+      minimap.setTacticalLayersActive(config.showGrid && config.showOptimalRoute && config.showWalkedCells);
       minimap.render(window, maze, camera.getView(), engine.getAgent(),
                      collectedIds, windowW, windowH, renderer.getVisualAgentPos(),
                      config.minimapScale, activeScanRadius, activeScanOrigin,
@@ -2151,7 +2190,8 @@ int main(int argc, char *argv[]) {
                      transition.getRouteProgress(), isExitDisabled, 1.0f,
                      !transition.isWaitingForIntro(),
                      guiOverlay.getHoveredCatalogItemName(),
-                     guiOverlay.getHoveredCatalogCategory());
+                     guiOverlay.getHoveredCatalogCategory(),
+                     config.showWalkedCells);
     }
 
     ImGui::SFML::Render(window);

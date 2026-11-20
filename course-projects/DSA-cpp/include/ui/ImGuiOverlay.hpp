@@ -148,13 +148,21 @@ public:
     isTourActive_ = false;
     escHoldTimer_ = 0.0f;
     hasValidSpotlight_ = false;
+    manualBannerOpenProgress_ = 0.0f;
     sidebarScrollTargetY_ = 0.0f;
     sidebarScroller_.targetScrollY = 0.0f;
     sidebarScroller_.smoothScrollY = 0.0f;
     resetSidebarScrollToTop_ = true;
+    ignoreEscUntilRelease_ = true;
   }
   [[nodiscard]] bool isTourActive() const noexcept {
     return isTourActive_;
+  }
+  [[nodiscard]] bool shouldIgnoreEscKey() const noexcept {
+    return ignoreEscUntilRelease_;
+  }
+  void onEscKeyReleased() noexcept {
+    ignoreEscUntilRelease_ = false;
   }
   [[nodiscard]] int getTourCurrentStep() const noexcept {
     return tourCurrentStep_;
@@ -203,6 +211,9 @@ public:
     }
     hasLoadedSectionStates_ = true;
   }
+
+  void setBoldFont(ImFont *font) noexcept { boldFont_ = font; }
+  [[nodiscard]] ImFont *getBoldFont() const noexcept { return boldFont_; }
 
   void startHudIntro() noexcept {
     hudIntroActive_ = true;
@@ -751,7 +762,7 @@ public:
       float b7Local = ImGui::GetCursorPosY();
 
       // Display checkbox: Grid
-      ImGui::Checkbox("Показувати сітку", &config.showGrid);
+      ImGui::Checkbox("Показувати сітку клітинок", &config.showGrid);
       if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip("Відображати тонку координатно-тактичну сітку між "
                           "клітинками лабіринту.");
@@ -817,7 +828,7 @@ public:
       ImGui::TextDisabled(
           "- [C] - Центрувати / прив'язати камеру до робітника");
       ImGui::TextDisabled(
-          "- [V] - Повернутись до останнього автоматичного кроку");
+          "- [Z] - Повернутись до останнього автоматичного кроку");
       ImGui::TextDisabled("- [M] - Показати / сховати легенду позначок");
       ImGui::TextDisabled(
           "- [Space] - Крок вперед (затиснути для швидкого руху)");
@@ -837,10 +848,12 @@ public:
       ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.00f, 0.95f, 1.00f, 1.00f));
       ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.00f, 1.00f, 1.00f, 1.00f));
       ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.5f * config.uiScale);
+      if (boldFont_) ImGui::PushFont(boldFont_);
       if (ImGui::Button("[?]  ІНСТРУКЦІЯ ЗБОРУ БРУХТУ ДЛЯ ЧАЙНИКІВ",
                         ImVec2(-1.0f, 32.0f * config.uiScale))) {
         startTour();
       }
+      if (boldFont_) ImGui::PopFont();
       ImGui::PopStyleVar();
       ImGui::PopStyleColor(5);
       if (ImGui::IsItemHovered()) {
@@ -1141,18 +1154,18 @@ public:
 
       ImGui::Spacing();
     }
-    tourBlockMin_[9] = ImVec2(2.0f, b9Start - 2.0f * config.uiScale);
-    tourBlockMax_[9] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 2.0f * config.uiScale);
-    tourBlockLocalY_[9] = b9Local;
-    tourBlockH_[9] = ImGui::GetCursorPosY() - b9Local;
+    tourBlockMin_[10] = ImVec2(2.0f, b9Start - 2.0f * config.uiScale);
+    tourBlockMax_[10] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 2.0f * config.uiScale);
+    tourBlockLocalY_[10] = b9Local;
+    tourBlockH_[10] = ImGui::GetCursorPosY() - b9Local;
 
     ImGui::Dummy(ImVec2(0.0f, 12.0f * config.uiScale));
 
     // 3. Knapsack and algorithm selection
     float b10Start = ImGui::GetCursorScreenPos().y;
     float b10Local = ImGui::GetCursorPosY();
-    float b14Start = b10Start;
-    float b14Local = b10Local;
+    float b16Start = b10Start;
+    float b16Local = b10Local;
     if (renderSectionHeader(2, "3.  Керування експедицією", config.uiScale,
                             true)) {
       ImGui::Spacing();
@@ -1346,10 +1359,10 @@ public:
             plannedRouteWeight);
       }
 
-      tourBlockMin_[10] = ImVec2(2.0f, b10Start - 2.0f * config.uiScale);
-      tourBlockMax_[10] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 4.0f * config.uiScale);
-      tourBlockLocalY_[10] = b10Local;
-      tourBlockH_[10] = ImGui::GetCursorPosY() - b10Local;
+      tourBlockMin_[11] = ImVec2(2.0f, b10Start - 2.0f * config.uiScale);
+      tourBlockMax_[11] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 4.0f * config.uiScale);
+      tourBlockLocalY_[11] = b10Local;
+      tourBlockH_[11] = ImGui::GetCursorPosY() - b10Local;
 
       ImGui::Spacing();
       float b11Start = ImGui::GetCursorScreenPos().y;
@@ -1370,10 +1383,10 @@ public:
             "евристика за співвідношенням ціна/вага.");
       }
 
-      tourBlockMin_[11] = ImVec2(2.0f, b11Start - 4.0f * config.uiScale);
-      tourBlockMax_[11] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 4.0f * config.uiScale);
-      tourBlockLocalY_[11] = b11Local;
-      tourBlockH_[11] = ImGui::GetCursorPosY() - b11Local;
+      tourBlockMin_[12] = ImVec2(2.0f, b11Start - 4.0f * config.uiScale);
+      tourBlockMax_[12] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 4.0f * config.uiScale);
+      tourBlockLocalY_[12] = b11Local;
+      tourBlockH_[12] = ImGui::GetCursorPosY() - b11Local;
 
       ImGui::Spacing();
       float b12Start = ImGui::GetCursorScreenPos().y;
@@ -1396,7 +1409,14 @@ public:
             "Дейкстра - пошук з точними вагами. BFS - хвильовий пошук.");
       }
 
+      tourBlockMin_[13] = ImVec2(2.0f, b12Start - 4.0f * config.uiScale);
+      tourBlockMax_[13] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 4.0f * config.uiScale);
+      tourBlockLocalY_[13] = b12Local;
+      tourBlockH_[13] = ImGui::GetCursorPosY() - b12Local;
+
       ImGui::Spacing();
+      float b13Start = ImGui::GetCursorScreenPos().y;
+      float b13Local = ImGui::GetCursorPosY();
 
       bool energyLimitChanged =
           (config.energyLimitEnabled != state.appliedEnergyLimitEnabled);
@@ -1424,14 +1444,14 @@ public:
             "Якщо увімкнено - алгоритм розраховується без ліміту місця в рюкзаку.");
       }
 
-      tourBlockMin_[12] = ImVec2(2.0f, b12Start - 4.0f * config.uiScale);
-      tourBlockMax_[12] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 4.0f * config.uiScale);
-      tourBlockLocalY_[12] = b12Local;
-      tourBlockH_[12] = ImGui::GetCursorPosY() - b12Local;
+      tourBlockMin_[14] = ImVec2(2.0f, b13Start - 4.0f * config.uiScale);
+      tourBlockMax_[14] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 4.0f * config.uiScale);
+      tourBlockLocalY_[14] = b13Local;
+      tourBlockH_[14] = ImGui::GetCursorPosY() - b13Local;
 
       ImGui::Spacing();
-      float b13Start = ImGui::GetCursorScreenPos().y;
-      float b13Local = ImGui::GetCursorPosY();
+      float b14Start = ImGui::GetCursorScreenPos().y;
+      float b14Local = ImGui::GetCursorPosY();
 
       bool routeModeChanged = (config.routeMode != state.appliedRouteMode);
       int routeModeInt =
@@ -1455,6 +1475,15 @@ public:
                           "цінностей та повернення назад до шлюзу (A).");
       }
       endChangedWidgetBorder(routeModeChanged);
+
+      tourBlockMin_[15] = ImVec2(2.0f, b14Start - 4.0f * config.uiScale);
+      tourBlockMax_[15] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 4.0f * config.uiScale);
+      tourBlockLocalY_[15] = b14Local;
+      tourBlockH_[15] = ImGui::GetCursorPosY() - b14Local;
+
+      ImGui::Spacing();
+      float b15Start = ImGui::GetCursorScreenPos().y;
+      float b15Local = ImGui::GetCursorPosY();
 
       bool planNeedsRecalculate =
           (state.knapsackAlgoIndex != state.appliedKnapsackAlgoIndex ||
@@ -1549,17 +1578,17 @@ public:
         }
       }
 
-      tourBlockMin_[13] = ImVec2(2.0f, b13Start - 4.0f * config.uiScale);
-      tourBlockMax_[13] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 4.0f * config.uiScale);
-      tourBlockLocalY_[13] = b13Local;
-      tourBlockH_[13] = ImGui::GetCursorPosY() - b13Local;
+      tourBlockMin_[16] = ImVec2(2.0f, b15Start - 4.0f * config.uiScale);
+      tourBlockMax_[16] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 4.0f * config.uiScale);
+      tourBlockLocalY_[16] = b15Local;
+      tourBlockH_[16] = ImGui::GetCursorPosY() - b15Local;
 
       ImGui::Spacing();
       ImGui::Separator();
       ImGui::Spacing();
 
-      b14Start = ImGui::GetCursorScreenPos().y;
-      b14Local = ImGui::GetCursorPosY();
+      b16Start = ImGui::GetCursorScreenPos().y;
+      b16Local = ImGui::GetCursorPosY();
       ImGui::TextColored(ImVec4(0.40f, 0.85f, 1.0f, 1.0f), "JSON Конфігурація та Звітність:");
 
       float jsonBtnW = (ImGui::GetContentRegionAvail().x - 8.0f) * 0.5f;
@@ -1593,16 +1622,16 @@ public:
 
       ImGui::Spacing();
     }
-    tourBlockMin_[14] = ImVec2(2.0f, b14Start - 4.0f * config.uiScale);
-    tourBlockMax_[14] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 2.0f * config.uiScale);
-    tourBlockLocalY_[14] = b14Local;
-    tourBlockH_[14] = ImGui::GetCursorPosY() - b14Local;
+    tourBlockMin_[17] = ImVec2(2.0f, b16Start - 4.0f * config.uiScale);
+    tourBlockMax_[17] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 2.0f * config.uiScale);
+    tourBlockLocalY_[17] = b16Local;
+    tourBlockH_[17] = ImGui::GetCursorPosY() - b16Local;
 
     ImGui::Dummy(ImVec2(0.0f, 12.0f * config.uiScale));
 
     // 4. Simulation playback controls
-    float b15Start = ImGui::GetCursorScreenPos().y;
-    float b15Local = ImGui::GetCursorPosY();
+    float b17Start = ImGui::GetCursorScreenPos().y;
+    float b17Local = ImGui::GetCursorPosY();
     if (renderSectionHeader(3, "4.  Керування симуляцією", config.uiScale, true)) {
       ImGui::Spacing();
       const auto &agent = engine.getAgent();
@@ -1633,7 +1662,7 @@ public:
       float btnItemSpacingX = ImGui::GetStyle().ItemSpacing.x;
       ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(btnItemSpacingX, btnItemSpacingX));
 
-      float btnW = (ImGui::GetContentRegionAvail().x - 3.0f * btnItemSpacingX) / 4.0f;
+      float btnW = (ImGui::GetContentRegionAvail().x - 2.0f * btnItemSpacingX) / 3.0f;
       float btnH = std::max(28.0f * config.uiScale, ImGui::GetFrameHeight());
 
       if (!canStepBack) {
@@ -1713,19 +1742,6 @@ public:
             canControl
                 ? "Крок вперед [Space]: виконати 1 одиночний крок по маршруту."
                 : disabledReason);
-      }
-
-      ImGui::SameLine();
-      if (ImGui::Button(" [ >> ]", ImVec2(btnW, btnH))) {
-        engine.instantFinish();
-        state.requestFitMazeInView = true;
-      }
-      if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        showStyledTooltip(
-            config.uiScale, "%s",
-            canControl ? "Завершити миттєво: пройти весь залишок маршруту до "
-                         "кінця та віддалити огляд на весь лабіринт."
-                       : disabledReason);
       }
 
       if (!canControl) {
@@ -1812,19 +1828,20 @@ public:
                           "0.5x до 4.0x). Базовий крок: 0.75 с.");
       }
 
+      tourBlockMin_[18] = ImVec2(2.0f, b17Start - 2.0f * config.uiScale);
+      tourBlockMax_[18] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 2.0f * config.uiScale);
+      tourBlockLocalY_[18] = b17Local;
+      tourBlockH_[18] = ImGui::GetCursorPosY() - b17Local;
+
       ImGui::PopStyleVar();
       ImGui::Spacing();
     }
-    tourBlockMin_[15] = ImVec2(2.0f, b15Start - 2.0f * config.uiScale);
-    tourBlockMax_[15] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 2.0f * config.uiScale);
-    tourBlockLocalY_[15] = b15Local;
-    tourBlockH_[15] = ImGui::GetCursorPosY() - b15Local;
 
     ImGui::Dummy(ImVec2(0.0f, 12.0f * config.uiScale));
 
     // 5. Benchmark analytics
-    float b16Start = ImGui::GetCursorScreenPos().y;
-    float b16Local = ImGui::GetCursorPosY();
+    float b19Start = ImGui::GetCursorScreenPos().y;
+    float b19Local = ImGui::GetCursorPosY();
     if (renderSectionHeader(4, "5.  Порівняльний аналіз", config.uiScale, true)) {
       ImGui::Spacing();
       if (ImGui::Button(" Запустити повний аналіз (усі 6)",
@@ -1921,10 +1938,10 @@ public:
       }
       ImGui::Spacing();
     }
-    tourBlockMin_[16] = ImVec2(2.0f, b16Start - 2.0f * config.uiScale);
-    tourBlockMax_[16] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 2.0f * config.uiScale);
-    tourBlockLocalY_[16] = b16Local;
-    tourBlockH_[16] = ImGui::GetCursorPosY() - b16Local;
+    tourBlockMin_[19] = ImVec2(2.0f, b19Start - 2.0f * config.uiScale);
+    tourBlockMax_[19] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 2.0f * config.uiScale);
+    tourBlockLocalY_[19] = b19Local;
+    tourBlockH_[19] = ImGui::GetCursorPosY() - b19Local;
 
     sidebarScroller_.update(68.0f, config.uiScale);
     ImGui::SetScrollX(0.0f);
@@ -2247,11 +2264,13 @@ public:
         ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.00f, 0.95f, 1.00f, 1.00f));
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.00f, 1.00f, 1.00f, 1.00f));
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.5f * uiScale);
+        if (boldFont_) ImGui::PushFont(boldFont_);
         if (ImGui::Button("[?]  ІНСТРУКЦІЯ ЗБОРУ БРУХТУ ДЛЯ ЧАЙНИКІВ",
                           ImVec2(-1.0f, 30.0f * uiScale))) {
           startTour();
           startupHintDismissed_ = true;
         }
+        if (boldFont_) ImGui::PopFont();
         ImGui::PopStyleVar();
         ImGui::PopStyleColor(5);
         if (ImGui::IsItemHovered()) {
@@ -2326,7 +2345,7 @@ public:
         ImGui::TextColored(ImVec4(1.00f, 1.00f, 0.00f, 1.0f),
                            "Побутовий брухт: %s", it.name.c_str());
       } else {
-        ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f), "Важкий брухт: %s",
+        ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f), "Дорогоцінний брухт: %s",
                            it.name.c_str());
       }
       ImGui::Separator();
@@ -2545,28 +2564,40 @@ public:
           return IM_COL32(r, g, b, a);
         };
 
-        auto drawLegendItem = [this, scale = config.uiScale, legendInteractable](
+        auto drawLegendItem = [this, scale = config.uiScale, &colA, legendInteractable](
                                   const char *label, const char *tooltip,
                                   auto iconFunc, int categoryId = -1) {
           ImVec2 p = ImGui::GetCursorScreenPos();
           float iconSize = 18.0f;
+          float lineHeight = ImGui::GetTextLineHeight();
+          float rowH = std::max(iconSize, lineHeight);
+          float availW = ImGui::GetContentRegionAvail().x;
+          float padX = 6.0f * scale;
+          float padY = 3.0f * scale;
+
+          ImVec2 rowMin(p.x - padX, p.y - padY);
+          ImVec2 rowMax(p.x + availW + padX, p.y + rowH + padY);
+
           ImDrawList *drawList = ImGui::GetWindowDrawList();
-          iconFunc(drawList, p, iconSize);
 
-          ImGui::Dummy(ImVec2(iconSize, iconSize));
-          ImGui::SameLine(0, 8.0f);
-          ImGui::TextUnformatted(label);
+          bool isHovered = legendInteractable && !isTourActive_ &&
+                           ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows) &&
+                           ImGui::IsMouseHoveringRect(rowMin, rowMax);
 
-          if (legendInteractable &&
-              ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows) &&
-              (ImGui::IsItemHovered() ||
-               ImGui::IsMouseHoveringRect(
-                   p, ImVec2(p.x + iconSize, p.y + iconSize)))) {
+          if (isHovered) {
+            drawList->AddRectFilled(rowMin, rowMax, colA(255, 255, 255, 22), 4.0f * scale);
+            drawList->AddRect(rowMin, rowMax, colA(0, 220, 255, 75), 4.0f * scale, 0, 1.0f);
             showStyledTooltip(scale, "%s", tooltip);
             if (categoryId >= 0) {
               hoveredCatalogCategory_ = categoryId;
             }
           }
+
+          iconFunc(drawList, p, iconSize);
+
+          ImGui::Dummy(ImVec2(iconSize, iconSize));
+          ImGui::SameLine(0, 8.0f);
+          ImGui::TextUnformatted(label);
           ImGui::Spacing();
         };
 
@@ -2589,9 +2620,10 @@ public:
                              colA(255, 255, 255, 255));
               } else {
                 dl->AddCircleFilled(center, 5.0f, colA(255, 200, 40, 255));
-                dl->AddCircle(center, 5.0f, colA(255, 255, 255, 240), 0, 1.5f);
+                dl->AddCircle(center, 5.0f, colA(255, 255, 240, 240), 0, 1.5f);
               }
-            });
+            },
+            10);
 
         drawLegendItem(
             "Шлюз (Старт)",
@@ -2621,7 +2653,8 @@ public:
               dl->AddRectFilled(ImVec2(p.x + s - 4.5f, p.y + s - 4.5f),
                                 ImVec2(p.x + s - 2, p.y + s - 2),
                                 colA(255, 220, 60, 255));
-            });
+            },
+            11);
 
         // 3. Exit (Evacuation) - actual maze cell appearance
         if (config.routeMode == core::RouteMode::RoundTrip) {
@@ -2643,7 +2676,8 @@ public:
                            dl->AddLine(ImVec2(p.x + s - 3.5f, p.y + 3.5f),
                                        ImVec2(p.x + 3.5f, p.y + s - 3.5f),
                                        colA(225, 55, 55, 240), 2.0f);
-                         });
+                         },
+                         12);
         } else {
           drawLegendItem(
               "Вихід (Евакуація)",
@@ -2673,7 +2707,8 @@ public:
                 dl->AddRectFilled(ImVec2(p.x + s - 4.5f, p.y + s - 4.5f),
                                   ImVec2(p.x + s - 2, p.y + s - 2),
                                   colA(80, 255, 160, 255));
-              });
+              },
+              12);
         }
 
         // 4. Mud / Swamp / Water hazard tile (styled after labyrinth mud hazards)
@@ -2696,7 +2731,7 @@ public:
                                 colA(135, 105, 62, 255));
               dl->AddRect(ImVec2(p.x + s * 0.30f, p.y + s * 0.35f),
                           ImVec2(p.x + s * 0.30f + 3.5f, p.y + s * 0.35f + 3.5f),
-                          colA(175, 142, 90, 240), 0, 0.8f);
+                          colA(175, 142, 90, 240), 0.0f, 0, 0.8f);
               dl->AddRectFilled(ImVec2(p.x + s * 0.65f, p.y + s * 0.60f),
                                 ImVec2(p.x + s * 0.65f + 2.5f, p.y + s * 0.60f + 2.5f),
                                 colA(135, 105, 62, 255));
@@ -2713,7 +2748,8 @@ public:
               dl->AddRectFilled(ImVec2(p.x + s - 3, p.y + s - 3),
                                 ImVec2(p.x + s - 1, p.y + s - 1),
                                 colA(155, 125, 75, 220));
-            });
+            },
+            13);
 
         // 5. Light, medium, and heavy scrap items
         drawLegendItem(
@@ -2737,7 +2773,7 @@ public:
             static_cast<int>(core::ItemCategory::MediumScrap));
 
         drawLegendItem(
-            "Важкий брухт (10-18 кг)",
+            "Дорогоцінний брухт (10-18 кг)",
             "Дворучні масивні механізми (апарат живлення, двигун, золото, "
             "реактор)",
             [&colA](ImDrawList *dl, ImVec2 p, float s) {
@@ -2756,7 +2792,8 @@ public:
                                            colA(10, 48, 65, 235), 2.0f);
                          dl->AddRect(p, ImVec2(p.x + s, p.y + s),
                                      colA(0, 230, 245, 240), 2.0f, 0, 1.5f);
-                       });
+                       },
+                       14);
 
         // 7. Route (TSP Trajectory) - laser line without waypoint node circle
         drawLegendItem("Маршрут (Траєкторія TSP)",
@@ -2776,11 +2813,13 @@ public:
                          dl->AddLine(ImVec2(p.x + 3, p.y + s - 4),
                                      ImVec2(p.x + s - 3, p.y + 4),
                                      colA(230, 255, 255, 240), 1.0f);
-                       });
+                       },
+                       15);
 
         ImGui::Spacing();
         float btnLocalY =
             ImGui::GetCursorPosY() - ImGui::GetStyle().WindowPadding.y;
+        catalogBtnLocalY_ = btnLocalY;
 
         ImGui::PushStyleColor(ImGuiCol_Button,
                               (isCatalogOpen_ || isCatalogClosing_)
@@ -2877,10 +2916,10 @@ public:
 
               const char *catHeader =
                   (it.category == core::ItemCategory::LightScrap)
-                      ? "Легкий брухт (1-3 кг)"
+                      ? "Дрібний брухт (1-3 кг)"
                   : (it.category == core::ItemCategory::MediumScrap)
                       ? "Побутовий брухт (4-8 кг)"
-                      : "Важкий брухт (10-18 кг)";
+                      : "Дорогоцінний брухт (10-18 кг)";
               ImVec4 headerCol =
                   (it.category == core::ItemCategory::LightScrap)
                       ? ImVec4(0.20f, 0.41f, 1.00f, 1.0f)
@@ -2900,7 +2939,7 @@ public:
               std::snprintf(bannerId, sizeof(bannerId), "##CatBanner_%d",
                             static_cast<int>(it.category));
               ImGui::InvisibleButton(bannerId, ImVec2(availW, bannerH));
-              bool isCatHovered = legendInteractable && ImGui::IsItemHovered();
+              bool isCatHovered = legendInteractable && !isTourActive_ && ImGui::IsItemHovered();
               if (isCatHovered) {
                 hoveredCatalogCategory_ = static_cast<int>(it.category);
               }
@@ -2994,17 +3033,17 @@ public:
               }
             }
 
-            if (legendInteractable && ImGui::IsItemHovered()) {
+            if (legendInteractable && !isTourActive_ && ImGui::IsItemHovered()) {
               isRowHovered = true;
             }
 
             ImGui::TableSetColumnIndex(1);
             ImGui::TextDisabled("%d кг, %d грн", it.baseWeight, it.baseValue);
-            if (legendInteractable && ImGui::IsItemHovered()) {
+            if (legendInteractable && !isTourActive_ && ImGui::IsItemHovered()) {
               isRowHovered = true;
             }
 
-            if (isRowHovered) {
+            if (isRowHovered && !isTourActive_) {
               hoveredCatalogCategory_ = -1;
               hoveredCatalogItemName_ = it.name;
               if (isPresentInMaze) {
@@ -3107,6 +3146,8 @@ public:
                        : (hasExtraScrap ? ImVec4(0.50f, 0.40f, 0.20f, 1.00f)
                                         : ImVec4(0.30f, 0.48f, 0.35f, 1.00f)));
         ImGui::PushStyleColor(ImGuiCol_Border, borderCol);
+
+        collectedBtnLocalY_ = ImGui::GetCursorPosY() - ImGui::GetStyle().WindowPadding.y;
 
         if (ImGui::Button(collectedBtnText,
                           ImVec2(-1.0f, std::max(28.0f * config.uiScale,
@@ -3305,12 +3346,12 @@ public:
                   ImVec2 numMin = ImGui::GetCursorScreenPos();
                   ImGui::TextColored(ImVec4(1.0f, 0.82f, 0.25f, 1.0f),
                                      "%zu. ", i + 1);
-                  if (legendInteractable && ImGui::IsItemHovered()) {
+                  if (legendInteractable && !isTourActive_ && ImGui::IsItemHovered()) {
                     isRowHovered = true;
                   }
                   ImGui::SameLine(0.0f, 0.0f);
                   ImGui::TextColored(col, "%s", it.name.c_str());
-                  if (legendInteractable && ImGui::IsItemHovered()) {
+                  if (legendInteractable && !isTourActive_ && ImGui::IsItemHovered()) {
                     isRowHovered = true;
                   }
                   // Underline opportunistic item with matching gold color (spanning both number and name)
@@ -3321,7 +3362,7 @@ public:
                       IM_COL32(255, 210, 64, 255), 1.5f);
                 } else {
                   ImGui::TextColored(col, "%zu. %s", i + 1, it.name.c_str());
-                  if (legendInteractable && ImGui::IsItemHovered()) {
+                  if (legendInteractable && !isTourActive_ && ImGui::IsItemHovered()) {
                     isRowHovered = true;
                   }
                 }
@@ -3336,7 +3377,7 @@ public:
                                        (availW1 - wW) * 0.5f);
                 }
                 ImGui::TextDisabled("%s", wBuf);
-                if (legendInteractable && ImGui::IsItemHovered()) {
+                if (legendInteractable && !isTourActive_ && ImGui::IsItemHovered()) {
                   isRowHovered = true;
                 }
 
@@ -3350,7 +3391,7 @@ public:
                                        (availW2 - vW) * 0.5f);
                 }
                 ImGui::TextDisabled("%s", vBuf);
-                if (legendInteractable && ImGui::IsItemHovered()) {
+                if (legendInteractable && !isTourActive_ && ImGui::IsItemHovered()) {
                   isRowHovered = true;
                 }
 
@@ -3361,7 +3402,7 @@ public:
                 bool isRowVisibleInWindow =
                     (rowBottom >= targetLegendY && rowTop <= targetLegendY + curWindowH);
 
-                if (legendInteractable && mouseInLegend && isRowVisibleInWindow) {
+                if (legendInteractable && !isTourActive_ && mouseInLegend && isRowVisibleInWindow) {
                   if (isRowHovered ||
                       (mouse.y >= rowTop - 1.0f && mouse.y <= rowBottom &&
                        mouse.x >= btnX && mouse.x <= btnX + legendW)) {
@@ -3681,8 +3722,9 @@ public:
                   (3.0f - 2.0f * missionPanelOpenProgress_);
 
     bool showManualCard =
-        engine.isManualMode() && !engine.isAtEvacuationCell() &&
-        engine.getAgent().getStatus() != simulation::AgentStatus::Success;
+        (engine.isManualMode() && !engine.isAtEvacuationCell() &&
+         engine.getAgent().getStatus() != simulation::AgentStatus::Success) ||
+        (isTourActive_ && tourCurrentStep_ == 9);
     const float CARD_ANIM_DUR = 0.20f;
     if (showManualCard) {
       manualBannerOpenProgress_ =
@@ -3711,7 +3753,7 @@ public:
     if (hudIntroProgress_ < 0.999f || attachEase <= 0.001f) {
       return;
     }
-    if (isTourActive_ && (tourCurrentStep_ == 0 || tourCurrentStep_ >= 2)) {
+    if (isTourActive_ && (tourCurrentStep_ == 0 || tourCurrentStep_ >= 2) && tourCurrentStep_ != 9) {
       return;
     }
 
@@ -3725,34 +3767,36 @@ public:
     lastMissionPanelTopY_ = toggleBtnY;
 
     // 1. Toggle button sitting directly above the Mission Panel / Monitor
-    ImGui::SetNextWindowPos(ImVec2(panelX, toggleBtnY), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(panelW, btnH), ImGuiCond_Always);
+    if (!isTourActive_ || tourCurrentStep_ != 9) {
+      ImGui::SetNextWindowPos(ImVec2(panelX, toggleBtnY), ImGuiCond_Always);
+      ImGui::SetNextWindowSize(ImVec2(panelW, btnH), ImGuiCond_Always);
 
-    ImGuiWindowFlags btnFlags =
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar |
-        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoNav;
+      ImGuiWindowFlags btnFlags =
+          ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+          ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings |
+          ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar |
+          ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoNav;
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    if (ImGui::Begin("##MissionPanelTopToggleWindow", nullptr, btnFlags)) {
-      const char *btnLabel = missionPanelCollapsed_
-                                 ? "[B] Показати показники місії"
-                                 : "[B] Сховати показники місії";
-      if (ImGui::Button(btnLabel, ImVec2(panelW, btnH))) {
-        missionPanelCollapsed_ = !missionPanelCollapsed_;
+      ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+      ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+      if (ImGui::Begin("##MissionPanelTopToggleWindow", nullptr, btnFlags)) {
+        const char *btnLabel = missionPanelCollapsed_
+                                   ? "[B] Показати показники місії"
+                                   : "[B] Сховати показники місії";
+        if (ImGui::Button(btnLabel, ImVec2(panelW, btnH))) {
+          missionPanelCollapsed_ = !missionPanelCollapsed_;
+        }
+        if (ImGui::IsItemHovered()) {
+          showStyledTooltip(
+              config.uiScale, "%s",
+              missionPanelCollapsed_
+                  ? "Відкрити панель показників місії (Енергія, Вантаж, Квота) [B]."
+                  : "Сховати панель показників місії [B].");
+        }
       }
-      if (ImGui::IsItemHovered()) {
-        showStyledTooltip(
-            config.uiScale, "%s",
-            missionPanelCollapsed_
-                ? "Відкрити панель показників місії (Енергія, Вантаж, Квота) [B]."
-                : "Сховати панель показників місії [B].");
-      }
+      ImGui::End();
+      ImGui::PopStyleVar(2);
     }
-    ImGui::End();
-    ImGui::PopStyleVar(2);
 
     // 2. Mission status panel (Status line + 3 Progress bars)
     if (effectiveEaseT > 0.001f) {
@@ -3785,6 +3829,7 @@ public:
         dl->AddRect(ImVec2(panelX, currentPanelY),
                     ImVec2(panelX + panelW, currentPanelY + panelH),
                     panelBorderCol, roundRadius, 0, 1.0f);
+        lastMissionPanelBottomY_ = currentPanelY + panelH;
 
         bool isCompact = (panelW < 330.0f) || (config.minimapScale <= 1.05f);
         auto statusDisp = getAgentStatusDisplay(engine, maze, renderer,
@@ -3890,7 +3935,7 @@ public:
       float cardBtnH =
           std::max(28.0f * config.uiScale, ImGui::GetFrameHeight() + 4.0f);
       const char *returnBtnLabel =
-          "[V] Повернутись до останнього автоматичного кроку";
+          "[Z] Повернутись до останнього автоматичного кроку";
       float btnTextW = ImGui::CalcTextSize(returnBtnLabel).x;
       float cardW =
           std::round(btnTextW + cardPadX * 2.0f + 20.0f * config.uiScale);
@@ -3904,8 +3949,12 @@ public:
       float monitorBottomY = windowHeight - Minimap::PADDING;
       float targetCardY = std::round(monitorBottomY - cardH);
       float startCardY = windowHeight + 10.0f;
-      float cardY = std::round(startCardY - (startCardY - targetCardY) * cardEaseT);
+      float effectiveCardEase = (isTourActive_ && tourCurrentStep_ == 9) ? 1.0f : cardEaseT;
+      float cardY = std::round(startCardY - (startCardY - targetCardY) * effectiveCardEase);
       float cardX = std::round(panelX - cardW - 8.0f);
+
+      lastManualCardPos_ = ImVec2(cardX, cardY);
+      lastManualCardSize_ = ImVec2(cardW, cardH);
 
       ImGui::SetNextWindowPos(ImVec2(cardX, cardY), ImGuiCond_Always);
       ImGui::SetNextWindowSize(ImVec2(cardW, cardH), ImGuiCond_Always);
@@ -4000,44 +4049,44 @@ public:
       int targetSection; // -1 for outside sidebar, 1..5 for sidebar sections
     };
 
-    static constexpr int TOUR_TOTAL_STEPS = 17;
+    static constexpr int TOUR_TOTAL_STEPS = 20;
     static const TourStepDef TOUR_STEPS[TOUR_TOTAL_STEPS] = {
         {"Тактичний CRT-радар (Міні-карта)",
          "Повний огляд усього підземного комплексу в реальному часі",
          "- Відображає геометрію лабіринту, кімнати, коридори та стіни.\n"
-         "- Кольорові мітки брухту (блакитний, жовтий, пурпуровий).\n"
+         "- Кольорові мітки брухту (синій, жовтий, пурпуровий).\n"
          "- Позиція робітника з радіолокаційним пульсуючим маяком.\n"
          "- [ЛКМ на радарі] — миттєве переміщення камери у вибраний сектор.\n"
          "- [Коліщатко на радарі] — плавне масштабування карти комплексу.",
          -1},
         {"Показники місії (HUD)",
          "Телеметрія життєзабезпечення робітника та прогрес виконання плану",
-         "- 'Стан робітника' — поточний статус (Збір брухту, Рух, Очікування).\n"
-         "- Смуга Енергії — запас батареї для виконання автономної операції.\n"
-         "- Смуга Вантажу — поточна вага зібраного брухту у рюкзаку.\n"
+         "- 'Стан робітника' — поточний статус (Збір брухту, Рух, Десантування / Евакуація, Очікування).\n"
+         "- Смуга Енергії — запас енергії робітника для виконання автономної операції.\n"
+         "- Смуга Вантажу — поточна вага та ліміт місткості рюкзака.\n"
          "- Смуга Квоти — прогрес виконання фінансового плану Компанії.\n"
-         "- Кнопка [B] зверху або клавіша 'B' — швидке згортання/розгортання панелі.",
+         "- Кнопка зверху або клавіша [B] — швидке згортання/розгортання панелі.",
          -1},
         {"Легенда позначок мапи",
          "Довідник тактичних символів та позначок лабіринту",
-         "- Розкривається кнопкою [M] або натисканням клавіші 'M'.\n"
-         "- Пояснює колірні маркери: Шлюзи Старт (A) та Вихід (B), стіни, болото.\n"
-         "- Показує кольори трьох вагових категорій брухту: Дрібний, Побутовий, Важкий.\n"
-         "- При наведенні на типи клітинок підсвічує їх на мапі.",
+         "- Розкривається кнопкою зверху або клавішею [M].\n"
+         "- Пояснює колірні маркери: Шлюзи Старт (A) та Вихід (B), болото, пройдена траєкторія та слід.\n"
+         "- Показує кольори трьох вагових категорій брухту: Дрібний, Побутовий, Дорогоцінний.\n"
+         "- При наведенні на типи клітинок або брухт підсвічує їх на мапі.",
          -1},
         {"Каталог цінностей комплексу",
          "Повна база 60 найменувань промислового та побутового брухту",
          "- Вбудований каталог з трьома ваговими категоріями.\n"
-         "- Наведення на предмет у каталозі активує тактичне фокусування камери на цьому предметі у комплексі!\n"
+         "- Наведення на предмет у каталозі активує тактичне фокусування камери на цьому предметі у комплексі.\n"
          "- Відображає точну вагу, базову ціну та питому цінність (грн/кг).\n"
          "- Допомагає візуально оцінити потенціал знахідок у кожному секторі.",
          -1},
         {"Вміст рюкзака / Зібраний брухт",
          "Деталізований маніфест завантажених у рюкзак предметів",
-         "- Зелена кнопка 'Квота: X / Y грн (N/M од.)' відкриває інвентар.\n"
+         "- Зелена кнопка 'Квота: X / Y грн (N/M од.)' відкриває інвентар зібраного.\n"
          "- Таблиця зібраного: порядковий номер, назва, вага та вартість.\n"
-         "- Позначка [+Попутний] — брухт, підібраний по дорозі без відхилення від маршруту.\n"
-         "- Зелений банер сигналізує про виконання або перевиконання квоти.",
+         "- Позначка та нижнє підкреслення золотим кольором — попутний брухт, який лежав на дорозі і який влазив у рюкзак.\n"
+         "- Зелений банер сигналізує про успішне виконання квоти Компанії.",
          -1},
         {"Головний термінал керування",
          "Центральна консоль налаштування симуляції та алгоритмів",
@@ -4046,85 +4095,104 @@ public:
          "- Підтримує плавне змінення ширини панелі мишкою.\n"
          "- Дозволяє гнучко експериментувати з параметрами прямо під час місії.",
          1},
-        {"Розділ 1: Масштаб та фокусування камери",
+        {"Розділ 1 — Масштаб та фокусування камери",
          "Швидке позиціонування та навігація по простору лабіринту",
          "- Кнопки [-] Віддалити та [+] Наблизити — плавний дискретний зум.\n"
          "- 'Весь лабіринт' — авто-підбір масштабу для охоплення 100% мапи.\n"
          "- 'Центрувати' [C] — режим постійного стеження камери за робітником.\n"
          "- Повзунок масштабу камери (0.20x - 4.50x) для ручного точного налаштування.",
          1},
-        {"Розділ 1: Тактичні шари та оптимізація",
+        {"Розділ 1 — Тактичні шари відображення",
          "Керування графічними оверлеями та продуктивністю рушія",
-         "- 'Сітка клітинок' — перемикання координатної сітки підлоги.\n"
-         "- 'Оптимальний маршрут' — відображення блакитної неонової лінії TSP.\n"
-         "- 'Пройдені клітинки' — візуалізація пройденого сліду робітника.\n"
+         "- 'Показувати сітку клітинок' — перемикання координатної сітки підлоги.\n"
+         "- 'Показувати оптимальний маршрут' — відображення блакитної неонової лінії TSP.\n"
+         "- 'Показувати пройдені клітинки' — візуалізація пройденого сліду робітника.\n"
          "- 'Вертикальна синхронізація (VSync)' — обмеження FPS під частоту монітора.\n"
          "- Масштаб інтерфейсу UI та розмір міні-карти.",
          1},
-        {"Розділ 1: Повний довідник гарячих клавіш",
+        {"Розділ 1 — Гарячі клавіші та екскурс",
          "Миттєвий доступ до всіх тактичних функцій з клавіатури",
          "- [Esc] — відкрити/сховати головну бічну панель керування.\n"
          "- [F11] — перемикання повноекранного безрамкового режиму.\n"
          "- [W, A, S, D] — ручне керування переміщенням робітника в комплексі.\n"
          "- [B] — сховати/показати HUD показників місії.\n"
-         "- [C] — центрувати огляд на робітнику, [V] — повернутися до маршруту.\n"
-         "- [M] — відкрити/сховати легенду позначок мапи.\n"
-         "- [Space] — крок симуляції (затисніть для безперервного ходу).",
+         "- [C] — центрувати огляд на робітнику, [Z] — повернутися до маршруту.\n"
+         "- [M] — відкрити/сховати легенду позначок мапи (каталог та інвентар).\n"
+         "- [Space] — крок симуляції (затисніть для безперервного ходу).\n"
+         "- [Shift+Space] — крок назад, [Ctrl+Space] — старт / фініш.",
          1},
-        {"Розділ 2: Генерація лабіринту BSP",
+        {"Розділ 1 — Ручне керування робітником [W, A, S, D]",
+         "Пряме тактичне пілотування робітником та повернення до плану",
+         "- Клавіші [W, A, S, D] — вільне ручне пересування комплексом у будь-який момент.\n"
+         "- Дозволяє самостійно досліджувати коридори, збирати попутний брухт та оминати небезпеки.\n"
+         "- При вході в ручний режим біля монітора з'являється тактична картка повернення.\n"
+         "- Клавіша [Z] (або кнопка на картці) — миттєве повернення робітника до прокладеного алгоритмом плану.",
+         1},
+        {"Розділ 2 — Генерація комплексу BSP",
          "Процедурна генерація підземного комплексу (Binary Space Partitioning)",
          "- Розмір комплексу: від 20x20 до 100x100 клітинок.\n"
-         "- Генерація створює мережу ізольованих кімнат та сполучних коридорів.\n"
+         "- Генерація мережі ізольованих кімнат та сполучних коридорів.\n"
          "- Власний сід (Seed): відтворюваність експериментів та конкретних карт.\n"
-         "- Генерація боліт (важкопрохідних зон) та випадковий розподіл цінностей.\n"
-         "- Кнопка 'Згенерувати новий лабіринт' оновлює всю конфігурацію за мілісекунди.",
+         "- Розподіл важкопрохідних боліт та випадковий розподіл цінностей.\n"
+         "- Увага: для застосування параметрів необхідно натиснути 'Згенерувати новий лабіринт'!",
          2},
-        {"Розділ 3: Експедиційні ліміти",
-         "Критичні обмеження операції для збирача брухту",
+        {"Розділ 3 — Фінансові та ресурсні ліміти",
+         "Критичні обмеження експедиції для збирача брухту",
          "- 'Квота компанії' — мінімальна сума (у грн), необхідна для успішної евакуації.\n"
          "- 'Запас енергії' — ліміт очок дії (переміщення прямо = 10 од., по діагоналі = 14 од., болото = +25/+35 од.).\n"
          "- 'Місткість рюкзака' — гранична вага (у кг), яку здатен нести робітник.\n"
-         "- Прапорці дозволяють вимикати ліміти для дослідницьких цілей.",
+         "- Кнопки [+] дозволяють миттєво підігнати ресурси під поточний маршрут.",
          3},
-        {"Розділ 3: Алгоритми задачі про рюкзак",
+        {"Розділ 3 — Алгоритми задачі про рюкзак",
          "Вибір інтелектуальної стратегії відбору предметів (Knapsack Problem)",
-         "- 0/1 Knapsack (DP): метод динамічного програмування, що гарантує математично точний глобальний оптимум максимізації вартості під ліміт ваги.\n"
-         "- Greedy Knapsack: жадібний евристичний алгоритм, що сортує брухт за питомою цінністю (V/W). Працює миттєво O(N log N), оптимальний для великих наборів.",
+         "- 0/1 Knapsack (DP): метод динамічного програмування, що гарантує точний глобальний оптимум максимізації вартості під ліміт ваги.\n"
+         "- Greedy Knapsack: швидка жадібна евристика за питомою цінністю (V/W). Працює за O(N log N), оптимальна для великих комплексів.",
          3},
-        {"Розділ 3: Алгоритми пошуку шляху",
+        {"Розділ 3 — Алгоритми пошуку шляху",
          "Обчислення найкоротших траєкторій між ключовими вузлами",
-         "- A* (A-Star): алгоритм пошуку з діагональною евристикою Чебишова та оптимізацією витрат по болотах. Швидкий та адаптивний.\n"
+         "- A* (A-Star): евристичний пошук з октагональною евристикою та врахуванням енерговитрат по болотах. Швидкий та адаптивний.\n"
          "- Алгоритм Дейкстри: гарантований точний пошук найдешевшого маршруту у зваженому графі без евристики.\n"
-         "- BFS (Breadth-First Search): класичний пошук у ширину в незваженому просторі клітинок.",
+         "- BFS (Breadth-First Search): хвильовий пошук у ширину в незваженому просторі клітинок.",
          3},
-        {"Розділ 3: Маршрутизація TSP та евакуація",
-         "Задача комівояжера для побудови ідеального ланцюжка збору",
-         "- Алгоритм найближчого сусіда (Nearest Neighbor) будує оптимальний порядок обходу відібраних предметів.\n"
-         "- Режими евакуації:\n"
-         "  * 'A -> B (Транзит)': вхід через Start (A), евакуація через шлюз Exit (B).\n"
-         "  * 'A -> A (База)': повернення до шлюзу висадки Start (A), шлюз Exit законсервовано.\n"
-         "- Кнопка 'Перерахувати план' та динамічний індикатор статусу плану.",
+        {"Розділ 3 — Дослідницькі режими експедиції",
+         "Вимкнення фізичних обмежень для тестування та аналізу",
+         "- 'Необмежена енергія' — робітник не вичерпує батарею, алгоритм будує повний маршрут.\n"
+         "- 'Необмежений рюкзак' — скасовує ваговий ліміт, дозволяючи зібрати 100% брухту в комплексі.\n"
+         "- Зручно для наукового порівняння та демонстрації граничних можливостей алгоритмів.",
          3},
-        {"Розділ 3: JSON-конфігурація та звіти",
+        {"Розділ 3 — Режими евакуації та консервація шлюзів",
+         "Вибір кінцевої точки місії (A -> B або A -> A)",
+         "- 'Точка A -> B (Вихід)' — наскрізна евакуація через аварійний шлюз виходу (B).\n"
+         "- 'A -> A (База)' — повернення до вхідного шлюзу (A). Шлюз виходу автоматично консервується та позначається червоним хрестом на карті.\n"
+         "- Дозволяє моделювати ситуацію заблокованого аварійного шлюзу або повторного повернення на базу.",
+         3},
+        {"Розділ 3 — TSP Оптимізація маршруту та перерахунок",
+         "Задача комівояжера для обходу зібраного рюкзака цінностей",
+         "- Алгоритм найближчого сусіда + 2-Opt локальний пошук для мінімізації довжини шляху між точками збору.\n"
+         "- Кнопка 'Перерахувати оптимальний план' світиться помаранчевим при будь-якій зміні лімітів або алгоритмів.\n"
+         "- Рядок статусу показує актуальну кількість предметів, кроків та витрату енергії.",
+         3},
+        {"Розділ 3 — JSON-конфігурація та звіти",
          "Збереження налаштувань місії та експорт аудиторської звітності",
-         "- 'Зберегти конфігурацію' — запис параметрів експедиції у файл preset.json.\n"
-         "- 'Завантажити конфігурацію' — швидке відновлення збереженого сценарію.\n"
-         "- 'Експортувати маршрут' — генерація деталізованого звіту 'report_route.json' із координатами, черговістю збору, вагами та витратою енергії.",
+         "- 'Завантажити input_config.json' — застосування збереженої конфігурації.\n"
+         "- 'Зберегти конфіг у JSON' — фіксація поточної карти, сіду, квоти та параметрів.\n"
+         "- 'Експортувати report_route.json' — повний науково-технічний звіт оптимізації рюкзака, маршруту TSP та координат.",
          3},
-        {"Розділ 4: Керування відтворенням симуляції",
+        {"Розділ 4 — Плеєр симуляції експедиції",
          "Покрокове та неперервне відтворення руху робітника",
+         "- Лічильник кроків показує поточну позицію на маршруті та загальну довжину.\n"
          "- [ < ] — крок назад (перемотування історії та повернення енергії).\n"
-         "- [ > ] / [ || ] — відтворення симуляції / пауза.\n"
-         "- [ >> ] — максимальна швидкість проходження.\n"
-         "- Повзунок швидкості ходу від 0.2x до 5.0x.\n"
-         "- Індикатор поточного кроку симуляції та лічильник пройдених сегментів.",
+         "- [ ▶ ] / [ || ] — запуск симуляції / пауза.\n"
+         "- [ > ] — одиночний крок вперед по розрахованому маршруту.\n"
+         "- [ |< ] На початок та [ >| ] Одразу на фініш — швидка навігація.\n"
+         "- Повзунок швидкості ходу від 0.5x до 4.0x.",
          4},
-        {"Розділ 5: Порівняльний аналіз та бенчмарк",
+        {"Розділ 5 — Порівняльний аналіз (Бенчмарки)",
          "Науково-дослідний полігон оцінки комбінацій алгоритмів",
-         "- Порівняльна матриця 6 пар алгоритмів (Knapsack DP/Greedy x Pathfinding A*/Dijkstra/BFS).\n"
-         "- Точні виміри: цінність зібраного, сумарна вага, витрачена енергія, довжина шляху та час розрахунку (мкс).\n"
-         "- Графічна гістограма енерговитрат та вартості.\n"
-         "- Кнопка 'Експорт у CSV' для оформлення наукового звіту або курсового проєкту.",
+         "- Кнопка 'Запустити повний аналіз' тестує всі 6 пар алгоритмів (Knapsack x Pathfinding).\n"
+         "- Точні метрики часу (мкс/мс), витрати енергії, кроків та відсотка оптимуму.\n"
+         "- Відображення приросту ефективності від евристики 2-Opt.\n"
+         "- Кнопки експорту таблиці у CSV та повного звіту у JSON.",
          5}};
 
     tourCurrentStep_ = std::clamp(tourCurrentStep_, 0, TOUR_TOTAL_STEPS - 1);
@@ -4172,17 +4240,19 @@ public:
         isCatalogOpen_ = false;
         isCollectedOpen_ = false;
         float actualTop = (lastMissionPanelTopY_ > 10.0f) ? lastMissionPanelTopY_ : (monitorTopY - 140.0f * uiScale);
-        float actualBottom = monitorTopY - 4.0f;
+        float actualBottom = (lastMissionPanelBottomY_ > 10.0f) ? lastMissionPanelBottomY_ : (monitorTopY - 4.0f);
         float panelX = windowWidth - mmFrameW - Minimap::PADDING;
         float panelW = mmFrameW;
-        targetSpotMin = ImVec2(panelX - 8.0f * uiScale, actualTop - 3.0f * uiScale);
-        targetSpotMax = ImVec2(std::min(windowWidth - 5.0f * uiScale, panelX + panelW + 2.0f * uiScale),
-                               actualBottom + 5.0f * uiScale);
+        float pad = 4.0f * uiScale;
+        targetSpotMin = ImVec2(panelX - pad, actualTop - pad);
+        targetSpotMax = ImVec2(std::min(windowWidth - 2.0f, panelX + panelW + pad),
+                               actualBottom + pad);
       } else if (tourCurrentStep_ == 2) {
         missionPanelCollapsed_ = true;
         missionPanelOpenProgress_ = 0.0f;
         config.showLegend = true;
         legendAnimT_ = 1.0f;
+        legendScroller_.targetScrollY = 0.0f;
         isCatalogOpen_ = false;
         isCollectedOpen_ = false;
         float btmY = (lastRenderedLegendBottomY_ > 10.0f) ? lastRenderedLegendBottomY_ : (legendBtnH + 6.0f + collapsedH);
@@ -4193,6 +4263,7 @@ public:
         missionPanelOpenProgress_ = 0.0f;
         config.showLegend = true;
         legendAnimT_ = 1.0f;
+        legendScroller_.targetScrollY = catalogBtnLocalY_;
         isCatalogOpen_ = true;
         isCatalogClosing_ = false;
         catalogOpenProgress_ = 1.0f;
@@ -4205,6 +4276,7 @@ public:
         missionPanelOpenProgress_ = 0.0f;
         config.showLegend = true;
         legendAnimT_ = 1.0f;
+        legendScroller_.targetScrollY = collectedBtnLocalY_;
         isCatalogOpen_ = false;
         isCollectedOpen_ = true;
         isCollectedClosing_ = false;
@@ -4227,15 +4299,30 @@ public:
         targetSpotMin = ImVec2(0.0f, 0.0f);
         targetSpotMax = ImVec2(sideW + 4.0f, windowHeight);
         sidebarScrollTargetY_ = 0.0f;
-      } else if (tourCurrentStep_ >= 6 && tourCurrentStep_ <= 16) {
-        float itemScreenY = tourBlockLocalY_[tourCurrentStep_] - sidebarScroller_.smoothScrollY;
+      } else if (tourCurrentStep_ == 9) {
+        float pad = 4.0f * uiScale;
+        float cardX = (lastManualCardSize_.x > 10.0f) ? lastManualCardPos_.x : (monitorLeftX - 320.0f * uiScale);
+        float cardY = (lastManualCardSize_.y > 10.0f) ? lastManualCardPos_.y : (windowHeight - Minimap::PADDING - 110.0f * uiScale);
+        float cardW = (lastManualCardSize_.x > 10.0f) ? lastManualCardSize_.x : 300.0f * uiScale;
+        float cardH = (lastManualCardSize_.y > 10.0f) ? lastManualCardSize_.y : 100.0f * uiScale;
+        targetSpotMin = ImVec2(cardX - pad, cardY - pad);
+        targetSpotMax = ImVec2(cardX + cardW + pad, cardY + cardH + pad);
+        sidebarScrollTargetY_ = tourBlockLocalY_[8];
+      } else if ((tourCurrentStep_ >= 6 && tourCurrentStep_ <= 8) || (tourCurrentStep_ >= 10 && tourCurrentStep_ <= 19)) {
         float itemH = std::max(40.0f * config.uiScale, tourBlockH_[tourCurrentStep_]);
-        float topPad = 8.0f * uiScale;
-        float botPad = 4.0f * uiScale;
+        float topPad = 6.0f * uiScale;
+        float botPad = 6.0f * uiScale;
+        float titleBarBottom = 34.0f * config.uiScale;
 
-        targetSpotMin = ImVec2(4.0f * uiScale, itemScreenY - topPad);
-        targetSpotMax = ImVec2(sideW - 6.0f, itemScreenY + itemH + botPad);
-        sidebarScrollTargetY_ = std::max(0.0f, tourBlockLocalY_[tourCurrentStep_] - 80.0f * config.uiScale);
+        if (tourBlockMax_[tourCurrentStep_].y > tourBlockMin_[tourCurrentStep_].y) {
+          targetSpotMin = ImVec2(4.0f * uiScale, std::max(titleBarBottom + 2.0f * uiScale, tourBlockMin_[tourCurrentStep_].y - topPad));
+          targetSpotMax = ImVec2(sideW - 6.0f, tourBlockMax_[tourCurrentStep_].y + botPad);
+        } else {
+          float itemScreenY = tourBlockLocalY_[tourCurrentStep_] - sidebarScroller_.smoothScrollY;
+          targetSpotMin = ImVec2(4.0f * uiScale, std::max(titleBarBottom + 2.0f * uiScale, itemScreenY - topPad));
+          targetSpotMax = ImVec2(sideW - 6.0f, itemScreenY + itemH + botPad);
+        }
+        sidebarScrollTargetY_ = std::max(0.0f, tourBlockLocalY_[tourCurrentStep_] - 44.0f * config.uiScale);
       }
     }
 
@@ -4250,13 +4337,16 @@ public:
     // Interpolate spotlight and card position smoothly
     float dt = ImGui::GetIO().DeltaTime;
     tourDimAlpha_ = std::min(1.0f, tourDimAlpha_ + dt * 4.5f);
-    float cardW = std::min(460.0f * uiScale, windowWidth - 40.0f);
+    float cardW = std::min(520.0f * uiScale, windowWidth - 40.0f);
     float cardEstH = 220.0f * uiScale;
-    float botNavH = 56.0f * uiScale;
+    float botNavH = 62.0f * uiScale;
     float maxCardY = windowHeight - botNavH - 18.0f * uiScale - cardEstH - 12.0f * uiScale;
     float targetCardY = std::clamp(targetSpotMin.y + 10.0f * uiScale, 64.0f * uiScale, maxCardY);
     float targetCardX = 20.0f * uiScale;
-    if (tourCurrentStep_ < 5) {
+    if (tourCurrentStep_ == 9) {
+      targetCardX = std::clamp(targetSpotMin.x, sidebarWidth_ + 20.0f * uiScale, windowWidth - cardW - 20.0f * uiScale);
+      targetCardY = std::max(56.0f * uiScale, targetSpotMin.y - cardEstH - 32.0f * uiScale);
+    } else if (tourCurrentStep_ < 5) {
       targetCardX = std::max(20.0f * uiScale, targetSpotMin.x - cardW - 24.0f * uiScale);
     } else {
       targetCardX = std::min(windowWidth - cardW - 20.0f * uiScale, targetSpotMax.x + 24.0f * uiScale);
@@ -4356,11 +4446,11 @@ public:
           std::clamp(escHoldTimer_ / ESC_HOLD_DURATION, 0.0f, 1.0f);
       char escText[64];
       if (escHoldTimer_ > 0.05f) {
-        std::snprintf(escText, sizeof(escText), "Вихід з екскурсу: %.1f / 3.0 с",
+        std::snprintf(escText, sizeof(escText), "Вихід з екскурсу: %.1f / 2.0 с",
                       escHoldTimer_);
       } else {
         std::snprintf(escText, sizeof(escText),
-                      "Затисніть [Esc] на 3 сек для виходу");
+                      "Затисніть [Esc] на 2 сек для виходу");
       }
       float tW = ImGui::CalcTextSize(escText).x;
       ImGui::SetCursorPosX((bannerW - tW) * 0.5f);
@@ -4414,7 +4504,7 @@ public:
     ImGui::PopStyleColor(2);
 
     // Bottom Navigation Bar with 2 wide cyan buttons: [ <  Назад ]  [ Далі > / Завершити ✓ ]
-    float botNavW = 240.0f * uiScale;
+    float botNavW = 340.0f * uiScale;
     float botNavX = (windowWidth - botNavW) * 0.5f;
     float botNavY = windowHeight - botNavH - 18.0f * uiScale;
 
@@ -4435,7 +4525,7 @@ public:
       float itemSpacing = ImGui::GetStyle().ItemSpacing.x;
       float totalAvail = ImGui::GetContentRegionAvail().x;
       float arrowBtnW = (totalAvail - itemSpacing) * 0.5f;
-      float btnH = 38.0f * uiScale;
+      float btnH = 44.0f * uiScale;
 
       bool isFirst = (tourCurrentStep_ == 0);
       bool isLast = (tourCurrentStep_ == TOUR_TOTAL_STEPS - 1);
@@ -4446,9 +4536,11 @@ public:
       if (isFirst) {
         ImGui::BeginDisabled(true);
       }
+      if (boldFont_) ImGui::PushFont(boldFont_);
       if (ImGui::Button(" <  Назад ", ImVec2(arrowBtnW, btnH))) {
         tourCurrentStep_ = std::max(0, tourCurrentStep_ - 1);
       }
+      if (boldFont_) ImGui::PopFont();
       if (isFirst) {
         ImGui::EndDisabled();
       } else if (ImGui::IsItemHovered()) {
@@ -4461,6 +4553,7 @@ public:
       ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
                             ImVec4(0.18f, 0.56f, 0.70f, 1.00f));
       const char *nextLabel = isLast ? " Завершити ✓ " : " Далі > ";
+      if (boldFont_) ImGui::PushFont(boldFont_);
       if (ImGui::Button(nextLabel, ImVec2(arrowBtnW, btnH))) {
         if (isLast) {
           endTour();
@@ -4468,6 +4561,7 @@ public:
           tourCurrentStep_++;
         }
       }
+      if (boldFont_) ImGui::PopFont();
       ImGui::PopStyleColor(2);
       if (ImGui::IsItemHovered()) {
         showStyledTooltip(uiScale, isLast ? "Завершити екскурс" : "Наступний крок");
@@ -4825,7 +4919,7 @@ public:
                              "Побутовий брухт: %s", itemHere->name.c_str());
         } else {
           ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f),
-                             "Важкий брухт: %s", itemHere->name.c_str());
+                             "Дорогоцінний брухт: %s", itemHere->name.c_str());
         }
         ImGui::Separator();
         ImGui::Text("Категорія: %s",
@@ -4851,7 +4945,7 @@ public:
                              "Побутовий брухт: %s", itemHere->name.c_str());
         } else {
           ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f),
-                             "Важкий брухт: %s", itemHere->name.c_str());
+                             "Дорогоцінний брухт: %s", itemHere->name.c_str());
         }
         ImGui::Separator();
         ImGui::Text("Категорія: %s",
@@ -4928,7 +5022,7 @@ public:
           ImGui::TextColored(ImVec4(0.7f, 0.8f, 0.9f, 1.0f),
                              "Кімната комплексу");
           ImGui::Separator();
-          ImGui::Text("Сектор кімнати (#%d)", inRoom->id + 1);
+          ImGui::Text("Сектор кімнати (#%d)", inRoom->id);
           ImGui::TextUnformatted(
               "Вільний прохід комплексу (витрата: 10 прямо, 14 по діагоналі)");
           ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
@@ -5147,6 +5241,9 @@ private:
   float missionPanelOpenProgress_ = 0.0f;
   float manualBannerOpenProgress_ = 0.0f;
   mutable float lastMissionPanelTopY_ = -1.0f;
+  mutable float lastMissionPanelBottomY_ = -1.0f;
+  mutable ImVec2 lastManualCardPos_{0.0f, 0.0f};
+  mutable ImVec2 lastManualCardSize_{0.0f, 0.0f};
   bool hudIntroActive_ = false;
   float hudIntroProgress_ = 1.0f;
   float hudAttachProgress_ = 1.0f;
@@ -5155,7 +5252,8 @@ private:
   int tourCurrentStep_ = 0;
   int lastTourStep_ = -1;
   float escHoldTimer_ = 0.0f;
-  static constexpr float ESC_HOLD_DURATION = 3.0f;
+  static constexpr float ESC_HOLD_DURATION = 2.0f;
+  bool ignoreEscUntilRelease_ = false;
   ImVec2 currentSpotMin_{0.0f, 0.0f};
   ImVec2 currentSpotMax_{0.0f, 0.0f};
   ImVec2 currentCardPos_{20.0f, 64.0f};
@@ -5164,14 +5262,17 @@ private:
   float sidebarScrollTargetY_ = -1.0f;
   bool hasValidSpotlight_ = false;
   float lastRenderedLegendBottomY_ = 0.0f;
-  ImVec2 tourBlockMin_[18]{};
-  ImVec2 tourBlockMax_[18]{};
-  float tourBlockLocalY_[18]{};
-  float tourBlockH_[18]{};
+  float catalogBtnLocalY_ = 0.0f;
+  float collectedBtnLocalY_ = 0.0f;
+  ImVec2 tourBlockMin_[20]{};
+  ImVec2 tourBlockMax_[20]{};
+  float tourBlockLocalY_[20]{};
+  float tourBlockH_[20]{};
   bool resetSidebarScrollToTop_ = false;
 
   bool sectionsOpen_[5] = {true, true, true, true, true};
   bool hasLoadedSectionStates_ = false;
+  ImFont *boldFont_ = nullptr;
 };
 
 } // namespace ui
