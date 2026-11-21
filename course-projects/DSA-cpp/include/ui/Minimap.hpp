@@ -45,6 +45,18 @@ public:
   static constexpr float TOGGLE_LED_UPPER_Y = 1463.0f;
   static constexpr float TOGGLE_LED_LOWER_Y = 1508.0f;
 
+  // Monitor hardware zoom slider on bezel
+  static constexpr float SLIDER_MIN_X = 222.0f;
+  static constexpr float SLIDER_MAX_X = 761.0f;
+  static constexpr float SLIDER_Y = 1489.0f;
+  static constexpr float SLIDER_KNOB_W = 34.0f;
+  static constexpr float SLIDER_KNOB_H = 62.0f;
+
+  // Monitor hardware overview dial button on bezel (Fit whole maze)
+  static constexpr float DIAL_BTN_X = 895.0f;
+  static constexpr float DIAL_BTN_Y = 1488.0f;
+  static constexpr float DIAL_BTN_R = 44.0f;
+
   enum class PowerState { On, TurningOff, Off, TurningOn };
 
   struct Layout {
@@ -171,6 +183,80 @@ public:
     return isSwitchHovered_;
   }
 
+  [[nodiscard]] bool isZoomSliderHovered() const noexcept {
+    return isZoomSliderHovered_;
+  }
+
+  [[nodiscard]] bool isZoomSliderDragging() const noexcept {
+    return isZoomSliderDragging_;
+  }
+
+  void setCameraZoom(float zoom) noexcept {
+    currentCameraZoom_ = zoom;
+  }
+
+  [[nodiscard]] bool consumeRequestedCameraZoom(float &outZoom) noexcept {
+    if (hasRequestedCameraZoom_) {
+      hasRequestedCameraZoom_ = false;
+      outZoom = requestedCameraZoom_;
+      return true;
+    }
+    return false;
+  }
+
+  [[nodiscard]] bool isOverZoomSliderKnob(int px, int py,
+                                          const Layout &l) const noexcept {
+    float knobTexX = SLIDER_MIN_X + sliderVisualT_ * (SLIDER_MAX_X - SLIDER_MIN_X);
+    float knobScreenX = l.frameX + knobTexX * l.s;
+    float knobScreenY = l.frameY + SLIDER_Y * l.s;
+    float halfW = (SLIDER_KNOB_W * 0.5f + 9.0f) * l.s;
+    float halfH = (SLIDER_KNOB_H * 0.5f + 9.0f) * l.s;
+    float x = static_cast<float>(px);
+    float y = static_cast<float>(py);
+    return x >= (knobScreenX - halfW) && x <= (knobScreenX + halfW) &&
+           y >= (knobScreenY - halfH) && y <= (knobScreenY + halfH);
+  }
+
+  [[nodiscard]] bool isOverZoomSlider(int px, int py,
+                                      const Layout &l) const noexcept {
+    return isOverZoomSliderKnob(px, py, l);
+  }
+
+  [[nodiscard]] float calculateZoomFromMouseX(float mouseX,
+                                              const Layout &l) const noexcept {
+    float minX = l.frameX + SLIDER_MIN_X * l.s;
+    float maxX = l.frameX + SLIDER_MAX_X * l.s;
+    float trackW = maxX - minX;
+    if (trackW <= 1.0f) {
+      return currentCameraZoom_;
+    }
+    float t = std::clamp((mouseX - minX) / trackW, 0.0f, 1.0f);
+    constexpr float logMin = -1.6094379f; // std::log(0.20f)
+    constexpr float logMax = 1.5040774f;  // std::log(4.50f)
+    float targetMag = std::exp(logMin + t * (logMax - logMin));
+    return 1.0f / targetMag;
+  }
+
+  [[nodiscard]] bool isDialButtonHovered() const noexcept {
+    return isDialButtonHovered_;
+  }
+
+  [[nodiscard]] bool consumeFitMazeRequest() noexcept {
+    bool r = requestFitMaze_;
+    requestFitMaze_ = false;
+    return r;
+  }
+
+  [[nodiscard]] bool isOverDialButton(int px, int py,
+                                      const Layout &l) const noexcept {
+    float dialX = l.frameX + DIAL_BTN_X * l.s;
+    float dialY = l.frameY + DIAL_BTN_Y * l.s;
+    float dialR = (DIAL_BTN_R + 4.0f) * l.s;
+    float dx = static_cast<float>(px) - dialX;
+    float dy = static_cast<float>(py) - dialY;
+    return (dx * dx + dy * dy) <= (dialR * dialR);
+  }
+
   [[nodiscard]] bool consumeTacticalLayersToggle() noexcept {
     bool r = requestToggleTacticalLayers_;
     requestToggleTacticalLayers_ = false;
@@ -258,6 +344,16 @@ public:
         frameTexture_.setSmooth(true);
       }
     }
+    if (!hasKnobTexture_) {
+      hasKnobTexture_ =
+          knobTexture_.loadFromFile("assets/slider_knob.png") ||
+          knobTexture_.loadFromFile("../assets/slider_knob.png") ||
+          knobTexture_.loadFromFile("build/assets/slider_knob.png") ||
+          knobTexture_.loadFromFile("course-projects/DSA-cpp/assets/slider_knob.png");
+      if (hasKnobTexture_) {
+        knobTexture_.setSmooth(true);
+      }
+    }
   }
 
   void render(sf::RenderTarget &target, const map::Maze &maze,
@@ -275,6 +371,10 @@ public:
               bool showWalkedCells = true) {
     if (monitorAlpha <= 0.001f) {
       return;
+    }
+
+    if (windowWidth > 1.0f && cameraView.getSize().x > 1.0f) {
+      currentCameraZoom_ = cameraView.getSize().x / windowWidth;
     }
     float safeAlpha = std::clamp(monitorAlpha, 0.0f, 1.0f);
     loadTexture();
@@ -1254,6 +1354,74 @@ public:
       diodeCore.setFillColor(sf::Color(220, 255, 230, static_cast<uint8_t>(255 * lA)));
       target.draw(diodeCore);
     }
+
+    // 13. Interactive CRT Bezel Zoom Slider Knob
+    float currentMag = 1.0f / std::clamp(currentCameraZoom_, 1.0f / 4.50f, 1.0f / 0.20f);
+    constexpr float logMin = -1.6094379f; // std::log(0.20f)
+    constexpr float logMax = 1.5040774f;  // std::log(4.50f)
+    float targetSliderT = std::clamp((std::log(currentMag) - logMin) / (logMax - logMin), 0.0f, 1.0f);
+
+    // Smoothly glide knob towards current zoom unless actively dragged
+    if (isZoomSliderDragging_) {
+      sliderVisualT_ = targetSliderT;
+    } else {
+      sliderVisualT_ += (targetSliderT - sliderVisualT_) * std::min(1.0f, dt * 20.0f);
+    }
+
+    float knobTexX = SLIDER_MIN_X + sliderVisualT_ * (SLIDER_MAX_X - SLIDER_MIN_X);
+    float knobScreenX = l.frameX + knobTexX * l.s;
+    float knobScreenY = l.frameY + SLIDER_Y * l.s;
+
+    if (hasKnobTexture_) {
+      sf::Sprite knobSprite(knobTexture_);
+      knobSprite.setOrigin({SLIDER_KNOB_W * 0.5f, SLIDER_KNOB_H * 0.5f});
+      knobSprite.setPosition({knobScreenX, knobScreenY});
+      knobSprite.setScale({l.s, l.s});
+      knobSprite.setColor(sf::Color(255, 255, 255, static_cast<uint8_t>(255 * safeAlpha)));
+      target.draw(knobSprite);
+    }
+
+    // Hover or drag visual feedback: clean cyan outline matching bezel buttons
+    if (isZoomSliderDragging_ || isZoomSliderHovered_) {
+      float glowW = SLIDER_KNOB_W * l.s;
+      float glowH = SLIDER_KNOB_H * l.s;
+      sf::RectangleShape knobGlow({glowW, glowH});
+      knobGlow.setOrigin({glowW * 0.5f, glowH * 0.5f});
+      knobGlow.setPosition({knobScreenX, knobScreenY});
+      if (isZoomSliderDragging_) {
+        knobGlow.setFillColor(sf::Color(0, 230, 245, static_cast<uint8_t>(45 * safeAlpha)));
+        knobGlow.setOutlineThickness(1.2f);
+        knobGlow.setOutlineColor(sf::Color(0, 255, 240, static_cast<uint8_t>(200 * safeAlpha)));
+      } else {
+        knobGlow.setFillColor(sf::Color(0, 230, 245, static_cast<uint8_t>(35 * safeAlpha)));
+        knobGlow.setOutlineThickness(1.2f);
+        knobGlow.setOutlineColor(sf::Color(0, 255, 240, static_cast<uint8_t>(130 * safeAlpha)));
+      }
+      target.draw(knobGlow);
+    }
+
+    // 14. Overview Dial Button (Fit Whole Maze) tactile feedback / circular cyan hover
+    float dialX = l.frameX + DIAL_BTN_X * l.s;
+    float dialY = l.frameY + DIAL_BTN_Y * l.s;
+    float dialR = DIAL_BTN_R * l.s;
+
+    if (dialPressVisual_ > 0.01f) {
+      sf::CircleShape pressTint(dialR);
+      pressTint.setOrigin({dialR, dialR});
+      pressTint.setPosition({dialX, dialY});
+      pressTint.setFillColor(sf::Color(
+          0, 0, 0, static_cast<uint8_t>(dialPressVisual_ * 110.0f * safeAlpha)));
+      target.draw(pressTint);
+      dialPressVisual_ = std::max(0.0f, dialPressVisual_ - dt * 6.0f);
+    } else if (isDialButtonHovered_) {
+      sf::CircleShape hoverGlow(dialR);
+      hoverGlow.setOrigin({dialR, dialR});
+      hoverGlow.setPosition({dialX, dialY});
+      hoverGlow.setFillColor(sf::Color(0, 230, 245, static_cast<uint8_t>(35 * safeAlpha)));
+      hoverGlow.setOutlineThickness(1.2f);
+      hoverGlow.setOutlineColor(sf::Color(0, 255, 240, static_cast<uint8_t>(130 * safeAlpha)));
+      target.draw(hoverGlow);
+    }
   }
 
   bool handleEvent(const sf::Event &event, float windowWidth,
@@ -1267,16 +1435,52 @@ public:
 
     outZoomFactor = 1.0f;
 
+    if (const auto *mouseBtn = event.getIf<sf::Event::MouseButtonReleased>()) {
+      if (mouseBtn->button == sf::Mouse::Button::Left) {
+        isDragging_ = false;
+        isZoomSliderDragging_ = false;
+      }
+    }
+
     if (const auto *mouseMove = event.getIf<sf::Event::MouseMoved>()) {
       isButtonHovered_ =
           isOverPowerButton(mouseMove->position.x, mouseMove->position.y, l);
       isSwitchHovered_ =
           isOverToggleSwitch(mouseMove->position.x, mouseMove->position.y, l);
+      isZoomSliderHovered_ =
+          isOverZoomSlider(mouseMove->position.x, mouseMove->position.y, l);
+      isDialButtonHovered_ =
+          isOverDialButton(mouseMove->position.x, mouseMove->position.y, l);
+
+      if (isZoomSliderDragging_) {
+        requestedCameraZoom_ = calculateZoomFromMouseX(
+            static_cast<float>(mouseMove->position.x), l);
+        hasRequestedCameraZoom_ = true;
+        isDragging_ = false;
+        outIsDragging = false;
+        return false;
+      }
     }
 
-    // Power button or Tactical Layers toggle switch click on LMB
+    // Power button, Tactical Layers toggle switch, Zoom Slider, or Overview Dial click on LMB
     if (const auto *mouseBtn = event.getIf<sf::Event::MouseButtonPressed>()) {
       if (mouseBtn->button == sf::Mouse::Button::Left) {
+        if (isOverDialButton(mouseBtn->position.x, mouseBtn->position.y, l)) {
+          requestFitMaze_ = true;
+          dialPressVisual_ = 1.0f;
+          isDragging_ = false;
+          outIsDragging = false;
+          return false; // Handled overview dial button, do not pan world camera!
+        }
+        if (isOverZoomSlider(mouseBtn->position.x, mouseBtn->position.y, l)) {
+          isZoomSliderDragging_ = true;
+          requestedCameraZoom_ = calculateZoomFromMouseX(
+              static_cast<float>(mouseBtn->position.x), l);
+          hasRequestedCameraZoom_ = true;
+          isDragging_ = false;
+          outIsDragging = false;
+          return false; // Handled zoom slider, do not pan world camera!
+        }
         if (isOverPowerButton(mouseBtn->position.x, mouseBtn->position.y, l)) {
           togglePower();
           buttonPressVisual_ = 1.0f;
@@ -1389,6 +1593,14 @@ private:
 
   sf::Texture frameTexture_;
   bool hasFrameTexture_ = false;
+  sf::Texture knobTexture_;
+  bool hasKnobTexture_ = false;
+  bool isZoomSliderHovered_ = false;
+  bool isZoomSliderDragging_ = false;
+  float currentCameraZoom_ = 1.0f;
+  float sliderVisualT_ = 0.517f;
+  bool hasRequestedCameraZoom_ = false;
+  float requestedCameraZoom_ = 1.0f;
   bool isDragging_ = false;
   float activeGlow_ = 0.0f;
   sf::Clock glowClock_;
@@ -1398,6 +1610,9 @@ private:
   float buttonPressVisual_ = 0.0f;
   bool isSwitchHovered_ = false;
   float switchPressVisual_ = 0.0f;
+  bool isDialButtonHovered_ = false;
+  float dialPressVisual_ = 0.0f;
+  bool requestFitMaze_ = false;
   bool requestToggleTacticalLayers_ = false;
   bool areTacticalLayersActive_ = true;
   float tacticalLayersAnim_ = 1.0f;

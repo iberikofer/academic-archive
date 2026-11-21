@@ -8,8 +8,8 @@
             "items_count": 21,
             "quality_percent": 100.0,
             "steps": 0,
-            "time_ms": 0.117,
-            "time_us": 117,
+            "time_ms": 0.051,
+            "time_us": 51,
             "value_credits": 1377,
             "visited_nodes": 0,
             "weight_kg": 54
@@ -22,8 +22,8 @@
             "items_count": 21,
             "quality_percent": 100.0,
             "steps": 0,
-            "time_ms": 0.084,
-            "time_us": 84,
+            "time_ms": 0.035,
+            "time_us": 35,
             "value_credits": 1377,
             "visited_nodes": 0,
             "weight_kg": 54
@@ -36,8 +36,8 @@
             "items_count": 0,
             "quality_percent": 100.0,
             "steps": 37,
-            "time_ms": 1.391,
-            "time_us": 1391,
+            "time_ms": 0.591,
+            "time_us": 591,
             "value_credits": 0,
             "visited_nodes": 162,
             "weight_kg": 0
@@ -50,8 +50,8 @@
             "items_count": 0,
             "quality_percent": 100.0,
             "steps": 37,
-            "time_ms": 1.646,
-            "time_us": 1646,
+            "time_ms": 0.73,
+            "time_us": 730,
             "value_credits": 0,
             "visited_nodes": 317,
             "weight_kg": 0
@@ -64,8 +64,8 @@
             "items_count": 0,
             "quality_percent": 90.56603773584906,
             "steps": 35,
-            "time_ms": 1.407,
-            "time_us": 1407,
+            "time_ms": 0.617,
+            "time_us": 617,
             "value_credits": 0,
             "visited_nodes": 320,
             "weight_kg": 0
@@ -78,8 +78,8 @@
             "items_count": 21,
             "quality_percent": 102.78113663845224,
             "steps": 127,
-            "time_ms": 123.649,
-            "time_us": 123649,
+            "time_ms": 55.032,
+            "time_us": 55032,
             "value_credits": 1377,
             "visited_nodes": 20,
             "weight_kg": 54
@@ -118,11 +118,11 @@
         "is_completed": false,
         "is_evacuated": false,
         "status": "Очікування",
-        "timestamp": "2026-11-20 11:11:33",
+        "timestamp": "2026-11-21 11:37:20",
         "title": "Lethal Company Autonomous Agent Route Report"
     },
     "route_analytics": {
-        "calculation_time_us": 177223,
+        "calculation_time_us": 54837,
         "energy_remaining": 1962,
         "energy_spent": 0,
         "full_trajectory": [

@@ -2223,6 +2223,9 @@ public:
       ImGui::SetNextWindowPos(ImVec2(hintX, centerY), ImGuiCond_Always,
                               ImVec2(0.0f, 0.5f));
       ImGui::SetNextWindowBgAlpha(0.94f * animT);
+      ImGui::SetNextWindowSizeConstraints(
+          ImVec2(410.0f * uiScale, 0.0f),
+          ImVec2(600.0f * uiScale, 900.0f));
 
       ImGuiWindowFlags hintFlags =
           ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |

@@ -1129,6 +1129,11 @@ int main(int argc, char *argv[]) {
   bool s_spaceDown = false;
   int s_spaceRepeatCount = 0;
   sf::Clock s_spaceRepeatClock;
+  int s_wasdPendingDx = 0;
+  int s_wasdPendingDy = 0;
+  float s_wasdChordTimer = 0.0f;
+  float s_wasdRepeatTimer = 0.0f;
+  bool s_wasdIsMoving = false;
   float s_zoomIndicatorTimer = 0.0f;
   float s_lastCameraZoom = camera.getZoomLevel();
 
@@ -1145,6 +1150,10 @@ int main(int argc, char *argv[]) {
         camera.cancelDrag();
         s_spaceDown = false;
         s_spaceRepeatCount = 0;
+        s_wasdChordTimer = 0.0f;
+        s_wasdIsMoving = false;
+        s_wasdPendingDx = 0;
+        s_wasdPendingDy = 0;
       } else if (!hasFocus && isFg) {
         hasFocus = true;
       }
@@ -1174,6 +1183,10 @@ int main(int argc, char *argv[]) {
         camera.cancelDrag();
         s_spaceDown = false;
         s_spaceRepeatCount = 0;
+        s_wasdChordTimer = 0.0f;
+        s_wasdIsMoving = false;
+        s_wasdPendingDx = 0;
+        s_wasdPendingDy = 0;
       } else if (event->is<sf::Event::FocusGained>()) {
         hasFocus = true;
       }
@@ -1387,22 +1400,86 @@ int main(int argc, char *argv[]) {
           }
 
           if (agentReadyOnGround && !ImGui::GetIO().WantTextInput) {
-            int dx = 0;
-            int dy = 0;
-            if (key->code == sf::Keyboard::Key::W || key->scancode == sf::Keyboard::Scan::W) {
-              dy = -1;
-            } else if (key->code == sf::Keyboard::Key::S || key->scancode == sf::Keyboard::Scan::S) {
-              dy = 1;
-            } else if (key->code == sf::Keyboard::Key::A || key->scancode == sf::Keyboard::Scan::A) {
-              dx = -1;
-            } else if (key->code == sf::Keyboard::Key::D || key->scancode == sf::Keyboard::Scan::D) {
-              dx = 1;
-            }
+            bool isW = (key->code == sf::Keyboard::Key::W || key->scancode == sf::Keyboard::Scan::W ||
+                        key->code == sf::Keyboard::Key::Up || key->scancode == sf::Keyboard::Scan::Up);
+            bool isS = (key->code == sf::Keyboard::Key::S || key->scancode == sf::Keyboard::Scan::S ||
+                        key->code == sf::Keyboard::Key::Down || key->scancode == sf::Keyboard::Scan::Down);
+            bool isA = (key->code == sf::Keyboard::Key::A || key->scancode == sf::Keyboard::Scan::A ||
+                        key->code == sf::Keyboard::Key::Left || key->scancode == sf::Keyboard::Scan::Left);
+            bool isD = (key->code == sf::Keyboard::Key::D || key->scancode == sf::Keyboard::Scan::D ||
+                        key->code == sf::Keyboard::Key::Right || key->scancode == sf::Keyboard::Scan::Right);
 
-            if ((dx != 0 || dy != 0) && engine.canMoveManual()) {
-              if (engine.moveAgentManual(dx, dy)) {
-                if (config.cameraFollowAgent) {
-                  uiState.requestCenterCameraOnAgent = true;
+            if (isW || isS || isA || isD) {
+              bool wHeld = isW || sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W) ||
+                           sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::W) ||
+                           sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up) ||
+                           sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::Up);
+              bool sHeld = isS || sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S) ||
+                           sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::S) ||
+                           sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down) ||
+                           sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::Down);
+              bool aHeld = isA || sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A) ||
+                           sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::A) ||
+                           sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left) ||
+                           sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::Left);
+              bool dHeld = isD || sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D) ||
+                           sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::D) ||
+                           sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right) ||
+                           sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::Right);
+
+              int curDx = 0;
+              int curDy = 0;
+              if (wHeld && !sHeld) curDy = -1;
+              else if (sHeld && !wHeld) curDy = 1;
+
+              if (aHeld && !dHeld) curDx = -1;
+              else if (dHeld && !aHeld) curDx = 1;
+
+              if (curDx != 0 || curDy != 0) {
+                // If diagonal is already formed by both axes being held:
+                if (curDx != 0 && curDy != 0) {
+                  s_wasdPendingDx = 0;
+                  s_wasdPendingDy = 0;
+                  s_wasdChordTimer = 0.0f;
+                  if (engine.canMoveManual(curDx, curDy)) {
+                    if (engine.moveAgentManual(curDx, curDy)) {
+                      if (config.cameraFollowAgent) {
+                        uiState.requestCenterCameraOnAgent = true;
+                      }
+                    }
+                  }
+                  s_wasdIsMoving = true;
+                  s_wasdRepeatTimer = 1.25f;
+                } else if (s_wasdChordTimer > 0.0f) {
+                  // Second key pressed within chord window -> combine into diagonal immediately!
+                  int combinedDx = s_wasdPendingDx != 0 ? s_wasdPendingDx : curDx;
+                  int combinedDy = s_wasdPendingDy != 0 ? s_wasdPendingDy : curDy;
+                  s_wasdPendingDx = 0;
+                  s_wasdPendingDy = 0;
+                  s_wasdChordTimer = 0.0f;
+                  if (engine.canMoveManual(combinedDx, combinedDy)) {
+                    if (engine.moveAgentManual(combinedDx, combinedDy)) {
+                      if (config.cameraFollowAgent) {
+                        uiState.requestCenterCameraOnAgent = true;
+                      }
+                    }
+                  }
+                  s_wasdIsMoving = true;
+                  s_wasdRepeatTimer = 1.25f;
+                } else if (s_wasdIsMoving) {
+                  // Already moving from continuous hold
+                  if (engine.canMoveManual(curDx, curDy)) {
+                    if (engine.moveAgentManual(curDx, curDy)) {
+                      if (config.cameraFollowAgent) {
+                        uiState.requestCenterCameraOnAgent = true;
+                      }
+                    }
+                  }
+                } else {
+                  // Single key pressed from rest: wait 45ms to catch potential diagonal partner
+                  s_wasdPendingDx = curDx;
+                  s_wasdPendingDy = curDy;
+                  s_wasdChordTimer = 0.045f;
                 }
               }
             }
@@ -1414,6 +1491,21 @@ int main(int argc, char *argv[]) {
         if (keyRel->code == sf::Keyboard::Key::Space) {
           s_spaceDown = false;
           s_spaceRepeatCount = 0;
+        }
+        bool wHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::W) ||
+                     sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::Up);
+        bool sHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::S) ||
+                     sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::Down);
+        bool aHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::A) ||
+                     sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::Left);
+        bool dHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::D) ||
+                     sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::Right);
+        if (!wHeld && !sHeld && !aHeld && !dHeld) {
+          s_wasdIsMoving = false;
+          s_wasdRepeatTimer = 0.0f;
+          s_wasdChordTimer = 0.0f;
+          s_wasdPendingDx = 0;
+          s_wasdPendingDy = 0;
         }
       }
 
@@ -1443,6 +1535,12 @@ int main(int argc, char *argv[]) {
           }
         }
 
+        if (float reqZoom = -1.0f; minimap.consumeRequestedCameraZoom(reqZoom)) {
+          camera.setZoomLevel(reqZoom);
+          config.cameraFollowAgent = false;
+          s_zoomIndicatorTimer = 2.4f;
+        }
+
         if (minimap.consumeTacticalLayersToggle()) {
           bool anyOff = (!config.showGrid || !config.showOptimalRoute || !config.showWalkedCells);
           if (anyOff) {
@@ -1456,6 +1554,15 @@ int main(int argc, char *argv[]) {
             config.showWalkedCells = false;
             uiState.statusNotice = "Тактичні шари вимкнено";
           }
+        }
+
+        if (minimap.consumeFitMazeRequest()) {
+          guiOverlay.fitMazeToVisibleArea(camera, maze, config, engine, windowW,
+                                          windowH, 0.0f, true);
+          uiState.cameraZoom = camera.getZoomLevel();
+          uiState.targetCameraZoom = camera.getTargetZoomLevel();
+          config.cameraFollowAgent = false;
+          s_zoomIndicatorTimer = 2.4f;
         }
 
         bool isEventOverMinimap = false;
@@ -1609,6 +1716,99 @@ int main(int argc, char *argv[]) {
                         "Евакуація успішна! Зібрано %d/%d грн (%s). Всі заплановані предмети доставлено на базу!",
                         finalVal, quota, (finalVal >= quota ? "Квоту виконано!" : "Квоту не досягнуто!"));
           uiState.statusNotice = noticeBuf;
+        }
+      }
+    }
+
+    // Process manual WASD input chord window and continuous hold repeat
+    if (appFlowState == AppFlowState::InGame && !transition.isTransitionActive() && !ImGui::GetIO().WantTextInput) {
+      if (s_wasdChordTimer > 0.0f) {
+        // While within chord window, check if second key became pressed
+        bool wHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::W) ||
+                     sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::Up);
+        bool sHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::S) ||
+                     sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::Down);
+        bool aHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::A) ||
+                     sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::Left);
+        bool dHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::D) ||
+                     sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::Right);
+
+        if (wHeld && !sHeld) s_wasdPendingDy = -1;
+        else if (sHeld && !wHeld) s_wasdPendingDy = 1;
+
+        if (aHeld && !dHeld) s_wasdPendingDx = -1;
+        else if (dHeld && !aHeld) s_wasdPendingDx = 1;
+
+        if (s_wasdPendingDx != 0 && s_wasdPendingDy != 0) {
+          // Diagonal formed during window! Fire immediately!
+          int dx = s_wasdPendingDx;
+          int dy = s_wasdPendingDy;
+          s_wasdChordTimer = 0.0f;
+          s_wasdPendingDx = 0;
+          s_wasdPendingDy = 0;
+          if (engine.canMoveManual(dx, dy)) {
+            if (engine.moveAgentManual(dx, dy)) {
+              if (config.cameraFollowAgent) {
+                uiState.requestCenterCameraOnAgent = true;
+              }
+            }
+          }
+          s_wasdIsMoving = true;
+          s_wasdRepeatTimer = 1.25f;
+        } else {
+          s_wasdChordTimer -= dtSeconds;
+          if (s_wasdChordTimer <= 0.0f) {
+            // Window expired -> player intended single orthogonal step!
+            s_wasdChordTimer = 0.0f;
+            int dx = s_wasdPendingDx;
+            int dy = s_wasdPendingDy;
+            s_wasdPendingDx = 0;
+            s_wasdPendingDy = 0;
+            if ((dx != 0 || dy != 0) && engine.canMoveManual(dx, dy)) {
+              if (engine.moveAgentManual(dx, dy)) {
+                if (config.cameraFollowAgent) {
+                  uiState.requestCenterCameraOnAgent = true;
+                }
+              }
+            }
+            s_wasdIsMoving = true;
+            s_wasdRepeatTimer = 1.25f;
+          }
+        }
+      } else if (s_wasdIsMoving) {
+        // Continuous movement while holding keys
+        bool wHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::W) ||
+                     sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::Up);
+        bool sHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::S) ||
+                     sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::Down);
+        bool aHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::A) ||
+                     sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::Left);
+        bool dHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::D) ||
+                     sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scan::Right);
+
+        if (!wHeld && !sHeld && !aHeld && !dHeld) {
+          s_wasdIsMoving = false;
+          s_wasdRepeatTimer = 0.0f;
+        } else {
+          s_wasdRepeatTimer -= dtSeconds;
+          if (s_wasdRepeatTimer <= 0.0f) {
+            int dx = 0;
+            int dy = 0;
+            if (wHeld && !sHeld) dy = -1;
+            else if (sHeld && !wHeld) dy = 1;
+            if (aHeld && !dHeld) dx = -1;
+            else if (dHeld && !aHeld) dx = 1;
+
+            if ((dx != 0 || dy != 0) && engine.canMoveManual(dx, dy)) {
+              if (engine.moveAgentManual(dx, dy)) {
+                if (config.cameraFollowAgent) {
+                  uiState.requestCenterCameraOnAgent = true;
+                }
+              }
+            }
+            // Reduced speed by additional 70% (~0.85 steps/sec) with matching diagonal speed
+            s_wasdRepeatTimer = 1.20f;
+          }
         }
       }
     }
@@ -1963,6 +2163,29 @@ int main(int argc, char *argv[]) {
                                         zoomBadgeAlpha);
     }
 
+    if (appFlowState == AppFlowState::InGame && minimap.isPoweredOn() &&
+        (minimap.isZoomSliderHovered() || minimap.isZoomSliderDragging())) {
+      ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+      ui::ImGuiOverlay::showStyledTooltip(
+          config.uiScale,
+          "Регулятор оптичного масштабу");
+    } else if (appFlowState == AppFlowState::InGame && minimap.isPoweredOn() && minimap.isDialButtonHovered()) {
+      ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+      ui::ImGuiOverlay::showStyledTooltip(
+          config.uiScale,
+          "Огляд комплексу [Весь лабіринт]");
+    } else if (appFlowState == AppFlowState::InGame && minimap.isPowerButtonHovered()) {
+      ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+      ui::ImGuiOverlay::showStyledTooltip(
+          config.uiScale,
+          minimap.isPoweredOn() ? "Вимкнути" : "Увімкнути");
+    } else if (appFlowState == AppFlowState::InGame && minimap.isPoweredOn() && minimap.isToggleSwitchHovered()) {
+      ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+      ui::ImGuiOverlay::showStyledTooltip(
+          config.uiScale,
+          "Тумблер тактичних шарів [СІТКА | МАРШРУТ | СЛІД]");
+    }
+
     sf::Vector2f worldPos =
         window.mapPixelToCoords(mousePixel, camera.getView());
     float mmFrameW = ui::Minimap::getFrameWidth(config.minimapScale);
@@ -2182,6 +2405,7 @@ int main(int argc, char *argv[]) {
 
     if (appFlowState == AppFlowState::InGame || appFlowState == AppFlowState::FadingOut) {
       minimap.setTacticalLayersActive(config.showGrid && config.showOptimalRoute && config.showWalkedCells);
+      minimap.setCameraZoom(camera.getZoomLevel());
       minimap.render(window, maze, camera.getView(), engine.getAgent(),
                      collectedIds, windowW, windowH, renderer.getVisualAgentPos(),
                      config.minimapScale, activeScanRadius, activeScanOrigin,

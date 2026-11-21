@@ -90,6 +90,11 @@ public:
         return true;
     }
 
+    void consumeEnergyForced(int cost) noexcept {
+        energySpent_ += cost;
+        currentEnergy_ = std::max(0, currentEnergy_ - cost);
+    }
+
     void replenishEnergy(int amount) {
         maxEnergy_ += amount;
         currentEnergy_ += amount;

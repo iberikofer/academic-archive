@@ -121,8 +121,16 @@ public:
         bool isDiag = (currentPos.x != nextPos.x && currentPos.y != nextPos.y);
         int stepCost = maze_.at(nextPos).getEnergyCost(isDiag);
 
+        bool isExitDisabled = (config_.routeMode == core::RouteMode::RoundTrip);
+        const auto& evacTarget = isExitDisabled ? maze_.getStartPoint() : maze_.getExitPoint();
+        bool isEvacFinalStep = (nextPos == evacTarget &&
+                               (currentStepIndex_ + 1 == plan_.fullPath.size() - 1 || agent_.getStepsTaken() > 0));
+
         if (config_.energyLimitEnabled) {
-            if (!agent_.consumeEnergy(stepCost, true)) {
+            if (isEvacFinalStep && agent_.getCurrentEnergy() < stepCost) {
+                // Penultimate step to evacuation cell: allow final push into safety even with insufficient energy!
+                agent_.consumeEnergyForced(stepCost);
+            } else if (!agent_.consumeEnergy(stepCost, true)) {
                 isCompleted_ = true;
                 isPaused_ = true;
                 agent_.setStatus(AgentStatus::Exhausted);
@@ -421,9 +429,19 @@ public:
                (!isExitDisabled || agent_.getStepsTaken() > 0);
     }
 
-    [[nodiscard]] bool canMoveManual() const noexcept {
-        if (config_.energyLimitEnabled && agent_.isExhausted()) return false;
+    [[nodiscard]] bool canMoveManual(int dx = 0, int dy = 0) const noexcept {
         if (agent_.getStatus() == AgentStatus::Success || isAtEvacuationCell()) return false;
+        if (config_.energyLimitEnabled && agent_.isExhausted()) {
+            if (dx != 0 || dy != 0) {
+                bool isExitDisabled = (config_.routeMode == core::RouteMode::RoundTrip);
+                const auto& evacTarget = isExitDisabled ? maze_.getStartPoint() : maze_.getExitPoint();
+                core::Point targetPos{agent_.getPosition().x + dx, agent_.getPosition().y + dy};
+                if (targetPos == evacTarget) {
+                    return true;
+                }
+            }
+            return false;
+        }
         return true;
     }
 
@@ -467,7 +485,7 @@ public:
     }
 
     bool moveAgentManual(int dx, int dy) {
-        if (!canMoveManual()) return false;
+        if (!canMoveManual(dx, dy)) return false;
 
         core::Point curPos = agent_.getPosition();
         core::Point nextPos{curPos.x + dx, curPos.y + dy};
@@ -476,14 +494,65 @@ public:
             return false;
         }
 
+        bool isDiag = (dx != 0 && dy != 0);
+
+        if (isDiag) {
+            // Check diagonal restrictions matching maze_.getNeighbors:
+            // 1. Cannot move diagonally to/from Start or Exit (strict orthogonal airlock seal)
+            auto currType = maze_.at(curPos).getType();
+            auto nextType = maze_.at(nextPos).getType();
+            if (currType == core::CellType::Start || currType == core::CellType::Exit ||
+                nextType == core::CellType::Start || nextType == core::CellType::Exit) {
+                if (dx != 0 && maze_.isValid(curPos.x + dx, curPos.y) && maze_.at(curPos.x + dx, curPos.y).isPassable()) {
+                    return moveAgentManual(dx, 0);
+                }
+                if (dy != 0 && maze_.isValid(curPos.x, curPos.y + dy) && maze_.at(curPos.x, curPos.y + dy).isPassable()) {
+                    return moveAgentManual(0, dy);
+                }
+                return false;
+            }
+            // 2. Strict no-corner-cutting: both adjacent orthogonal cells must be passable
+            bool blockedSide1 = !maze_.isValid(curPos.x + dx, curPos.y) || !maze_.at(curPos.x + dx, curPos.y).isPassable();
+            bool blockedSide2 = !maze_.isValid(curPos.x, curPos.y + dy) || !maze_.at(curPos.x, curPos.y + dy).isPassable();
+            if (blockedSide1 || blockedSide2) {
+                if (!blockedSide1) {
+                    return moveAgentManual(dx, 0);
+                }
+                if (!blockedSide2) {
+                    return moveAgentManual(0, dy);
+                }
+                return false;
+            }
+            // 3. Mud corner barrier: cannot jump diagonally across mud corners
+            auto side1Type = maze_.at(curPos.x + dx, curPos.y).getType();
+            auto side2Type = maze_.at(curPos.x, curPos.y + dy).getType();
+            if (side1Type == core::CellType::Mud || side2Type == core::CellType::Mud) {
+                if (currType != core::CellType::Mud || nextType != core::CellType::Mud) {
+                    if (maze_.isValid(curPos.x + dx, curPos.y) && maze_.at(curPos.x + dx, curPos.y).isPassable()) {
+                        return moveAgentManual(dx, 0);
+                    }
+                    if (maze_.isValid(curPos.x, curPos.y + dy) && maze_.at(curPos.x, curPos.y + dy).isPassable()) {
+                        return moveAgentManual(0, dy);
+                    }
+                    return false;
+                }
+            }
+        }
+
         isPaused_ = true;
         isManualMode_ = true;
 
-        bool isDiag = (dx != 0 && dy != 0);
         int stepCost = maze_.at(nextPos).getEnergyCost(isDiag);
 
+        bool isExitDisabled = (config_.routeMode == core::RouteMode::RoundTrip);
+        const auto& evacTarget = isExitDisabled ? maze_.getStartPoint() : maze_.getExitPoint();
+        bool isEvacFinalStep = (nextPos == evacTarget && agent_.getStepsTaken() > 0);
+
         if (config_.energyLimitEnabled) {
-            if (!agent_.consumeEnergy(stepCost, true)) {
+            if (isEvacFinalStep && agent_.getCurrentEnergy() < stepCost) {
+                // Penultimate step to evacuation cell: allow final push into safety even with insufficient energy!
+                agent_.consumeEnergyForced(stepCost);
+            } else if (!agent_.consumeEnergy(stepCost, true)) {
                 isCompleted_ = true;
                 agent_.setStatus(AgentStatus::Exhausted);
                 recordHistory();
@@ -511,8 +580,6 @@ public:
             }
         }
 
-        bool isExitDisabled = (config_.routeMode == core::RouteMode::RoundTrip);
-        const auto& evacTarget = isExitDisabled ? maze_.getStartPoint() : maze_.getExitPoint();
         if (nextPos == evacTarget && agent_.getStepsTaken() > 0) {
             isCompleted_ = true;
             agent_.setStatus(AgentStatus::Success);
