@@ -39,6 +39,8 @@ public:
 
     void initPlan(const algorithms::routing::RoutePlan& plan, int energy, int backpackCapacity) {
         plan_ = plan;
+        config_.initialEnergy = energy;
+        config_.manualBackpackCapacity = backpackCapacity;
         agent_.reset(maze_.getStartPoint(), energy, backpackCapacity);
         agent_.getBackpack().setUnlimited(!config_.backpackLimitEnabled);
         maze_.resetVisualizationFlags();
@@ -247,8 +249,8 @@ public:
         bool allowManualEvacReset =
             isAtEvacuationCell() || agent_.getStatus() == AgentStatus::Success;
         if ((isManualMode_ && !allowManualEvacReset) || !plan_.routeValid) return;
-        int resetEnergy = (config_.initialEnergy > 0) ? config_.initialEnergy : agent_.getMaxEnergy();
-        int resetCap = (config_.manualBackpackCapacity > 0) ? config_.manualBackpackCapacity : agent_.getBackpack().getMaxCapacity();
+        int resetEnergy = (agent_.getMaxEnergy() > 0) ? agent_.getMaxEnergy() : config_.initialEnergy;
+        int resetCap = (agent_.getBackpack().getMaxCapacity() > 0) ? agent_.getBackpack().getMaxCapacity() : config_.manualBackpackCapacity;
         agent_.reset(maze_.getStartPoint(), resetEnergy, resetCap);
         agent_.getBackpack().setUnlimited(!config_.backpackLimitEnabled);
         maze_.resetVisualizationFlags();

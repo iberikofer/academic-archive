@@ -107,6 +107,25 @@ void BSPGenerator::generate(Maze& maze) {
     core::Point exitPos = (exitRoom != startRoom) ? getOuterBoundaryCell(*exitRoom) : startPos;
     maze.setExitPoint(exitPos);
 
+    // Sort rooms by proximity (distance) to airlock / spawn point
+    // Room #1 will always be the room closest to the airlock
+    auto getRoomDistanceToStart = [&](const Room& r) -> double {
+        int dx = std::max({r.x - startPos.x, 0, startPos.x - (r.x + r.width - 1)});
+        int dy = std::max({r.y - startPos.y, 0, startPos.y - (r.y + r.height - 1)});
+        double edgeDist = std::hypot(dx, dy);
+        core::Point c = r.getCenter();
+        double centerDist = std::hypot(c.x - startPos.x, c.y - startPos.y);
+        return edgeDist * 1000.0 + centerDist;
+    };
+
+    std::sort(rooms.begin(), rooms.end(), [&](const Room& a, const Room& b) {
+        return getRoomDistanceToStart(a) < getRoomDistanceToStart(b);
+    });
+
+    for (size_t i = 0; i < rooms.size(); ++i) {
+        rooms[i].id = static_cast<int>(i) + 1;
+    }
+
     // Store rooms inside maze before spawning resources
     maze.getRooms() = std::move(rooms);
 

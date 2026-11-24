@@ -1,14 +1,17 @@
 #pragma once
 
 #include "CameraController.hpp"
+#include "Localization.hpp"
 #include "Minimap.hpp"
 #include "ProceduralRenderer.hpp"
 #include "core/Config.hpp"
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "io/CsvExporter.hpp"
 #include "map/Maze.hpp"
 #include "simulation/SimulationEngine.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstdarg>
 #include <cstring>
 #include <string>
@@ -494,6 +497,27 @@ public:
     colors[ImGuiCol_NavHighlight] = ImVec4(0.92f, 0.26f, 0.34f, 1.00f);
   }
 
+  static void applyUIScaleAndFontGlobal(const core::Config &config) {
+    static float appliedScale = -1.0f;
+    static ImGuiStyle baseStyle;
+    static bool baseStyleCaptured = false;
+    if (!baseStyleCaptured) {
+      applyLethalCompanyCherryTheme(ImGui::GetStyle());
+      baseStyle = ImGui::GetStyle();
+      baseStyleCaptured = true;
+    }
+
+    const float BASE_FONT_SIZE = 17.0f;
+    const float NATIVE_FONT_SIZE = 26.0f;
+    if (std::abs(config.uiScale - appliedScale) > 0.001f) {
+      ImGui::GetStyle() = baseStyle;
+      ImGui::GetStyle().ScaleAllSizes(config.uiScale);
+      ImGui::GetIO().FontGlobalScale =
+          (BASE_FONT_SIZE / NATIVE_FONT_SIZE) * config.uiScale;
+      appliedScale = config.uiScale;
+    }
+  }
+
   bool renderSectionHeader(int sectionIdx, const char *label, float uiScale,
                            bool defaultOpen = true) {
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
@@ -562,25 +586,11 @@ public:
               const std::vector<io::BenchmarkRow> &benchmarkRows,
               float windowHeight, UIState &state) {
     // Handle dynamic UI scaling with crisp text (oversampled TTF)
-    static float appliedScale = -1.0f;
-    static ImGuiStyle baseStyle;
-    static bool baseStyleCaptured = false;
-    if (!baseStyleCaptured) {
-      applyLethalCompanyCherryTheme(ImGui::GetStyle());
-      baseStyle = ImGui::GetStyle();
-      baseStyleCaptured = true;
-    }
-
-    const float BASE_FONT_SIZE = 17.0f;
-    const float NATIVE_FONT_SIZE = 26.0f;
-    if (std::abs(config.uiScale - appliedScale) > 0.001f) {
-      ImGui::GetStyle() = baseStyle;
-      ImGui::GetStyle().ScaleAllSizes(config.uiScale);
-      ImGui::GetIO().FontGlobalScale =
-          (BASE_FONT_SIZE / NATIVE_FONT_SIZE) * config.uiScale;
+    applyUIScaleAndFontGlobal(config);
+    if (std::abs(config.uiScale - lastUiScale_) > 0.001f) {
       sidebarWidth_ = savedSidebarBaseWidth_ * config.uiScale;
       missionPanelWidth_ = savedMissionPanelBaseWidth_ * config.uiScale;
-      appliedScale = config.uiScale;
+      lastUiScale_ = config.uiScale;
     }
 
     float minSidebarW = MIN_SIDEBAR_WIDTH * config.uiScale;
@@ -638,14 +648,14 @@ public:
     // 1. Display and camera settings
     float b6Start = ImGui::GetCursorScreenPos().y;
     float b6Local = ImGui::GetCursorPosY();
-    if (renderSectionHeader(0, "1.  Відображення та огляд", config.uiScale,
+    if (renderSectionHeader(0, LOC("1.  Відображення та огляд", "1.  View & Camera"), config.uiScale,
                             true)) {
       ImGui::Spacing();
 
       // Zoom Scale mixer slider
       float currentMagnification = 1.0f / std::max(0.01f, state.cameraZoom);
       float userZoom = currentMagnification;
-      if (ImGui::SliderFloat("Масштаб огляду (Zoom)", &userZoom, 0.20f, 4.50f,
+      if (ImGui::SliderFloat(LOC("Масштаб огляду (Zoom)", "View Zoom Scale"), &userZoom, 0.20f, 4.50f,
                              "%.2fx")) {
         userZoom = std::clamp(userZoom, 0.20f, 4.50f);
         state.cameraZoom = 1.0f / userZoom;
@@ -654,10 +664,14 @@ public:
       }
       if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip(
-            "Мікшер масштабу огляду камери:\n"
-            "Вліво (0.2x - 0.9x): віддалити для ширшого огляду лабіринту.\n"
-            "Вправо (1.1x - 4.5x): наблизити для детального огляду клітинок.\n"
-            "Також можна наближати/віддаляти скролом коліщатка миші.");
+            "%s", LOC("Мікшер масштабу огляду камери:\n"
+                      "Вліво (0.2x - 0.9x): віддалити для ширшого огляду лабіринту.\n"
+                      "Вправо (1.1x - 4.5x): наблизити для детального огляду клітинок.\n"
+                      "Також можна наближати/віддаляти скролом коліщатка миші.",
+                      "Camera zoom mixer:\n"
+                      "Left (0.2x - 0.9x): zoom out for wider maze overview.\n"
+                      "Right (1.1x - 4.5x): zoom in for detailed cell inspection.\n"
+                      "You can also zoom using mouse wheel scroll."));
       }
 
       // Quick preset buttons for zoom & view centering
@@ -668,7 +682,7 @@ public:
       float zoomBtnH =
           std::max(26.0f * config.uiScale, ImGui::GetFrameHeight());
 
-      if (ImGui::Button("[-] Віддалити", ImVec2(zoomBtnW, zoomBtnH))) {
+      if (ImGui::Button(LOC("[-] Віддалити", "[-] Zoom Out"), ImVec2(zoomBtnW, zoomBtnH))) {
         float baseZoom = (state.targetCameraZoom > 0.01f)
                              ? state.targetCameraZoom
                              : state.cameraZoom;
@@ -680,11 +694,12 @@ public:
       if (ImGui::IsItemHovered()) {
         showStyledTooltip(
             config.uiScale,
-            "%s", "Плавно віддалити огляд камери (зменшити масштаб на 20%).");
+            "%s", LOC("Плавно віддалити огляд камери (зменшити масштаб на 20%).",
+                      "Smoothly zoom out camera view (decrease zoom by 20%)."));
       }
 
       ImGui::SameLine();
-      if (ImGui::Button("[+] Наблизити", ImVec2(zoomBtnW, zoomBtnH))) {
+      if (ImGui::Button(LOC("[+] Наблизити", "[+] Zoom In"), ImVec2(zoomBtnW, zoomBtnH))) {
         float baseZoom = (state.targetCameraZoom > 0.01f)
                              ? state.targetCameraZoom
                              : state.cameraZoom;
@@ -696,18 +711,21 @@ public:
       if (ImGui::IsItemHovered()) {
         showStyledTooltip(
             config.uiScale,
-            "%s", "Плавно наблизити огляд камери (збільшити масштаб на 25%).");
+            "%s", LOC("Плавно наблизити огляд камери (збільшити масштаб на 25%).",
+                      "Smoothly zoom in camera view (increase zoom by 25%)."));
       }
 
       ImGui::SameLine();
-      if (ImGui::Button("Весь лабіринт", ImVec2(zoomBtnW, zoomBtnH))) {
+      if (ImGui::Button(LOC("Весь лабіринт", "Fit Maze"), ImVec2(zoomBtnW, zoomBtnH))) {
         state.requestFitMazeInView = true;
       }
       if (ImGui::IsItemHovered()) {
         showStyledTooltip(
             config.uiScale,
-            "Огляд усього лабіринту: плавно підібрати масштаб так, щоб "
-            "увесь лабіринт вмістився в екрані.");
+            "%s", LOC("Огляд усього лабіринту: плавно підібрати масштаб так, щоб "
+                      "увесь лабіринт вмістився в екрані.",
+                      "Fit whole maze in view: smoothly adjust scale so "
+                      "the entire labyrinth fits on screen."));
       }
 
       ImGui::SameLine();
@@ -721,7 +739,7 @@ public:
       if (state.isTransitionActive) {
         ImGui::BeginDisabled(true);
       }
-      if (ImGui::Button("Центрувати", ImVec2(zoomBtnW, zoomBtnH))) {
+      if (ImGui::Button(LOC("Центрувати", "Center"), ImVec2(zoomBtnW, zoomBtnH))) {
         config.cameraFollowAgent = !config.cameraFollowAgent;
         if (config.cameraFollowAgent) {
           state.requestCenterCameraOnAgent = true;
@@ -738,14 +756,17 @@ public:
       if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
         if (state.isTransitionActive) {
           showStyledTooltip(config.uiScale,
-                            "Центрування недоступне під час генерації та "
-                            "трасування маршруту.");
+                            "%s", LOC("Центрування недоступне під час генерації та "
+                                      "трасування маршруту.",
+                                      "Centering unavailable during generation and routing."));
         } else {
           showStyledTooltip(
               config.uiScale, "%s",
               config.cameraFollowAgent
-                  ? "[C] Вимкнути постійне стеження камери за робітником."
-                  : "[C] Центрувати огляд та увімкнути стеження за робітником.");
+                  ? LOC("[C] Вимкнути постійне стеження камери за робітником.",
+                        "[C] Disable camera following worker.")
+                  : LOC("[C] Центрувати огляд та увімкнути стеження за робітником.",
+                        "[C] Center view and follow worker."));
         }
       }
 
@@ -762,51 +783,58 @@ public:
       float b7Local = ImGui::GetCursorPosY();
 
       // Display checkbox: Grid
-      ImGui::Checkbox("Показувати сітку клітинок", &config.showGrid);
+      ImGui::Checkbox(LOC("Показувати сітку клітинок", "Show Grid Overlay"), &config.showGrid);
       if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Відображати тонку координатно-тактичну сітку між "
-                          "клітинками лабіринту.");
+        ImGui::SetTooltip("%s", LOC("Відображати тонку координатно-тактичну сітку між "
+                                    "клітинками лабіринту.",
+                                    "Display tactical grid overlay between labyrinth cells."));
       }
 
-      ImGui::Checkbox("Показувати оптимальний маршрут",
+      ImGui::Checkbox(LOC("Показувати оптимальний маршрут", "Show Optimal Route"),
                       &config.showOptimalRoute);
       if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Увімкнути або вимкнути відображення розрахованої "
-                          "оптимальної траєкторії маршруту.");
+        ImGui::SetTooltip("%s", LOC("Увімкнути або вимкнути відображення розрахованої "
+                                    "оптимальної траєкторії маршруту.",
+                                    "Toggle display of the calculated optimal trajectory path."));
       }
 
-      ImGui::Checkbox("Показувати пройдені клітинки",
+      ImGui::Checkbox(LOC("Показувати пройдені клітинки", "Show Visited Cells"),
                       &config.showWalkedCells);
       if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Відображати або приховувати підсвічування "
-                          "пройдених робітником клітинок.");
+        ImGui::SetTooltip("%s", LOC("Відображати або приховувати підсвічування "
+                                    "пройдених робітником клітинок.",
+                                    "Show or hide trail highlights for cells visited by worker."));
       }
 
       // VSync
-      if (ImGui::Checkbox("Вертикальна синхронізація (VSync)",
+      if (ImGui::Checkbox(LOC("Вертикальна синхронізація (VSync)", "Vertical Sync (VSync)"),
                           &config.vsyncEnabled)) {
         state.vsyncChanged = true;
       }
       if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip(
-            "Усуває розриви кадрів ('драбинку') та ривки при плавному русі "
-            "камери.\n"
-            "Синхронізує частоту кадрів із герцовкою вашого монітора.");
+            "%s", LOC("Усуває розриви кадрів ('драбинку') та ривки при плавному русі "
+                      "камери.\n"
+                      "Синхронізує частоту кадрів із герцовкою вашого монітора.",
+                      "Eliminates screen tearing and stutter during smooth camera motion.\n"
+                      "Synchronizes frame rate with monitor refresh rate."));
       }
 
       // UI Scale
-      ImGui::SliderFloat("Масштаб UI", &config.uiScale, 0.75f, 1.50f, "%.2fx");
+      ImGui::SliderFloat(LOC("Масштаб UI", "UI Scale"), &config.uiScale, 0.75f, 1.50f, "%.2fx");
       if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Масштабування розміру інтерфейсу, тексту та кнопок "
-                          "(від 0.75x до 1.50x).");
+        ImGui::SetTooltip("%s", LOC("Масштабування розміру інтерфейсу, тексту та кнопок "
+                                    "(від 0.75x до 1.50x).",
+                                    "Scale UI elements, text, and buttons (0.75x to 1.50x)."));
       }
 
       // Minimap Scale slider
-      ImGui::SliderFloat("Розмір міні-карти", &config.minimapScale, 0.70f,
+      ImGui::SliderFloat(LOC("Розмір міні-карти", "Minimap Size"), &config.minimapScale, 0.70f,
                          1.30f, "%.2fx");
       if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Масштабування розміру тактичної "
-                          "міні-карти (від 0.70x до 1.30x).");
+        ImGui::SetTooltip("%s", LOC("Масштабування розміру тактичної "
+                                    "міні-карти (від 0.70x до 1.30x).",
+                                    "Scale tactical CRT minimap (0.70x to 1.30x)."));
       }
 
       tourBlockMin_[7] = ImVec2(2.0f, b7Start - 4.0f * config.uiScale);
@@ -818,28 +846,49 @@ public:
       float b8Start = ImGui::GetCursorScreenPos().y;
       float b8Local = ImGui::GetCursorPosY();
       ImGui::TextColored(ImVec4(0.85f, 0.75f, 0.50f, 1.0f),
-                         "Гарячі клавіші та керування:");
+                         "%s", LOC("Гарячі клавіші та керування:", "Hotkeys & Controls:"));
       ImGui::TextDisabled(
-          "- [Esc] - Відкрити / сховати бічну панель керування");
-      ImGui::TextDisabled("- [F11] - увімкнути / вимкнути повний екран");
+          "%s", LOC("- [Esc] - Відкрити / сховати бічну панель керування",
+                    "- [Esc] - Open / close sidebar control panel"));
       ImGui::TextDisabled(
-          "- [W, A, S, D] - ручне керування переміщенням робітника");
-      ImGui::TextDisabled("- [B] - Показати / сховати показники місії");
+          "%s", LOC("- [F11] - увімкнути / вимкнути повний екран",
+                    "- [F11] - Toggle fullscreen mode"));
       ImGui::TextDisabled(
-          "- [C] - Центрувати / прив'язати камеру до робітника");
+          "%s", LOC("- [W, A, S, D] - ручне керування переміщенням робітника",
+                    "- [W, A, S, D] - Manual agent movement controls"));
       ImGui::TextDisabled(
-          "- [Z] - Повернутись до останнього автоматичного кроку");
-      ImGui::TextDisabled("- [M] - Показати / сховати легенду позначок");
+          "%s", LOC("- [B] - Показати / сховати показники місії",
+                    "- [B] - Toggle mission status HUD"));
       ImGui::TextDisabled(
-          "- [Space] - Крок вперед (затиснути для швидкого руху)");
-      ImGui::TextDisabled("- [Shift+Space] - Крок назад (перемотування)");
+          "%s", LOC("- [C] - Центрувати / прив'язати камеру до робітника",
+                    "- [C] - Center / lock camera onto worker"));
       ImGui::TextDisabled(
-          "- [Ctrl+Space] - Повернутись на старт / Телепорт на фініш");
-      ImGui::TextDisabled("- [ЛКМ] - панорамування карти");
-      ImGui::TextDisabled("- [ЛКМ на міні-карті] - перехід або панорамування");
-      ImGui::TextDisabled("- [Колесо миші] - масштабування в точку курсора");
+          "%s", LOC("- [Z] - Повернутись до останнього автоматичного кроку",
+                    "- [Z] - Rewind manual moves to last route step"));
       ImGui::TextDisabled(
-          "- [Колесо на міні-карті] - масштабування загальної карти");
+          "%s", LOC("- [M] - Показати / сховати легенду позначок",
+                    "- [M] - Toggle map legend"));
+      ImGui::TextDisabled(
+          "%s", LOC("- [Space] - Крок вперед (затиснути для швидкого руху)",
+                    "- [Space] - Step forward (hold for fast movement)"));
+      ImGui::TextDisabled(
+          "%s", LOC("- [Shift+Space] - Крок назад (перемотування)",
+                    "- [Shift+Space] - Step backward (rewind)"));
+      ImGui::TextDisabled(
+          "%s", LOC("- [Ctrl+Space] - Повернутись на старт / Телепорт на фініш",
+                    "- [Ctrl+Space] - Rewind to start / Jump to finish"));
+      ImGui::TextDisabled(
+          "%s", LOC("- [ЛКМ] - панорамування карти",
+                    "- [LMB] - Pan labyrinth camera"));
+      ImGui::TextDisabled(
+          "%s", LOC("- [ЛКМ на міні-карті] - перехід або панорамування",
+                    "- [LMB on minimap] - Jump or pan view"));
+      ImGui::TextDisabled(
+          "%s", LOC("- [Колесо миші] - масштабування в точку курсора",
+                    "- [Mouse wheel] - Zoom view to cursor position"));
+      ImGui::TextDisabled(
+          "%s", LOC("- [Колесо на міні-карті] - масштабування загальної карти",
+                    "- [Mouse wheel on minimap] - Zoom minimap overview"));
       ImGui::Spacing();
 
       ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.14f, 0.42f, 0.54f, 0.90f));
@@ -849,7 +898,8 @@ public:
       ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.00f, 1.00f, 1.00f, 1.00f));
       ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.5f * config.uiScale);
       if (boldFont_) ImGui::PushFont(boldFont_);
-      if (ImGui::Button("[?]  ІНСТРУКЦІЯ ЗБОРУ БРУХТУ ДЛЯ ЧАЙНИКІВ",
+      if (ImGui::Button(LOC("[?]  ІНСТРУКЦІЯ ЗБОРУ БРУХТУ ДЛЯ ЧАЙНИКІВ",
+                            "[?]  SCRAP RUNNERS GUIDE FOR BEGINNERS"),
                         ImVec2(-1.0f, 32.0f * config.uiScale))) {
         startTour();
       }
@@ -859,7 +909,8 @@ public:
       if (ImGui::IsItemHovered()) {
         showStyledTooltip(
             config.uiScale,
-            "Інтерактивний покроковий тур для новачків: показує як грати, призначення тактичного радара, показників місії, легенди та всіх інструментів сайдбару.");
+            "%s", LOC("Інтерактивний покроковий тур для новачків: показує як грати, призначення тактичного радара, показників місії, легенди та всіх інструментів сайдбару.",
+                      "Interactive step-by-step beginner tour: shows how to play, explains tactical radar, mission HUD, legend, and all sidebar controls."));
       }
       ImGui::Spacing();
       tourBlockMin_[8] = ImVec2(2.0f, b8Start - 4.0f * config.uiScale);
@@ -873,15 +924,77 @@ public:
     // 2. Maze configuration
     float b9Start = ImGui::GetCursorScreenPos().y;
     float b9Local = ImGui::GetCursorPosY();
-    if (renderSectionHeader(1, "2.  Налаштування лабіринту BSP", config.uiScale,
+    if (renderSectionHeader(1, LOC("2.  Налаштування лабіринту BSP", "2.  BSP Maze Settings"), config.uiScale,
                             true)) {
       ImGui::Spacing();
 
-      ImGui::Checkbox("Власний сід", &state.customSeedEnabled);
+      // Display the seed of the currently generated labyrinth (clean clickable text,
+      // hover glow, click-to-copy, without opening a text input window)
+      unsigned int currentSeed =
+          maze.getSeed() != 0 ? maze.getSeed() : config.randomSeed;
+      char seedStr[32];
+      snprintf(seedStr, sizeof(seedStr), "%u", currentSeed);
+
+      static float s_seedCopiedFeedbackTime = 0.0f;
+      if (s_seedCopiedFeedbackTime > 0.0f) {
+        s_seedCopiedFeedbackTime -= ImGui::GetIO().DeltaTime;
+      }
+      bool isCopied = (s_seedCopiedFeedbackTime > 0.0f);
+
+      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.65f, 0.65f, 0.70f, 1.0f));
+      ImGui::TextUnformatted(LOC("Сід поточного лабіринту:", "Current maze seed:"));
+      ImGui::PopStyleColor();
+
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+        ImGui::SetTooltip("Натисніть для копіювання сіду (%s)", seedStr);
+      }
+      if (ImGui::IsItemClicked()) {
+        ImGui::SetClipboardText(seedStr);
+        s_seedCopiedFeedbackTime = 2.0f;
+      }
+
+      ImGui::SameLine();
+
+      ImVec4 numColor = isCopied ? ImVec4(0.35f, 0.95f, 0.55f, 1.0f)
+                                 : ImVec4(0.88f, 0.88f, 0.95f, 1.0f);
+      ImGui::TextColored(numColor, "%s", seedStr);
+
+      bool numHovered = ImGui::IsItemHovered();
+      if (numHovered) {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+        if (isCopied) {
+          ImGui::SetTooltip("Скопійовано в буфер обміну: %s", seedStr);
+        } else {
+          ImGui::SetTooltip("Натисніть для швидкого копіювання сіду: %s", seedStr);
+        }
+      }
+      if (ImGui::IsItemClicked()) {
+        ImGui::SetClipboardText(seedStr);
+        s_seedCopiedFeedbackTime = 2.0f;
+      }
+
+      // Elegant underline strictly below the digits
+      ImVec2 rMin = ImGui::GetItemRectMin();
+      ImVec2 rMax = ImGui::GetItemRectMax();
+      ImDrawList *drawList = ImGui::GetWindowDrawList();
+      ImU32 lineCol = isCopied ? IM_COL32(90, 240, 140, 230)
+                               : (numHovered ? IM_COL32(0, 215, 255, 230)
+                                             : IM_COL32(140, 150, 175, 140));
+      drawList->AddLine(ImVec2(rMin.x, rMax.y), ImVec2(rMax.x, rMax.y), lineCol,
+                        numHovered ? 1.5f : 1.0f);
+
+      if (isCopied) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(0.35f, 0.90f, 0.55f, 1.0f), "[Скопійовано!]");
+      }
+
+      ImGui::Spacing();
+
+      ImGui::Checkbox(LOC("Власний сід", "Custom seed"), &state.customSeedEnabled);
       if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip(
-            "Увімкнути генерацію лабіринту за фіксованим числовим насінням "
-            "(сідом).\n"
+            "Увімкнути генерацію лабіринту за фіксованим числовим сідом.\n"
             "Дозволяє точно відтворити будь-яку згенеровану раніше мапу.");
       }
 
@@ -891,9 +1004,12 @@ public:
             ImVec2(6.0f * config.uiScale, 5.0f * config.uiScale));
         float btnPasteWidth = ImGui::CalcTextSize(" Вставити з буфера").x +
                               16.0f * config.uiScale;
+        float btnUseCurrentWidth = ImGui::CalcTextSize(" Поточний").x +
+                                   16.0f * config.uiScale;
         float availW = ImGui::GetContentRegionAvail().x;
+        float itemSpacingX = ImGui::GetStyle().ItemSpacing.x;
         float inputWidth = std::max(
-            120.0f, availW - btnPasteWidth - ImGui::GetStyle().ItemSpacing.x);
+            100.0f, availW - btnPasteWidth - btnUseCurrentWidth - itemSpacingX * 2.0f);
 
         ImGui::SetNextItemWidth(inputWidth);
         ImGui::InputTextWithHint("##custom_seed_input", "Введіть число сіду...",
@@ -923,6 +1039,16 @@ public:
         if (ImGui::IsItemHovered()) {
           ImGui::SetTooltip("Вставити число сіду із буфера обміну Windows.");
         }
+
+        ImGui::SameLine();
+        if (ImGui::Button(" Поточний", ImVec2(btnUseCurrentWidth, 0))) {
+          snprintf(state.customSeedInput, sizeof(state.customSeedInput),
+                   "%u", currentSeed);
+        }
+        if (ImGui::IsItemHovered()) {
+          ImGui::SetTooltip("Підставити сід поточного лабіринту (%u).", currentSeed);
+        }
+
         ImGui::PopStyleVar();
       }
       ImGui::Spacing();
@@ -943,7 +1069,7 @@ public:
 
       bool mazeSizeChanged = (config.mapWidth != maze.getWidth());
       beginChangedWidgetBorder(mazeSizeChanged);
-      ImGui::SliderInt("Розмір (N x N)", &config.mapWidth, 20, 100);
+      ImGui::SliderInt(LOC("Розмір (N x N)", "Size (N x N)"), &config.mapWidth, 20, 100);
       endChangedWidgetBorder(mazeSizeChanged);
       if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip("Розмір лабіринту по ширині та висоті (кількість "
@@ -1015,11 +1141,12 @@ public:
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
 
         char btnLabel[128];
-        snprintf(btnLabel, sizeof(btnLabel), " ЗГЕНЕРУВАТИ ЛАБІРИНТ (%dx%d)",
+        snprintf(btnLabel, sizeof(btnLabel), "%s (%dx%d)",
+                 LOC(" ЗГЕНЕРУВАТИ ЛАБІРИНТ", " GENERATE MAZE"),
                  config.mapWidth, config.mapWidth);
         if (state.isTransitionActive) {
           ImGui::BeginDisabled();
-          ImGui::Button(" [ СКАНУВАННЯ КОМПЛЕКСУ... ]",
+          ImGui::Button(LOC(" [ СКАНУВАННЯ КОМПЛЕКСУ... ]", " [ SCANNING FACILITY... ]"),
                         ImVec2(-1, std::max(34.0f * config.uiScale,
                                             ImGui::GetFrameHeight())));
           ImGui::EndDisabled();
@@ -1031,7 +1158,9 @@ public:
           }
           if (ImGui::IsItemHovered()) {
             ImGui::SetTooltip(
-                "Створити новий процедурний лабіринт розміром %dx%d клітинок.",
+                "%s (%dx%d)",
+                LOC("Створити новий процедурний лабіринт розміром",
+                    "Create a new procedural maze of size"),
                 config.mapWidth, config.mapWidth);
           }
         }
@@ -1059,100 +1188,6 @@ public:
         }
       }
       ImGui::Spacing();
-
-      // Display the seed of the currently generated labyrinth (gray text,
-      // underlined number, hover glow, click-to-copy, selectable)
-      unsigned int currentSeed =
-          maze.getSeed() != 0 ? maze.getSeed() : config.randomSeed;
-      char seedStr[32];
-      snprintf(seedStr, sizeof(seedStr), "%u", currentSeed);
-
-      static float s_seedCopiedFeedbackTime = 0.0f;
-      if (s_seedCopiedFeedbackTime > 0.0f) {
-        s_seedCopiedFeedbackTime -= ImGui::GetIO().DeltaTime;
-      }
-
-      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.65f, 0.65f, 0.70f, 1.0f));
-      ImGui::TextUnformatted("Насіння поточного лабіринту:");
-      ImGui::PopStyleColor();
-
-      if (ImGui::IsItemClicked()) {
-        ImGui::SetClipboardText(seedStr);
-        s_seedCopiedFeedbackTime = 2.0f;
-      }
-      if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Натисніть для копіювання насіння (%s)", seedStr);
-      }
-
-      ImGui::SameLine();
-
-      float actualTextWidth = ImGui::CalcTextSize(seedStr).x;
-      ImGui::SetNextItemWidth(actualTextWidth);
-
-      // Frameless, completely transparent text widget looking like pure text
-      ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-      ImGui::PushStyleColor(ImGuiCol_FrameBgHovered,
-                            ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-      ImGui::PushStyleColor(ImGuiCol_FrameBgActive,
-                            ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-      ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-
-      bool isCopied = (s_seedCopiedFeedbackTime > 0.0f);
-      ImVec4 numColor = isCopied ? ImVec4(0.35f, 0.95f, 0.55f, 1.0f)
-                                 : ImVec4(0.88f, 0.88f, 0.92f, 1.0f);
-      ImGui::PushStyleColor(ImGuiCol_Text, numColor);
-
-      ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
-      ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
-
-      char editBuf[32];
-      snprintf(editBuf, sizeof(editBuf), "%s", seedStr);
-      ImGui::InputText("##current_seed_val", editBuf, sizeof(editBuf),
-                       ImGuiInputTextFlags_ReadOnly |
-                           ImGuiInputTextFlags_AutoSelectAll);
-
-      bool itemHovered = ImGui::IsItemHovered();
-      if (ImGui::IsItemClicked()) {
-        ImGui::SetClipboardText(seedStr);
-        s_seedCopiedFeedbackTime = 2.0f;
-      }
-
-      // Draw elegant underline strictly below the digits (no empty space to the
-      // right)
-      ImVec2 rMin = ImGui::GetItemRectMin();
-      ImDrawList *drawList = ImGui::GetWindowDrawList();
-      ImU32 lineCol;
-      if (isCopied) {
-        lineCol = IM_COL32(90, 240, 140, 230);
-      } else if (itemHovered) {
-        lineCol =
-            IM_COL32(255, 215, 120, 230); // Subtle warm tactical glow on hover
-      } else {
-        lineCol = IM_COL32(160, 160, 175, 130); // Refined subdued underline
-      }
-      float lineY = ImGui::GetItemRectMax().y;
-      drawList->AddLine(ImVec2(rMin.x, lineY),
-                        ImVec2(rMin.x + actualTextWidth, lineY), lineCol,
-                        itemHovered ? 1.5f : 1.0f);
-
-      ImGui::PopStyleVar(2);
-      ImGui::PopStyleColor(5);
-
-      if (itemHovered) {
-        if (isCopied) {
-          ImGui::SetTooltip("Скопійовано в буфер обміну: %s", seedStr);
-        } else {
-          ImGui::SetTooltip(
-              "Натисніть для копіювання або виділіть курсором: %s", seedStr);
-        }
-      }
-
-      if (isCopied) {
-        ImGui::SameLine();
-        ImGui::TextColored(ImVec4(0.35f, 0.90f, 0.55f, 1.0f), "[Скопійовано!]");
-      }
-
-      ImGui::Spacing();
     }
     tourBlockMin_[10] = ImVec2(2.0f, b9Start - 2.0f * config.uiScale);
     tourBlockMax_[10] = ImVec2(sidebarWidth_ - 6.0f, ImGui::GetCursorScreenPos().y + 2.0f * config.uiScale);
@@ -1166,7 +1201,7 @@ public:
     float b10Local = ImGui::GetCursorPosY();
     float b16Start = b10Start;
     float b16Local = b10Local;
-    if (renderSectionHeader(2, "3.  Керування експедицією", config.uiScale,
+    if (renderSectionHeader(2, LOC("3.  Керування експедицією", "3.  Expedition Control"), config.uiScale,
                             true)) {
       ImGui::Spacing();
 
@@ -1251,7 +1286,7 @@ public:
       }
 
       bool quotaChanged = (config.companyQuota != state.appliedCompanyQuota);
-      ImGui::Text("Квота Компанії (грн):");
+      ImGui::Text("%s", LOC("Квота Компанії (грн):", "Company Quota ($):"));
       beginChangedWidgetBorder(quotaChanged);
       ImGui::SetNextItemWidth(-1.0f);
       ImGui::SliderInt("##CompanyQuota", &config.companyQuota, qSliderMin,
@@ -1275,7 +1310,7 @@ public:
 
       // 2. Energy Slider (Directly after Quota)
       ImGui::Spacing();
-      ImGui::Text("Запас енергії:");
+      ImGui::Text("%s", LOC("Запас енергії:", "Energy Reserve:"));
       bool energyChanged = (config.initialEnergy != state.appliedInitialEnergy);
       beginChangedWidgetBorder(energyChanged);
       ImGui::SetNextItemWidth(-1.0f);
@@ -1288,7 +1323,7 @@ public:
       }
 
       // 3. Auto-fit Energy Button
-      if (ImGui::Button(" [+] Підігнати енергію під поточний маршрут",
+      if (ImGui::Button(LOC(" [+] Підігнати енергію під поточний маршрут", " [+] Match energy to route"),
                         ImVec2(-1, std::max(26.0f * config.uiScale,
                                             ImGui::GetFrameHeight())))) {
         int safeReserve =
@@ -1306,7 +1341,7 @@ public:
 
       // 4. Backpack Capacity Slider (Directly after Energy)
       ImGui::Spacing();
-      ImGui::Text("Місткість рюкзака (кг):");
+      ImGui::Text("%s", LOC("Місткість рюкзака (кг):", "Backpack Capacity (kg):"));
       int minCapNeededForQuota = calcMinCapForQuota(config.companyQuota);
       int capSliderMin = 10;
       int capSliderMax = std::max(500, totalMazeWeight);
@@ -1341,7 +1376,7 @@ public:
       int fitCapTarget = std::clamp(plannedRouteWeight, capSliderMin, capSliderMax);
 
       // 5. Auto-fit Backpack Capacity Button
-      if (ImGui::Button(" [+] Підігнати місткість під поточний маршрут",
+      if (ImGui::Button(LOC(" [+] Підігнати місткість під поточний маршрут", " [+] Match capacity to route"),
                         ImVec2(-1, std::max(26.0f * config.uiScale,
                                             ImGui::GetFrameHeight())))) {
         config.manualBackpackCapacity = fitCapTarget;
@@ -1367,9 +1402,9 @@ public:
       ImGui::Spacing();
       float b11Start = ImGui::GetCursorScreenPos().y;
       float b11Local = ImGui::GetCursorPosY();
-      ImGui::Text("Алгоритм рюкзака:");
-      const char *knapsackNames[] = {"0/1 Динамічне програмування (Точний)",
-                                     "Жадібний за питомою цінністю (V/W)"};
+      ImGui::Text("%s", LOC("Алгоритм рюкзака:", "Knapsack Algorithm:"));
+      const char *knapsackNames[] = {LOC("0/1 Динамічне програмування (Точний)", "0/1 Dynamic Programming (Exact)"),
+                                     LOC("Жадібний за питомою цінністю (V/W)", "Greedy by Value Density (V/W)")};
       bool knapsackAlgoChanged =
           (state.knapsackAlgoIndex != state.appliedKnapsackAlgoIndex);
       beginChangedWidgetBorder(knapsackAlgoChanged);
@@ -1378,9 +1413,9 @@ public:
                    IM_ARRAYSIZE(knapsackNames));
       endChangedWidgetBorder(knapsackAlgoChanged);
       if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip(
-            "0/1 ДП - знаходить точний глобальний оптимум. Жадібний - швидка "
-            "евристика за співвідношенням ціна/вага.");
+        ImGui::SetTooltip("%s",
+            LOC("0/1 ДП - знаходить точний глобальний оптимум. Жадібний - швидка евристика за співвідношенням ціна/вага.",
+                "0/1 DP finds global exact optimum. Greedy is a fast heuristic sorting by value/weight."));
       }
 
       tourBlockMin_[12] = ImVec2(2.0f, b11Start - 4.0f * config.uiScale);
@@ -1391,11 +1426,11 @@ public:
       ImGui::Spacing();
       float b12Start = ImGui::GetCursorScreenPos().y;
       float b12Local = ImGui::GetCursorPosY();
-      ImGui::Text("Пошук шляху:");
+      ImGui::Text("%s", LOC("Пошук шляху:", "Pathfinding:"));
       const char *pathfinderNames[] = {
-          "A* (Октагональна евристика, 8 напрямків)",
-          "Алгоритм Дейкстри (Найменша енергія)",
-          "Пошук у ширину (BFS, найменше клітинок)"};
+          LOC("A* (Октагональна евристика, 8 напрямків)", "A* (Octile Heuristic, 8-way)"),
+          LOC("Алгоритм Дейкстри (Найменша енергія)", "Dijkstra (Uniform Cost, Min Energy)"),
+          LOC("Пошук у ширину (BFS, найменше клітинок)", "Breadth-First Search (BFS, Min Steps)")};
       bool pathAlgoChanged =
           (state.pathfinderAlgoIndex != state.appliedPathfinderAlgoIndex);
       beginChangedWidgetBorder(pathAlgoChanged);
@@ -1435,13 +1470,14 @@ public:
           (config.backpackLimitEnabled != state.appliedBackpackLimitEnabled);
       beginChangedWidgetBorder(backpackLimitChanged);
       bool unlimitedBackpack = !config.backpackLimitEnabled;
-      if (ImGui::Checkbox("Необмежений рюкзак", &unlimitedBackpack)) {
+      if (ImGui::Checkbox(LOC("Необмежений рюкзак", "Unlimited Backpack"), &unlimitedBackpack)) {
         config.backpackLimitEnabled = !unlimitedBackpack;
       }
       endChangedWidgetBorder(backpackLimitChanged);
       if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip(
-            "Якщо увімкнено - алгоритм розраховується без ліміту місця в рюкзаку.");
+        ImGui::SetTooltip("%s",
+            LOC("Якщо увімкнено - алгоритм розраховується без ліміту місця в рюкзаку.",
+                "If enabled, algorithms compute without backpack volume limits."));
       }
 
       tourBlockMin_[14] = ImVec2(2.0f, b13Start - 4.0f * config.uiScale);
@@ -1456,23 +1492,25 @@ public:
       bool routeModeChanged = (config.routeMode != state.appliedRouteMode);
       int routeModeInt =
           (config.routeMode == core::RouteMode::PointAToPointB) ? 0 : 1;
-      ImGui::Text("Режим евакуації:");
+      ImGui::Text("%s", LOC("Режим евакуації:", "Evacuation Mode:"));
       beginChangedWidgetBorder(routeModeChanged);
-      if (ImGui::RadioButton("Точка A -> B (Вихід)", &routeModeInt, 0)) {
+      if (ImGui::RadioButton(LOC("Точка A -> B (Вихід)", "Point A -> B (Exit)"), &routeModeInt, 0)) {
         config.routeMode = core::RouteMode::PointAToPointB;
       }
       if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Маршрут через відібраний брухт до окремого шлюзу "
-                          "виходу (точка B).");
+        ImGui::SetTooltip("%s",
+            LOC("Маршрут через відібраний брухт до окремого шлюзу виходу (точка B).",
+                "Route through selected scrap items to dedicated exit airlock (Point B)."));
       }
 
       ImGui::SameLine();
-      if (ImGui::RadioButton("A -> A (База)", &routeModeInt, 1)) {
+      if (ImGui::RadioButton(LOC("A -> A (База)", "A -> A (Base)"), &routeModeInt, 1)) {
         config.routeMode = core::RouteMode::RoundTrip;
       }
       if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Круговий маршрут: старт зі шлюзу (A), збір "
-                          "цінностей та повернення назад до шлюзу (A).");
+        ImGui::SetTooltip("%s",
+            LOC("Круговий маршрут: старт зі шлюзу (A), збір цінностей та повернення назад до шлюзу (A).",
+                "Round-trip route: start at airlock (A), collect scrap, and return back to airlock (A)."));
       }
       endChangedWidgetBorder(routeModeChanged);
 
@@ -1532,7 +1570,7 @@ public:
                               ImVec4(1.00f, 0.88f, 0.35f, 1.00f));
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
 
-        if (ImGui::Button(" ПЕРЕРАХУВАТИ ОПТИМАЛЬНИЙ ПЛАН",
+        if (ImGui::Button(LOC(" ПЕРЕРАХУВАТИ ОПТИМАЛЬНИЙ ПЛАН", " RECALCULATE OPTIMAL PLAN"),
                           ImVec2(-1, std::max(34.0f * config.uiScale,
                                               ImGui::GetFrameHeight())))) {
           state.appliedKnapsackAlgoIndex = state.knapsackAlgoIndex;
@@ -1553,10 +1591,11 @@ public:
         ImGui::PopStyleVar();
         ImGui::PopStyleColor(4);
 
-        ImGui::TextColored(ImVec4(1.0f, 0.65f, 0.2f, 1.0f),
-                           "[~] Очікує перерахунку (параметри не застосовано)");
+        ImGui::TextColored(ImVec4(1.0f, 0.65f, 0.2f, 1.0f), "%s",
+                           LOC("[~] Очікує перерахунку (параметри не застосовано)",
+                               "[~] Pending recalculation (parameters not applied)"));
       } else {
-        if (ImGui::Button(" Перерахувати оптимальний план",
+        if (ImGui::Button(LOC(" Перерахувати оптимальний план", " Recalculate optimal plan"),
                           ImVec2(-1, std::max(30.0f * config.uiScale,
                                               ImGui::GetFrameHeight())))) {
           state.triggerRecalculate = true;
@@ -1589,12 +1628,13 @@ public:
 
       b16Start = ImGui::GetCursorScreenPos().y;
       b16Local = ImGui::GetCursorPosY();
-      ImGui::TextColored(ImVec4(0.40f, 0.85f, 1.0f, 1.0f), "JSON Конфігурація та Звітність:");
+      ImGui::TextColored(ImVec4(0.40f, 0.85f, 1.0f, 1.0f), "%s",
+                         LOC("JSON Конфігурація та Звітність:", "JSON Configuration & Reporting:"));
 
       float jsonBtnW = (ImGui::GetContentRegionAvail().x - 8.0f) * 0.5f;
       float jsonBtnH = std::max(28.0f * config.uiScale, ImGui::GetFrameHeight());
 
-      if (ImGui::Button(" ↓ Завантажити input_config.json", ImVec2(jsonBtnW, jsonBtnH))) {
+      if (ImGui::Button(LOC(" ↓ Завантажити input_config.json", " ↓ Load input_config.json"), ImVec2(jsonBtnW, jsonBtnH))) {
         state.triggerImportJson = true;
       }
       if (ImGui::IsItemHovered()) {
@@ -1603,7 +1643,7 @@ public:
       }
 
       ImGui::SameLine();
-      if (ImGui::Button(" ↓ Зберегти конфіг у JSON", ImVec2(jsonBtnW, jsonBtnH))) {
+      if (ImGui::Button(LOC(" ↓ Зберегти конфіг у JSON", " ↓ Save config to JSON"), ImVec2(jsonBtnW, jsonBtnH))) {
         state.triggerSaveConfigJson = true;
       }
       if (ImGui::IsItemHovered()) {
@@ -1612,7 +1652,7 @@ public:
       }
 
       ImGui::Spacing();
-      if (ImGui::Button(" ↓ Експортувати report_route.json", ImVec2(-1, jsonBtnH))) {
+      if (ImGui::Button(LOC(" ↓ Експортувати report_route.json", " ↓ Export report_route.json"), ImVec2(-1, jsonBtnH))) {
         state.triggerExportReportJson = true;
       }
       if (ImGui::IsItemHovered()) {
@@ -1632,7 +1672,7 @@ public:
     // 4. Simulation playback controls
     float b17Start = ImGui::GetCursorScreenPos().y;
     float b17Local = ImGui::GetCursorPosY();
-    if (renderSectionHeader(3, "4.  Керування симуляцією", config.uiScale, true)) {
+    if (renderSectionHeader(3, LOC("4.  Керування симуляцією", "4.  Simulation Control"), config.uiScale, true)) {
       ImGui::Spacing();
       const auto &agent = engine.getAgent();
 
@@ -1649,7 +1689,8 @@ public:
 
       // Centered step counter above player controls
       char stepBuf[64];
-      std::snprintf(stepBuf, sizeof(stepBuf), "Крок симуляції: %zu / %zu",
+      std::snprintf(stepBuf, sizeof(stepBuf), "%s %zu / %zu",
+                    LOC("Крок симуляції:", "Simulation step:"),
                     engine.getCurrentStepIndex(), engine.getTotalSteps());
       float stepTextW = ImGui::CalcTextSize(stepBuf).x;
       float availW = ImGui::GetContentRegionAvail().x;
@@ -1755,7 +1796,7 @@ public:
       if (!canStepBack) {
         ImGui::BeginDisabled(true);
       }
-      if (ImGui::Button(" [ |< ] На початок", ImVec2(jumpBtnW, jumpBtnH))) {
+      if (ImGui::Button(" [ |< ]", ImVec2(jumpBtnW, jumpBtnH))) {
         if (!engine.isPaused()) {
           engine.setPaused(true);
         }
@@ -1768,7 +1809,7 @@ public:
         showStyledTooltip(
             config.uiScale, "%s",
             canStepBack
-                ? "Повернутися на старт [Ctrl+Space]: скинути прогрес симуляції на початковий шлюз."
+                ? "Повернутися на старт [Ctrl+Space]: скинути прогрес симуляції на початковий шлюз та відновити енергію."
                 : disabledReason);
       }
       if (!canStepBack) {
@@ -1779,7 +1820,7 @@ public:
       if (!canControl) {
         ImGui::BeginDisabled(true);
       }
-      if (ImGui::Button(" [ >| ] Одразу на фініш", ImVec2(jumpBtnW, jumpBtnH))) {
+      if (ImGui::Button(" [ >| ]", ImVec2(jumpBtnW, jumpBtnH))) {
         engine.instantFinish();
         state.requestFitMazeInView = true;
       }
@@ -1787,7 +1828,7 @@ public:
         showStyledTooltip(
             config.uiScale, "%s",
             canControl
-                ? "Пройти одразу на фініш: миттєво завершити весь маршрут та показати весь лабіринт."
+                ? "Пройти одразу на фініш [Ctrl+Space]: миттєво завершити весь маршрут та показати весь лабіринт."
                 : disabledReason);
       }
       if (!canControl) {
@@ -1820,7 +1861,7 @@ public:
       }
 
       float speed = engine.getSpeedMultiplier();
-      if (ImGui::SliderFloat("Швидкість ходу", &speed, 0.5f, 4.0f, "%.1fx")) {
+      if (ImGui::SliderFloat(LOC("Швидкість ходу", "Playback Speed"), &speed, 0.5f, 4.0f, "%.1fx")) {
         engine.setSpeedMultiplier(speed);
       }
       if (ImGui::IsItemHovered()) {
@@ -1842,9 +1883,9 @@ public:
     // 5. Benchmark analytics
     float b19Start = ImGui::GetCursorScreenPos().y;
     float b19Local = ImGui::GetCursorPosY();
-    if (renderSectionHeader(4, "5.  Порівняльний аналіз", config.uiScale, true)) {
+    if (renderSectionHeader(4, LOC("5.  Порівняльний аналіз", "5.  Comparative Analysis"), config.uiScale, true)) {
       ImGui::Spacing();
-      if (ImGui::Button(" Запустити повний аналіз (усі 6)",
+      if (ImGui::Button(LOC(" Запустити повний аналіз (усі 6)", " Run Complete Benchmark (All 6)"),
                         ImVec2(-1, std::max(30.0f * config.uiScale,
                                             ImGui::GetFrameHeight())))) {
         state.triggerBatchBenchmark = true;
@@ -1856,17 +1897,28 @@ public:
       }
 
       if (!benchmarkRows.empty()) {
+        ImGui::PushStyleColor(ImGuiCol_TableBorderStrong,
+                              ImVec4(0.00f, 0.85f, 1.00f, 0.90f));
+        ImGui::PushStyleColor(ImGuiCol_TableBorderLight,
+                              ImVec4(0.00f, 0.82f, 1.00f, 0.55f));
+        ImGui::PushStyleColor(ImGuiCol_Border,
+                              ImVec4(0.00f, 0.85f, 1.00f, 0.90f));
+        ImGui::PushStyleColor(ImGuiCol_TableHeaderBg,
+                              ImVec4(0.02f, 0.18f, 0.24f, 0.90f));
+        ImGui::PushStyleColor(ImGuiCol_TableRowBgAlt,
+                              ImVec4(0.00f, 0.35f, 0.45f, 0.12f));
+
         if (ImGui::BeginTable("ТаблицяМетрик", 4,
                               ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                                   ImGuiTableFlags_SizingStretchProp |
                                   ImGuiTableFlags_Resizable)) {
-          ImGui::TableSetupColumn("Алгоритм",
+          ImGui::TableSetupColumn(LOC("Алгоритм", "Algorithm"),
                                   ImGuiTableColumnFlags_WidthStretch, 0.44f);
-          ImGui::TableSetupColumn("Час (мс)",
+          ImGui::TableSetupColumn(LOC("Час (мс)", "Time (ms)"),
                                   ImGuiTableColumnFlags_WidthStretch, 0.13f);
-          ImGui::TableSetupColumn("Кроки/Енергія",
+          ImGui::TableSetupColumn(LOC("Кроки/Енергія", "Steps/Energy"),
                                   ImGuiTableColumnFlags_WidthStretch, 0.29f);
-          ImGui::TableSetupColumn("Оптимум %",
+          ImGui::TableSetupColumn(LOC("Оптимум %", "Optimum %"),
                                   ImGuiTableColumnFlags_WidthStretch, 0.14f);
           ImGui::TableHeadersRow();
 
@@ -1903,6 +1955,7 @@ public:
           }
           ImGui::EndTable();
         }
+        ImGui::PopStyleColor(5);
       }
 
       const auto &plan = engine.getPlan();
@@ -1916,7 +1969,7 @@ public:
                            plan.twoOptGainPercent);
       }
 
-      if (ImGui::Button(" Експорт таблиці у CSV файл",
+      if (ImGui::Button(LOC(" Експорт таблиці у CSV файл", " Export Table to CSV File"),
                         ImVec2(-1, std::max(30.0f * config.uiScale,
                                             ImGui::GetFrameHeight())))) {
         state.triggerExportCsv = true;
@@ -1927,7 +1980,7 @@ public:
       }
 
       ImGui::Spacing();
-      if (ImGui::Button(" Експорт повного звіту у JSON файл",
+      if (ImGui::Button(LOC(" Експорт повного звіту у JSON файл", " Export Full Report to JSON File"),
                         ImVec2(-1, std::max(30.0f * config.uiScale,
                                             ImGui::GetFrameHeight())))) {
         state.triggerExportReportJson = true;
@@ -2268,7 +2321,8 @@ public:
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.00f, 1.00f, 1.00f, 1.00f));
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.5f * uiScale);
         if (boldFont_) ImGui::PushFont(boldFont_);
-        if (ImGui::Button("[?]  ІНСТРУКЦІЯ ЗБОРУ БРУХТУ ДЛЯ ЧАЙНИКІВ",
+        if (ImGui::Button(LOC("[?]  ІНСТРУКЦІЯ ЗБОРУ БРУХТУ ДЛЯ ЧАЙНИКІВ",
+                              "[?]  SCRAP RUNNERS GUIDE FOR BEGINNERS"),
                           ImVec2(-1.0f, 30.0f * uiScale))) {
           startTour();
           startupHintDismissed_ = true;
@@ -2279,11 +2333,12 @@ public:
         if (ImGui::IsItemHovered()) {
           showStyledTooltip(
               uiScale,
-              "Інтерактивний покроковий тур для новачків: показує як грати, призначення тактичного радара, показників місії, легенди та всіх інструментів сайдбару.");
+              "%s", LOC("Інтерактивний покроковий тур для новачків: показує як грати, призначення тактичного радара, показників місії, легенди та всіх інструментів сайдбару.",
+                        "Interactive step-by-step beginner tour: shows how to play, explains tactical radar, mission HUD, legend, and all sidebar controls."));
         }
         ImGui::Spacing();
 
-        if (ImGui::Button("Зрозуміло", ImVec2(-1.0f, 26.0f * uiScale))) {
+        if (ImGui::Button(LOC("Зрозуміло", "Got it"), ImVec2(-1.0f, 26.0f * uiScale))) {
           startupHintDismissed_ = true;
         }
 
@@ -2343,28 +2398,30 @@ public:
 
       if (it.category == core::ItemCategory::LightScrap) {
         ImGui::TextColored(ImVec4(0.20f, 0.41f, 1.00f, 1.0f),
-                           "Дрібний брухт: %s", it.name.c_str());
+                           "%s: %s", LOC("Дрібний брухт", "Small Scrap"), it.name.c_str());
       } else if (it.category == core::ItemCategory::MediumScrap) {
         ImGui::TextColored(ImVec4(1.00f, 1.00f, 0.00f, 1.0f),
-                           "Побутовий брухт: %s", it.name.c_str());
+                           "%s: %s", LOC("Побутовий брухт", "Household Scrap"), it.name.c_str());
       } else {
-        ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f), "Дорогоцінний брухт: %s",
-                           it.name.c_str());
+        ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f),
+                           "%s: %s", LOC("Дорогоцінний брухт", "Precious Scrap"), it.name.c_str());
       }
       ImGui::Separator();
       if (isOpportunistic) {
         ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.30f, 1.0f),
-                           "Збір: Попутний брухт (лежав на шляху)");
+                           "%s", LOC("Збір: Попутний брухт (лежав на шляху)",
+                                     "Pickup: Opportunistic scrap (on route)"));
       }
-      ImGui::Text("Категорія: %s",
+      ImGui::Text("%s: %s", LOC("Категорія", "Category"),
                   core::itemCategoryToString(it.category).c_str());
-      ImGui::Text("Вага: %d кг", it.weight);
-      ImGui::Text("Цінність: %d грн", it.value);
-      ImGui::Text("Питома цінність (V/W): %.2f грн/кг", it.getValueDensity());
-      ImGui::Text("Координати: [%d, %d]", it.position.x, it.position.y);
+      ImGui::Text("%s: %d %s", LOC("Вага", "Weight"), it.weight, LOC("кг", "kg"));
+      ImGui::Text("%s: %d %s", LOC("Цінність", "Value"), it.value, LOC("грн", "UAH"));
+      ImGui::Text("%s (V/W): %.2f %s", LOC("Питома цінність", "Value Density"),
+                  it.getValueDensity(), LOC("грн/кг", "UAH/kg"));
+      ImGui::Text("%s: [%d, %d]", LOC("Координати", "Coordinates"), it.position.x, it.position.y);
       ImGui::Separator();
       ImGui::TextColored(ImVec4(0.35f, 0.95f, 0.55f, 1.0f),
-                         "Вже підібрано робітником у рюкзак");
+                         "%s", LOC("Вже підібрано робітником у рюкзак", "Already collected into backpack"));
 
       ImGui::PopTextWrapPos();
       ImGui::End();
@@ -2424,15 +2481,16 @@ public:
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     if (ImGui::Begin("##MinimapLegendUnifiedToggle", nullptr, btnFlags)) {
       const char *btnLabel =
-          config.showLegend ? "[M] Сховати легенду" : "[M] Показати легенду";
+          config.showLegend ? LOC("[M] Сховати легенду", "[M] Hide Legend")
+                            : LOC("[M] Показати легенду", "[M] Show Legend");
       if (ImGui::Button(btnLabel, ImVec2(legendW, commonBtnH))) {
         config.showLegend = !config.showLegend;
       }
       if (ImGui::IsItemHovered()) {
         showStyledTooltip(config.uiScale, "%s",
                           config.showLegend
-                              ? "Сховати детальну легенду позначок мапи."
-                              : "Показати детальну легенду позначок мапи.");
+                              ? LOC("Сховати детальну легенду позначок мапи.", "Hide detailed map legend.")
+                              : LOC("Показати детальну легенду позначок мапи.", "Show detailed map legend."));
       }
     }
     ImGui::End();
@@ -2557,7 +2615,7 @@ public:
         }
         ImGui::SetScrollX(0.0f);
         ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f),
-                           "Легенда позначок:");
+                           "%s", LOC("Легенда позначок:", "Map Legend:"));
         ImGui::Separator();
 
         auto colA = [windowAlpha](uint8_t r, uint8_t g, uint8_t b,
@@ -2605,8 +2663,9 @@ public:
         };
 
         drawLegendItem(
-            "Робітник",
-            "Автономний робітник у захисному костюмі Lethal Company",
+            LOC("Робітник", "Worker"),
+            LOC("Автономний робітник у захисному костюмі Lethal Company",
+                "Autonomous worker in Lethal Company hazmat suit"),
             [&colA, &renderer](ImDrawList *dl, ImVec2 p, float s) {
               ImVec2 center(p.x + s * 0.5f, p.y + s * 0.5f);
               dl->AddCircleFilled(center, s * 0.5f, colA(30, 24, 18, 220));
@@ -2629,9 +2688,9 @@ public:
             10);
 
         drawLegendItem(
-            "Шлюз (Старт)",
-            "Початкова точка, звідки робітник починає місію (люк шлюзу з "
-            "маяком)",
+            LOC("Шлюз (Старт)", "Airlock (Start)"),
+            LOC("Початкова точка, звідки робітник починає місію (люк шлюзу з маяком)",
+                "Starting point where worker begins mission (airlock hatch with beacon)"),
             [&colA](ImDrawList *dl, ImVec2 p, float s) {
               dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s),
                                 colA(28, 26, 32, 255), 2.0f);
@@ -2661,9 +2720,9 @@ public:
 
         // 3. Exit (Evacuation) - actual maze cell appearance
         if (config.routeMode == core::RouteMode::RoundTrip) {
-          drawLegendItem("Вихід (Недоступний)",
-                         "У режимі 'A -> A (База)' вихід заблоковано. "
-                         "Евакуація лише через вхід.",
+          drawLegendItem(LOC("Вихід (Недоступний)", "Exit (Unavailable)"),
+                         LOC("У режимі 'A -> A (База)' вихід заблоковано. Евакуація лише через вхід.",
+                             "In 'A -> A (Base)' mode the secondary exit is locked. Evacuation only via start."),
                          [&colA](ImDrawList *dl, ImVec2 p, float s) {
                            dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s),
                                              colA(32, 34, 40, 255), 2.0f);
@@ -2683,9 +2742,9 @@ public:
                          12);
         } else {
           drawLegendItem(
-              "Вихід (Евакуація)",
-              "Шлюз евакуації, куди робітник прямує після збору брухту "
-              "(смарагдова платформа)",
+              LOC("Вихід (Евакуація)", "Exit (Evacuation)"),
+              LOC("Шлюз евакуації, куди робітник прямує після збору брухту (смарагдова платформа)",
+                  "Evacuation hatch where worker heads after collecting scrap (emerald pad)"),
               [&colA](ImDrawList *dl, ImVec2 p, float s) {
                 dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s),
                                   colA(20, 32, 26, 255), 2.0f);
@@ -2716,9 +2775,9 @@ public:
 
         // 4. Mud / Swamp / Water hazard tile (styled after labyrinth mud hazards)
         drawLegendItem(
-            "Багнюка / Болото / Вода",
-            "Важкопрохідна ділянка: витрата енергії +25 прямо, "
-            "+35 по діагоналі",
+            LOC("Багнюка / Болото / Вода", "Mud / Swamp / Water"),
+            LOC("Важкопрохідна ділянка: витрата енергії +25 прямо, +35 по діагоналі",
+                "Difficult terrain: energy cost +25 orthogonal, +35 diagonal"),
             [&colA](ImDrawList *dl, ImVec2 p, float s) {
               dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s),
                                 colA(58, 44, 28, 255), 2.0f);
@@ -2756,8 +2815,9 @@ public:
 
         // 5. Light, medium, and heavy scrap items
         drawLegendItem(
-            "Дрібний брухт (1-3 кг)",
-            "Одноручний брухт Lethal Company (каченя, рибка, пульт, лупа)",
+            LOC("Дрібний брухт (1-3 кг)", "Small Scrap (1-3 kg)"),
+            LOC("Одноручний брухт Lethal Company (каченя, рибка, пульт, лупа)",
+                "One-handed Lethal Company scrap (duck, fish, remote, magnifying glass)"),
             [&colA](ImDrawList *dl, ImVec2 p, float s) {
               ImVec2 center(p.x + s * 0.5f, p.y + s * 0.5f);
               dl->AddCircleFilled(center, 5.0f, colA(50, 105, 255, 255));
@@ -2766,8 +2826,9 @@ public:
             static_cast<int>(core::ItemCategory::LightScrap));
 
         drawLegendItem(
-            "Побутовий брухт (4-8 кг)",
-            "Середній побутовий брухт (годинник, бумбокс, фен, картина)",
+            LOC("Побутовий брухт (4-8 кг)", "Household Scrap (4-8 kg)"),
+            LOC("Середній побутовий брухт (годинник, бумбокс, фен, картина)",
+                "Medium household scrap (clock, boombox, hairdryer, painting)"),
             [&colA](ImDrawList *dl, ImVec2 p, float s) {
               ImVec2 center(p.x + s * 0.5f, p.y + s * 0.5f);
               dl->AddCircleFilled(center, 6.0f, colA(255, 255, 0, 255));
@@ -2776,9 +2837,9 @@ public:
             static_cast<int>(core::ItemCategory::MediumScrap));
 
         drawLegendItem(
-            "Дорогоцінний брухт (10-18 кг)",
-            "Дворучні масивні механізми (апарат живлення, двигун, золото, "
-            "реактор)",
+            LOC("Дорогоцінний брухт (10-18 кг)", "Precious Scrap (10-18 kg)"),
+            LOC("Дворучні масивні механізми (апарат живлення, двигун, золото, реактор)",
+                "Two-handed heavy equipment (power apparatus, engine, gold bar, reactor)"),
             [&colA](ImDrawList *dl, ImVec2 p, float s) {
               ImVec2 center(p.x + s * 0.5f, p.y + s * 0.5f);
               dl->AddCircleFilled(center, 7.0f, colA(255, 0, 255, 255));
@@ -2787,9 +2848,9 @@ public:
             static_cast<int>(core::ItemCategory::HeavyScrap));
 
         // 6. Walked cell (Trail) - clean maze floor square without inner dots
-        drawLegendItem("Пройдена клітинка (Слід)",
-                       "Пройдений шлях робітника: темно-блакитна підлога з "
-                       "неоновим контуром",
+        drawLegendItem(LOC("Пройдена клітинка (Слід)", "Visited Cell (Trail)"),
+                       LOC("Пройдений шлях робітника: темно-блакитна підлога з неоновим контуром",
+                           "Worker trail: dark-cyan floor tile with neon outline"),
                        [&colA](ImDrawList *dl, ImVec2 p, float s) {
                          dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s),
                                            colA(10, 48, 65, 235), 2.0f);
@@ -2799,8 +2860,9 @@ public:
                        14);
 
         // 7. Route (TSP Trajectory) - laser line without waypoint node circle
-        drawLegendItem("Маршрут (Траєкторія TSP)",
-                       "Розрахована оптимальна лінія пересування робітника",
+        drawLegendItem(LOC("Маршрут (Траєкторія TSP)", "Route (TSP Trajectory)"),
+                       LOC("Розрахована оптимальна лінія пересування робітника",
+                           "Calculated optimal movement path of the worker"),
                        [&colA](ImDrawList *dl, ImVec2 p, float s) {
                          dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s),
                                            colA(22, 24, 30, 220), 2.0f);
@@ -2837,10 +2899,12 @@ public:
                                   ? ImVec4(0.95f, 0.65f, 0.25f, 0.90f)
                                   : ImVec4(0.48f, 0.30f, 0.38f, 0.70f));
 
-        char catalogBtnText[64];
+        char catalogBtnText[128];
         std::snprintf(catalogBtnText, sizeof(catalogBtnText),
-                      "Каталог брухту (%zu найменувань)###CatalogBtn",
-                      core::getLethalScrapTemplates().size());
+                      "%s (%zu %s)###CatalogBtn",
+                      LOC("Каталог брухту", "Scrap Catalog"),
+                      core::getLethalScrapTemplates().size(),
+                      LOC("найменувань", "items"));
 
         if (ImGui::Button(catalogBtnText,
                           ImVec2(-1.0f, std::max(28.0f * config.uiScale,
@@ -2865,10 +2929,10 @@ public:
           showStyledTooltip(
               config.uiScale, "%s",
               (isCatalogOpen_ && !isCatalogClosing_)
-                  ? "Згорнути каталог найменувань брухту та повернутися "
-                    "до легенди."
-                  : "Розгорнути повний каталог з 60 найменувань брухту "
-                    "Lethal Company.");
+                  ? LOC("Згорнути каталог найменувань брухту та повернутися до легенди.",
+                        "Collapse scrap items catalog and return to legend.")
+                  : LOC("Розгорнути повний каталог з 60 найменувань брухту Lethal Company.",
+                        "Expand full catalog of 60 Lethal Company scrap items."));
         }
         ImGui::PopStyleColor(4);
 
@@ -2886,9 +2950,9 @@ public:
 
           if (ImGui::BeginTable("ScrapCatalogHeaderTable", 2,
                                 ImGuiTableFlags_SizingStretchProp)) {
-            ImGui::TableSetupColumn("  Найменування",
+            ImGui::TableSetupColumn(LOC("  Найменування", "  Item Name"),
                                     ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Вага / Ціна",
+            ImGui::TableSetupColumn(LOC("Вага / Ціна", "Weight / Price"),
                                     ImGuiTableColumnFlags_WidthFixed,
                                     92.0f * config.uiScale);
 
@@ -2919,10 +2983,10 @@ public:
 
               const char *catHeader =
                   (it.category == core::ItemCategory::LightScrap)
-                      ? "Дрібний брухт (1-3 кг)"
+                      ? LOC("Дрібний брухт (1-3 кг)", "Small Scrap (1-3 kg)")
                   : (it.category == core::ItemCategory::MediumScrap)
-                      ? "Побутовий брухт (4-8 кг)"
-                      : "Дорогоцінний брухт (10-18 кг)";
+                      ? LOC("Побутовий брухт (4-8 кг)", "Household Scrap (4-8 kg)")
+                      : LOC("Дорогоцінний брухт (10-18 кг)", "Precious Scrap (10-18 kg)");
               ImVec4 headerCol =
                   (it.category == core::ItemCategory::LightScrap)
                       ? ImVec4(0.20f, 0.41f, 1.00f, 1.0f)
@@ -3041,7 +3105,7 @@ public:
             }
 
             ImGui::TableSetColumnIndex(1);
-            ImGui::TextDisabled("%d кг, %d грн", it.baseWeight, it.baseValue);
+            ImGui::TextDisabled("%d %s, %d %s", it.baseWeight, LOC("кг", "kg"), it.baseValue, LOC("грн", "UAH"));
             if (legendInteractable && !isTourActive_ && ImGui::IsItemHovered()) {
               isRowHovered = true;
             }
@@ -3052,14 +3116,17 @@ public:
               if (isPresentInMaze) {
                 showStyledTooltip(
                     config.uiScale,
-                    "%zu. %s [В поточному комплексі]\nВага: %d "
-                    "кг | Вартість: %d грн",
-                    i + 1, it.name.c_str(), it.baseWeight, it.baseValue);
+                    "%zu. %s [%s]\n%s: %d %s | %s: %d %s",
+                    i + 1, it.name.c_str(),
+                    LOC("В поточному комплексі", "In current complex"),
+                    LOC("Вага", "Weight"), it.baseWeight, LOC("кг", "kg"),
+                    LOC("Вартість", "Value"), it.baseValue, LOC("грн", "UAH"));
               } else {
                 showStyledTooltip(config.uiScale,
-                                  "%zu. %s\nВага: %d кг | Вартість: %d грн",
-                                  i + 1, it.name.c_str(), it.baseWeight,
-                                  it.baseValue);
+                                  "%zu. %s\n%s: %d %s | %s: %d %s",
+                                  i + 1, it.name.c_str(),
+                                  LOC("Вага", "Weight"), it.baseWeight, LOC("кг", "kg"),
+                                  LOC("Вартість", "Value"), it.baseValue, LOC("грн", "UAH"));
               }
               if (!isTourActive_ && lastHoveredCatalogItemName_ != it.name) {
                 lastHoveredCatalogItemName_ = it.name;
@@ -3074,14 +3141,15 @@ public:
           ImGui::PopStyleVar();
 
           ImGui::Spacing();
-          if (ImGui::Button("Вгору до легенди###ScrollUpLegendBtn",
+          if (ImGui::Button(LOC("Вгору до легенди###ScrollUpLegendBtn", "Up to Legend###ScrollUpLegendBtn"),
                             ImVec2(-1.0f, 26.0f * config.uiScale))) {
             isCatalogClosing_ = true;
             catalogScrollOnCloseStart_ = ImGui::GetScrollY();
           }
           if (legendInteractable && ImGui::IsItemHovered()) {
             showStyledTooltip(config.uiScale,
-                              "Повернутися до початкового списку легенди.");
+                              "%s", LOC("Повернутися до початкового списку легенди.",
+                                        "Return to the initial legend list."));
           }
         }
 
@@ -3108,14 +3176,17 @@ public:
         char collectedBtnText[128];
         if (hasExtraScrap) {
           std::snprintf(collectedBtnText, sizeof(collectedBtnText),
-                        "Квота: %d / %d грн (%zu/%zu од. [+%zu])###CollectedBtn",
-                        curCollectedVal, quota, collectedCount,
-                        targetItemsCount, extraCount);
+                        "%s: %d / %d %s (%zu/%zu %s [+%zu])###CollectedBtn",
+                        LOC("Квота", "Quota"),
+                        curCollectedVal, quota, LOC("грн", "UAH"),
+                        collectedCount, targetItemsCount, LOC("од.", "items"),
+                        extraCount);
         } else {
           std::snprintf(collectedBtnText, sizeof(collectedBtnText),
-                        "Квота: %d / %d грн (%zu/%zu од.)###CollectedBtn",
-                        curCollectedVal, quota, collectedCount,
-                        targetItemsCount);
+                        "%s: %d / %d %s (%zu/%zu %s)###CollectedBtn",
+                        LOC("Квота", "Quota"),
+                        curCollectedVal, quota, LOC("грн", "UAH"),
+                        collectedCount, targetItemsCount, LOC("од.", "items"));
         }
 
         ImVec4 btnNormalCol =
@@ -3590,7 +3661,7 @@ public:
         ImGui::BeginDisabled(true);
       }
 
-      if (ImGui::Button("[C] Центрувати на робітнику", ImVec2(btnW, btnH))) {
+      if (ImGui::Button(LOC("[C] Центрувати на робітнику", "[C] Center on Worker"), ImVec2(btnW, btnH))) {
         config.cameraFollowAgent = !config.cameraFollowAgent;
         if (config.cameraFollowAgent) {
           state.requestCenterCameraOnAgent = true;
@@ -3610,14 +3681,15 @@ public:
       if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
         if (state.isTransitionActive) {
           showStyledTooltip(config.uiScale,
-                            "Центрування недоступне під час генерації та "
-                            "трасування маршруту.");
+                            "%s", LOC("Центрування недоступне під час генерації та "
+                                      "трасування маршруту.",
+                                      "Centering unavailable during generation and routing."));
         } else {
           showStyledTooltip(
               config.uiScale, "%s",
               config.cameraFollowAgent
-                  ? "Вимкнути стеження камери за робітником."
-                  : "Центрувати та увімкнути стеження камери за робітником.");
+                  ? LOC("Вимкнути стеження камери за робітником.", "Disable camera following worker.")
+                  : LOC("Центрувати та увімкнути стеження камери за робітником.", "Center and enable camera following worker."));
         }
       }
 
@@ -3650,20 +3722,20 @@ public:
         isExitDisabled ? maze.getStartPoint() : maze.getExitPoint();
     if ((agent.getStatus() == simulation::AgentStatus::Success) ||
         (pos == evacTarget && agent.getStepsTaken() > 0)) {
-      return {"Евакуація...", ImVec4(0.20f, 1.0f, 0.35f, 1.0f)};
+      return {LOC("Евакуація...", "Evacuation..."), ImVec4(0.20f, 1.0f, 0.35f, 1.0f)};
     }
 
     // 2. Start point before departure / parachuting
     if (renderer.isWaitingForDrop() || renderer.isParachuting() ||
         (pos == maze.getStartPoint() && agent.getStepsTaken() == 0)) {
-      return {"Десантування...", ImVec4(1.0f, 0.60f, 0.15f, 1.0f)};
+      return {LOC("Десантування...", "Drop-in..."), ImVec4(1.0f, 0.60f, 0.15f, 1.0f)};
     }
 
     // 3. Exhausted
     if (engine.getConfig().energyLimitEnabled &&
         (agent.isExhausted() ||
          agent.getStatus() == simulation::AgentStatus::Exhausted)) {
-      return {"Енергія вичерпана!", ImVec4(0.92f, 0.05f, 0.05f, 1.0f)};
+      return {LOC("Енергія вичерпана!", "Energy Depleted!"), ImVec4(0.92f, 0.05f, 0.05f, 1.0f)};
     }
 
     // 4. Scrap collection on current cell
@@ -3679,7 +3751,7 @@ public:
                           : (optItem->category == core::ItemCategory::MediumScrap)
                               ? ImVec4(1.00f, 1.00f, 0.00f, 1.0f)
                               : ImVec4(1.0f, 0.0f, 1.0f, 1.0f);
-          return {"Збір брухту: " + optItem->name, catCol};
+          return {std::string(LOC("Збір брухту: ", "Collecting scrap: ")) + optItem->name, catCol};
         }
       } else if (optItem.has_value() &&
                  engine.getConfig().backpackLimitEnabled) {
@@ -3688,10 +3760,10 @@ public:
         if (optItem->weight > freeKg) {
           std::string msg =
               (freeKg == 0)
-                  ? ("Рюкзак повний (" + std::to_string(optItem->weight) +
-                     " кг)")
-                  : ("Замало місця (" + std::to_string(optItem->weight) +
-                     " > " + std::to_string(freeKg) + " кг)");
+                  ? (std::string(LOC("Рюкзак повний (", "Backpack full (")) + std::to_string(optItem->weight) +
+                     LOC(" кг)", " kg)"))
+                  : (std::string(LOC("Замало місця (", "Not enough space (")) + std::to_string(optItem->weight) +
+                     " > " + std::to_string(freeKg) + LOC(" кг)", " kg)"));
           return {msg, ImVec4(1.0f, 0.36f, 0.24f, 1.0f)};
         }
       }
@@ -3699,10 +3771,10 @@ public:
 
     // 5. Manual control vs Autonomous
     if (isManualMode) {
-      return {compactMode ? "Ручний збір брухту" : "Ручне збирання брухту",
+      return {compactMode ? LOC("Ручний збір", "Manual Scrap") : LOC("Ручне збирання брухту", "Manual Scrap Collection"),
               ImVec4(1.0f, 0.82f, 0.25f, 1.0f)};
     } else {
-      return {compactMode ? "Авто-збирання брухту" : "Автономне збирання брухту",
+      return {compactMode ? LOC("Авто-збирання", "Auto Tour") : LOC("Автономне збирання брухту", "Autonomous Route Tour"),
               ImVec4(0.68f, 0.94f, 1.00f, 1.0f)};
     }
   }
@@ -3784,8 +3856,8 @@ public:
       ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
       if (ImGui::Begin("##MissionPanelTopToggleWindow", nullptr, btnFlags)) {
         const char *btnLabel = missionPanelCollapsed_
-                                   ? "[B] Показати показники місії"
-                                   : "[B] Сховати показники місії";
+                                   ? LOC("[B] Показати показники місії", "[B] Show Mission Status")
+                                   : LOC("[B] Сховати показники місії", "[B] Hide Mission Status");
         if (ImGui::Button(btnLabel, ImVec2(panelW, btnH))) {
           missionPanelCollapsed_ = !missionPanelCollapsed_;
         }
@@ -3793,8 +3865,10 @@ public:
           showStyledTooltip(
               config.uiScale, "%s",
               missionPanelCollapsed_
-                  ? "Відкрити панель показників місії (Енергія, Вантаж, Квота) [B]."
-                  : "Сховати панель показників місії [B].");
+                  ? LOC("Відкрити панель показників місії (Енергія, Вантаж, Квота) [B].",
+                        "Open mission status HUD (Energy, Weight, Quota) [B].")
+                  : LOC("Сховати панель показників місії [B].",
+                        "Hide mission status HUD [B]."));
         }
       }
       ImGui::End();
@@ -3839,7 +3913,7 @@ public:
                                                engine.isManualMode(),
                                                isCompact);
 
-        ImGui::Text("Стан робітника:");
+        ImGui::Text("%s", LOC("Стан робітника:", "Worker status:"));
         ImGui::SameLine();
         ImGui::TextColored(statusDisp.color, "%s", statusDisp.text.c_str());
 
@@ -3853,16 +3927,19 @@ public:
           float energyFraction =
               static_cast<float>(agent.getEnergyPercentage()) / 100.0f;
           char energyBuf[64];
-          std::snprintf(energyBuf, sizeof(energyBuf), "Енергія: %d / %d од.",
-                        agent.getCurrentEnergy(), agent.getMaxEnergy());
+          std::snprintf(energyBuf, sizeof(energyBuf), "%s: %d / %d %s",
+                        LOC("Енергія", "Energy"),
+                        agent.getCurrentEnergy(), agent.getMaxEnergy(),
+                        LOC("од.", "pts"));
           ImGui::ProgressBar(energyFraction, ImVec2(-1, barH), energyBuf);
         } else {
-          ImGui::ProgressBar(1.0f, ImVec2(-1, barH), "Енергія: Необмежена");
+          ImGui::ProgressBar(1.0f, ImVec2(-1, barH), LOC("Енергія: Необмежена", "Energy: Unlimited"));
         }
         ImGui::PopStyleColor(2);
         if (ImGui::IsItemHovered()) {
           showStyledTooltip(config.uiScale,
-                            "Поточний рівень заряду енергії робітника.");
+                            "%s", LOC("Поточний рівень заряду енергії робітника.",
+                                      "Current battery energy charge of worker."));
         }
 
         if (engine.getConfig().backpackLimitEnabled) {
@@ -3870,15 +3947,17 @@ public:
               static_cast<float>(agent.getBackpack().getUtilizationPercent()) /
               100.0f;
           char bpBuf[64];
-          std::snprintf(bpBuf, sizeof(bpBuf), "Вантаж: %d / %d кг",
+          std::snprintf(bpBuf, sizeof(bpBuf), "%s: %d / %d %s",
+                        LOC("Вантаж", "Payload"),
                         agent.getBackpack().getCurrentWeight(),
-                        agent.getBackpack().getMaxCapacity());
+                        agent.getBackpack().getMaxCapacity(),
+                        LOC("кг", "kg"));
           ImGui::ProgressBar(bpFraction, ImVec2(-1, barH), bpBuf);
         } else {
-          ImGui::ProgressBar(1.0f, ImVec2(-1, barH), "Вантаж: Необмежений");
+          ImGui::ProgressBar(1.0f, ImVec2(-1, barH), LOC("Вантаж: Необмежений", "Payload: Unlimited"));
         }
         if (ImGui::IsItemHovered()) {
-          showStyledTooltip(config.uiScale, "Заповненість рюкзака робітника.");
+          showStyledTooltip(config.uiScale, "%s", LOC("Заповненість рюкзака робітника.", "Current backpack payload utilization."));
         }
 
         int curValue = agent.getBackpack().getCurrentValue();
@@ -3892,23 +3971,26 @@ public:
         bool isQuotaExceeded = (curValue >= targetQuota + 50);
         if (isQuotaExceeded) {
           std::snprintf(quotaBuf, sizeof(quotaBuf),
-                        "Квота: %d / %d грн [ПЕРЕВИКОНАНО!]", curValue,
-                        targetQuota);
+                        "%s: %d / %d %s [%s]",
+                        LOC("Квота", "Quota"), curValue, targetQuota,
+                        LOC("грн", "UAH"), LOC("ПЕРЕВИКОНАНО!", "EXCEEDED!"));
           ImGui::PushStyleColor(ImGuiCol_FrameBg,
                                 ImVec4(0.08f, 0.22f, 0.11f, 0.80f));
           ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
                                 ImVec4(0.12f, 0.55f, 0.22f, 0.95f));
         } else if (isQuotaMet) {
           std::snprintf(quotaBuf, sizeof(quotaBuf),
-                        "Квота: %d / %d грн [ВИКОНАНО!]", curValue,
-                        targetQuota);
+                        "%s: %d / %d %s [%s]",
+                        LOC("Квота", "Quota"), curValue, targetQuota,
+                        LOC("грн", "UAH"), LOC("ВИКОНАНО!", "MET!"));
           ImGui::PushStyleColor(ImGuiCol_FrameBg,
                                 ImVec4(0.08f, 0.22f, 0.11f, 0.80f));
           ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
                                 ImVec4(0.10f, 0.46f, 0.18f, 0.95f));
         } else {
-          std::snprintf(quotaBuf, sizeof(quotaBuf), "Квота: %d / %d грн (%d%%)",
-                        curValue, targetQuota,
+          std::snprintf(quotaBuf, sizeof(quotaBuf), "%s: %d / %d %s (%d%%)",
+                        LOC("Квота", "Quota"), curValue, targetQuota,
+                        LOC("грн", "UAH"),
                         static_cast<int>(quotaFraction * 100.0f));
           ImGui::PushStyleColor(ImGuiCol_FrameBg,
                                 ImVec4(0.24f, 0.08f, 0.12f, 0.65f));
@@ -3921,9 +4003,9 @@ public:
           showStyledTooltip(
               config.uiScale, "%s",
               isQuotaExceeded
-                  ? "Квоту Компанії ПЕРЕВИКОНАНО!"
-                  : isQuotaMet ? "Мінімальну квоту Компанії виконано!"
-                               : "Прогрес виконання квоти Компанії.");
+                  ? LOC("Квоту Компанії ПЕРЕВИКОНАНО!", "Company Quota EXCEEDED!")
+                  : isQuotaMet ? LOC("Мінімальну квоту Компанії виконано!", "Minimum Company Quota completed!")
+                               : LOC("Прогрес виконання квоти Компанії.", "Company quota collection progress."));
         }
         dl->PopClipRect();
       }
@@ -3938,7 +4020,8 @@ public:
       float cardBtnH =
           std::max(28.0f * config.uiScale, ImGui::GetFrameHeight() + 4.0f);
       const char *returnBtnLabel =
-          "[Z] Повернутись до останнього автоматичного кроку";
+          LOC("[Z] Повернутись до останнього автоматичного кроку",
+              "[Z] Rewind to last automated route step");
       float btnTextW = ImGui::CalcTextSize(returnBtnLabel).x;
       float cardW =
           std::round(btnTextW + cardPadX * 2.0f + 20.0f * config.uiScale);
@@ -4019,6 +4102,334 @@ public:
       ImGui::End();
       ImGui::PopStyleVar(5);
     }
+  }
+
+  static bool renderLanguageToggleButton(const char* strId, ImVec2 pos, ImVec2 size, float alphaMultiplier = 1.0f) {
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    ImGui::SetCursorPos(pos);
+
+    bool clicked = ImGui::InvisibleButton(strId, size);
+    bool hovered = ImGui::IsItemHovered();
+    bool active = ImGui::IsItemActive();
+    if (hovered) {
+      ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+    }
+
+    ImVec2 pMin = ImGui::GetItemRectMin();
+    ImVec2 pMax = ImGui::GetItemRectMax();
+
+    // Snap button boundaries to integer pixel grid to eliminate subpixel rasterization jitter
+    pMin.x = std::round(pMin.x);
+    pMin.y = std::round(pMin.y);
+    pMax.x = std::round(pMax.x);
+    pMax.y = std::round(pMax.y);
+
+    float round = 6.0f;
+    float btnH = pMax.y - pMin.y;
+    float centerY = std::round((pMin.y + pMax.y) * 0.5f);
+
+    // Frame background & border
+    ImU32 colBg = active ? IM_COL32(26, 42, 62, static_cast<int>(245.0f * alphaMultiplier))
+                         : (hovered ? IM_COL32(20, 32, 48, static_cast<int>(235.0f * alphaMultiplier))
+                                    : IM_COL32(12, 17, 26, static_cast<int>(220.0f * alphaMultiplier)));
+    ImU32 colBorder = hovered ? IM_COL32(0, 230, 255, static_cast<int>(245.0f * alphaMultiplier))
+                              : IM_COL32(52, 90, 130, static_cast<int>(180.0f * alphaMultiplier));
+
+    drawList->AddRectFilled(pMin, pMax, colBg, round);
+    drawList->AddRect(pMin, pMax, colBorder, round, 0, 1.5f);
+
+    // Vector Globe Icon on the left
+    float globeRadius = std::clamp(btnH * 0.22f, 6.0f, 8.5f);
+    ImVec2 globeCenter(std::round(pMin.x + globeRadius + 9.0f), centerY);
+    ImU32 globeColor = hovered ? IM_COL32(0, 245, 255, static_cast<int>(255.0f * alphaMultiplier))
+                               : IM_COL32(0, 200, 235, static_cast<int>(220.0f * alphaMultiplier));
+
+    drawList->AddCircle(globeCenter, globeRadius, globeColor, 20, 1.3f);
+    drawList->AddLine(ImVec2(globeCenter.x - globeRadius + 1.2f, globeCenter.y),
+                      ImVec2(globeCenter.x + globeRadius - 1.2f, globeCenter.y),
+                      globeColor, 1.1f);
+    drawList->AddEllipse(globeCenter, ImVec2(globeRadius * 0.46f, globeRadius - 0.4f), globeColor, 0.0f, 20, 1.1f);
+
+    bool isUA = Localization::instance().isUkrainian();
+
+    ImVec2 uaTextSize = ImGui::CalcTextSize("UA");
+    ImVec2 enTextSize = ImGui::CalcTextSize("EN");
+
+    // Strictly bounded slot geometry inside [zoneLeft, zoneRight]
+    float zoneLeft = std::round(globeCenter.x + globeRadius + 8.0f);
+    float zoneRight = std::round(pMax.x - 6.0f);
+    float zoneW = std::max(20.0f, zoneRight - zoneLeft);
+    float gap = 6.0f;
+    float slotW = std::round((zoneW - gap) * 0.5f);
+    float slotH = std::round(std::clamp(btnH - 8.0f, 14.0f, btnH - 4.0f));
+
+    // Slot 1: UA pill
+    ImVec2 uaMin(zoneLeft, std::round(centerY - slotH * 0.5f));
+    ImVec2 uaMax(zoneLeft + slotW, std::round(centerY + slotH * 0.5f));
+
+    if (isUA) {
+      drawList->AddRectFilled(uaMin, uaMax, IM_COL32(0, 200, 255, static_cast<int>(45.0f * alphaMultiplier)), 4.0f);
+      drawList->AddRect(uaMin, uaMax, IM_COL32(0, 230, 255, static_cast<int>(180.0f * alphaMultiplier)), 4.0f, 0, 1.2f);
+    }
+
+    ImVec2 uaTextPos(std::round(uaMin.x + (slotW - uaTextSize.x) * 0.5f), std::round(centerY - uaTextSize.y * 0.5f));
+    ImU32 colUaText = isUA ? IM_COL32(255, 255, 255, static_cast<int>(255.0f * alphaMultiplier))
+                           : IM_COL32(130, 150, 170, static_cast<int>(180.0f * alphaMultiplier));
+    drawList->AddText(uaTextPos, colUaText, "UA");
+
+    // Slot 2: EN pill
+    ImVec2 enMin(zoneRight - slotW, std::round(centerY - slotH * 0.5f));
+    ImVec2 enMax(zoneRight, std::round(centerY + slotH * 0.5f));
+
+    if (!isUA) {
+      drawList->AddRectFilled(enMin, enMax, IM_COL32(0, 200, 255, static_cast<int>(45.0f * alphaMultiplier)), 4.0f);
+      drawList->AddRect(enMin, enMax, IM_COL32(0, 230, 255, static_cast<int>(180.0f * alphaMultiplier)), 4.0f, 0, 1.2f);
+    }
+
+    ImVec2 enTextPos(std::round(enMin.x + (slotW - enTextSize.x) * 0.5f), std::round(centerY - enTextSize.y * 0.5f));
+    ImU32 colEnText = !isUA ? IM_COL32(255, 255, 255, static_cast<int>(255.0f * alphaMultiplier))
+                            : IM_COL32(130, 150, 170, static_cast<int>(180.0f * alphaMultiplier));
+    drawList->AddText(enTextPos, colEnText, "EN");
+
+    // Divider hairline centered between slots
+    float dividerX = std::round((uaMax.x + enMin.x) * 0.5f);
+    drawList->AddLine(ImVec2(dividerX, std::round(centerY - slotH * 0.35f)),
+                      ImVec2(dividerX, std::round(centerY + slotH * 0.35f)),
+                      IM_COL32(70, 95, 125, static_cast<int>(160.0f * alphaMultiplier)), 1.0f);
+
+    if (hovered) {
+      showStyledTooltip(
+          1.0f, "%s",
+          LOC("Мова інтерфейсу: Українська\nНатисніть для перемикання на English",
+              "Interface Language: English\nClick to switch to Ukrainian"));
+    }
+
+    if (clicked) {
+      Localization::instance().toggleLanguage();
+    }
+    return clicked;
+  }
+
+  static void applyTextGlitchToDrawList(ImDrawList* dl, float intensity, float timer,
+                                        const std::vector<std::pair<float, float>>& glitchBands) {
+    if (!dl || dl->VtxBuffer.Size == 0 || intensity <= 0.001f) {
+      return;
+    }
+
+    ImVec2 whiteUv = ImGui::GetIO().Fonts->TexUvWhitePixel;
+    auto hashInt = [](uint32_t x) -> float {
+      x = ((x >> 16) ^ x) * 0x45d9f3b;
+      x = ((x >> 16) ^ x) * 0x45d9f3b;
+      x = (x >> 16) ^ x;
+      return static_cast<float>(x & 0xFFFF) / 65535.0f;
+    };
+
+    uint32_t tSeed = static_cast<uint32_t>(timer * 140.0f);
+
+    for (int i = 0; i < dl->VtxBuffer.Size; ++i) {
+      ImDrawVert& v = dl->VtxBuffer[i];
+      // Check if vertex is textured glyph (not a solid rectangle / line / circle)
+      if (std::abs(v.uv.x - whiteUv.x) < 0.0001f && std::abs(v.uv.y - whiteUv.y) < 0.0001f) {
+        continue;
+      }
+
+      // 1. Line-based high-frequency horizontal micro-jitter
+      uint32_t lineId = static_cast<uint32_t>(std::floor(v.pos.y / 15.0f));
+      float lineRnd = hashInt(lineId * 1013u + tSeed * 17u);
+      float microJitterX = (lineRnd * 2.0f - 1.0f) * 6.0f * intensity;
+      v.pos.x += microJitterX;
+
+      // 2. Heavy horizontal slice shearing if vertex falls inside an active glitch band
+      for (const auto& band : glitchBands) {
+        if (v.pos.y >= band.first && v.pos.y <= band.first + band.second) {
+          float bandRnd = hashInt(static_cast<uint32_t>(band.first) * 31u + tSeed);
+          float bandShift = (bandRnd * 2.0f - 1.0f) * 28.0f * intensity;
+          v.pos.x += bandShift;
+          break;
+        }
+      }
+
+      // 3. Chromatic RGB text color aberration / flicker
+      ImU32 origAlpha = (v.col >> IM_COL32_A_SHIFT) & 0xFF;
+      if (origAlpha > 20) {
+        float colRnd = hashInt(lineId * 509u + tSeed * 37u);
+        if (colRnd < 0.28f * intensity) {
+          // Tint text neon cyan
+          v.col = IM_COL32(0, 245, 255, origAlpha);
+        } else if (colRnd > 1.0f - 0.28f * intensity) {
+          // Tint text neon red
+          v.col = IM_COL32(255, 45, 80, origAlpha);
+        }
+      }
+    }
+  }
+
+  static void renderLanguageGlitchOverlay(float windowWidth, float windowHeight) {
+    if (!Localization::instance().isGlitching()) {
+      return;
+    }
+
+    float progress = Localization::instance().getGlitchProgress();
+    float timer = Localization::instance().getGlitchTimer();
+    ImDrawList* fg = ImGui::GetForegroundDrawList();
+
+    uint32_t seed = static_cast<uint32_t>(timer * 10000.0f) + 1337u;
+    auto nextRnd = [&seed]() -> float {
+      seed = (seed * 1664525u + 1013904223u);
+      return static_cast<float>(seed & 0xFFFF) / 65535.0f;
+    };
+
+    float intensity = progress;
+
+    // 1. Dark CRT interference vignette (atmospheric, non-blinding)
+    if (intensity > 0.25f) {
+      int darkAlpha = static_cast<int>((intensity - 0.25f) * 55.0f);
+      fg->AddRectFilled(ImVec2(0.0f, 0.0f), ImVec2(windowWidth, windowHeight),
+                        IM_COL32(0, 0, 0, darkAlpha));
+    }
+
+    // 2. High-density horizontal tearing slices (20 to 28 slices for heavy analog distortion)
+    int numBands = 20 + static_cast<int>(nextRnd() * 9.0f);
+    std::vector<std::pair<float, float>> activeBands;
+    activeBands.reserve(numBands);
+
+    for (int i = 0; i < numBands; ++i) {
+      float bandY = nextRnd() * windowHeight;
+      float bandH = 3.0f + nextRnd() * 22.0f;
+      float shift = (nextRnd() * 2.0f - 1.0f) * 65.0f * intensity;
+      activeBands.push_back({bandY, bandH});
+
+      // Analog black scan sync bar (adds authentic CRT TV rolling without glare)
+      if (nextRnd() > 0.70f) {
+        int blackAlpha = static_cast<int>((35.0f + nextRnd() * 45.0f) * intensity);
+        fg->AddRectFilled(
+            ImVec2(0.0f, bandY),
+            ImVec2(windowWidth, bandY + bandH * 0.6f),
+            IM_COL32(0, 0, 0, blackAlpha));
+      }
+
+      // Clearly visible punchy cyan slice band
+      int cyanAlpha = static_cast<int>((45.0f + nextRnd() * 55.0f) * intensity);
+      fg->AddRectFilled(
+          ImVec2(std::clamp(shift, -140.0f, windowWidth), bandY),
+          ImVec2(std::clamp(windowWidth + shift, 0.0f, windowWidth + 140.0f), bandY + bandH),
+          IM_COL32(0, 225, 250, cyanAlpha));
+
+      // Opposite chromatic red slice band
+      float redShift = -shift * 0.88f;
+      int redAlpha = static_cast<int>((48.0f + nextRnd() * 60.0f) * intensity);
+      fg->AddRectFilled(
+          ImVec2(std::clamp(redShift, -140.0f, windowWidth), bandY + 0.5f),
+          ImVec2(std::clamp(windowWidth + redShift, 0.0f, windowWidth + 140.0f), bandY + bandH),
+          IM_COL32(250, 35, 70, redAlpha));
+
+      // Digital micro-noise blocks on slices
+      if (nextRnd() > 0.35f) {
+        float blockX = nextRnd() * (windowWidth - 80.0f);
+        float blockW = 18.0f + nextRnd() * 110.0f;
+        fg->AddRectFilled(
+            ImVec2(blockX, bandY),
+            ImVec2(blockX + blockW, bandY + bandH * 0.75f),
+            (nextRnd() > 0.5f) ? IM_COL32(0, 245, 255, static_cast<int>(75.0f * intensity))
+                               : IM_COL32(255, 50, 85, static_cast<int>(75.0f * intensity)));
+      }
+    }
+
+    // 3. Dense Digital Noise Static Grain (120 to 180 scattered analog grain packets)
+    int numGrains = 120 + static_cast<int>(nextRnd() * 60.0f);
+    for (int g = 0; g < numGrains; ++g) {
+      float gx = nextRnd() * windowWidth;
+      float gy = nextRnd() * windowHeight;
+      float gw = 1.0f + nextRnd() * 6.0f;
+      float gh = 1.0f + nextRnd() * 2.5f;
+      ImU32 gCol = (nextRnd() > 0.5f)
+          ? IM_COL32(0, 230, 255, static_cast<int>((40.0f + nextRnd() * 60.0f) * intensity))
+          : IM_COL32(255, 50, 80, static_cast<int>((40.0f + nextRnd() * 60.0f) * intensity));
+      fg->AddRectFilled(ImVec2(gx, gy), ImVec2(gx + gw, gy + gh), gCol);
+    }
+
+    // 4. CRT Horizontal Scanlines (tight, authentic analog raster)
+    float scanlineSpacing = 3.0f;
+    float scanOffset = std::fmod(timer * 340.0f, scanlineSpacing * 2.0f);
+    int scanAlphaCyan = static_cast<int>(24.0f * intensity);
+    int scanAlphaRed = static_cast<int>(22.0f * intensity);
+    for (float y = scanOffset; y < windowHeight; y += scanlineSpacing * 2.0f) {
+      fg->AddLine(ImVec2(0.0f, y), ImVec2(windowWidth, y),
+                  IM_COL32(0, 220, 245, scanAlphaCyan), 1.0f);
+      fg->AddLine(ImVec2(0.0f, y + scanlineSpacing), ImVec2(windowWidth, y + scanlineSpacing),
+                  IM_COL32(245, 30, 65, scanAlphaRed), 1.0f);
+    }
+
+    // 5. Apply chromatic glitch and horizontal micro-shearing to ALL TEXT across all active ImGui windows
+    ImGuiContext* g = ImGui::GetCurrentContext();
+    if (g) {
+      for (ImGuiWindow* win : g->Windows) {
+        if (win && win->WasActive && win->DrawList) {
+          applyTextGlitchToDrawList(win->DrawList, intensity, timer, activeBands);
+        }
+      }
+      ImDrawList* bgDl = ImGui::GetBackgroundDrawList();
+      if (bgDl && bgDl->VtxBuffer.Size > 0) {
+        applyTextGlitchToDrawList(bgDl, intensity, timer, activeBands);
+      }
+    }
+
+    // 6. Glitching Sci-Fi Notification Badge in Upper Center
+    if (intensity > 0.15f) {
+      const char* langStr = Localization::instance().isUkrainian()
+          ? "[ SYSTEM LOCALE: UKRAINIAN / UA ]"
+          : "[ SYSTEM LOCALE: ENGLISH / EN ]";
+      ImVec2 textSize = ImGui::CalcTextSize(langStr);
+      float badgeW = textSize.x + 36.0f;
+      float badgeH = textSize.y + 16.0f;
+      float badgeX = (windowWidth - badgeW) * 0.5f;
+      float badgeY = 32.0f;
+
+      float jx = (nextRnd() * 2.0f - 1.0f) * 5.0f * intensity;
+      float jy = (nextRnd() * 2.0f - 1.0f) * 2.5f * intensity;
+
+      ImVec2 bMin(std::round(badgeX + jx), std::round(badgeY + jy));
+      ImVec2 bMax(std::round(badgeX + badgeW + jx), std::round(badgeY + badgeH + jy));
+
+      fg->AddRectFilled(bMin, bMax, IM_COL32(10, 14, 22, static_cast<int>(230.0f * intensity)), 4.0f);
+      fg->AddRect(bMin, bMax, IM_COL32(0, 230, 255, static_cast<int>(200.0f * intensity)), 4.0f, 0, 1.2f);
+
+      ImVec2 tPos(badgeX + 18.0f + jx, badgeY + 8.0f + jy);
+      fg->AddText(ImVec2(tPos.x + 3.0f * intensity, tPos.y),
+                  IM_COL32(255, 32, 72, static_cast<int>(220.0f * intensity)), langStr);
+      fg->AddText(ImVec2(tPos.x - 3.0f * intensity, tPos.y),
+                  IM_COL32(0, 230, 255, static_cast<int>(220.0f * intensity)), langStr);
+      fg->AddText(tPos, IM_COL32(255, 255, 255, static_cast<int>(255.0f * intensity)), langStr);
+    }
+  }
+
+  void renderFloatingLanguageButton(float windowWidth, float windowHeight, float uiScale) {
+    (void)windowWidth;
+    (void)uiScale;
+    if (isTourActive_) return;
+
+    float currentWindowX = -sidebarWidth_ * (1.0f - sidebarOpenProgress_);
+    float visibleSidebarRight = std::max(0.0f, currentWindowX + sidebarWidth_);
+    float btnW = 120.0f;
+    float btnH = 34.0f;
+    float btnX = std::round(visibleSidebarRight + 16.0f);
+    float btnY = std::round(windowHeight - btnH - 16.0f);
+
+    // Provide 4px padding so the window's clipping rect never cuts the button's 1.5px border
+    float pad = 4.0f;
+    ImGui::SetNextWindowPos(ImVec2(btnX - pad, btnY - pad), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(btnW + pad * 2.0f, btnH + pad * 2.0f), ImGuiCond_Always);
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
+                             ImGuiWindowFlags_NoMove |
+                             ImGuiWindowFlags_NoSavedSettings |
+                             ImGuiWindowFlags_NoBackground |
+                             ImGuiWindowFlags_NoFocusOnAppearing;
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    if (ImGui::Begin("##FloatingLangButton", nullptr, flags)) {
+      renderLanguageToggleButton("##FloatingLangToggle", ImVec2(pad, pad), ImVec2(btnW, btnH), 1.0f);
+    }
+    ImGui::End();
+    ImGui::PopStyleVar();
   }
 
   void renderTourOverlay(float windowWidth, float windowHeight, float uiScale,
@@ -4187,7 +4598,7 @@ public:
          "- [ < ] — крок назад (перемотування історії та повернення енергії).\n"
          "- [ ▶ ] / [ || ] — запуск симуляції / пауза.\n"
          "- [ > ] — одиночний крок вперед по розрахованому маршруту.\n"
-         "- [ |< ] На початок та [ >| ] Одразу на фініш — швидка навігація.\n"
+         "- [ |< ] (На початок) та [ >| ] (Одразу на фініш) — швидка навігація [Ctrl+Space].\n"
          "- Повзунок швидкості ходу від 0.5x до 4.0x.",
          4},
         {"Розділ 5 — Порівняльний аналіз (Бенчмарки)",
@@ -4449,11 +4860,14 @@ public:
           std::clamp(escHoldTimer_ / ESC_HOLD_DURATION, 0.0f, 1.0f);
       char escText[64];
       if (escHoldTimer_ > 0.05f) {
-        std::snprintf(escText, sizeof(escText), "Вихід з екскурсу: %.1f / 2.0 с",
-                      escHoldTimer_);
+        std::snprintf(escText, sizeof(escText), "%s: %.1f / 2.0 %s",
+                      LOC("Вихід з екскурсу", "Exit Tour"),
+                      escHoldTimer_,
+                      LOC("с", "s"));
       } else {
-        std::snprintf(escText, sizeof(escText),
-                      "Затисніть [Esc] на 2 сек для виходу");
+        std::snprintf(escText, sizeof(escText), "%s",
+                      LOC("Затисніть [Esc] на 2 сек для виходу",
+                          "Hold [Esc] for 2 sec to exit"));
       }
       float tW = ImGui::CalcTextSize(escText).x;
       ImGui::SetCursorPosX((bannerW - tW) * 0.5f);
@@ -4485,7 +4899,8 @@ public:
 
     if (ImGui::Begin("##InteractiveTourCardWindow", nullptr, cardFlags)) {
       ImGui::PushStyleVar(ImGuiStyleVar_Alpha, tourTextAlpha_);
-      ImGui::TextColored(ImVec4(0.00f, 0.90f, 1.00f, 1.0f), "Крок %d з %d:",
+      ImGui::TextColored(ImVec4(0.00f, 0.90f, 1.00f, 1.0f), "%s %d / %d:",
+                         LOC("Крок", "Step"),
                          tourCurrentStep_ + 1, TOUR_TOTAL_STEPS);
       ImGui::SameLine();
       ImGui::TextColored(ImVec4(1.00f, 1.00f, 1.00f, 1.0f), "%s", step.title);
@@ -4540,14 +4955,14 @@ public:
         ImGui::BeginDisabled(true);
       }
       if (boldFont_) ImGui::PushFont(boldFont_);
-      if (ImGui::Button(" <  Назад ", ImVec2(arrowBtnW, btnH))) {
+      if (ImGui::Button(LOC(" <  Назад ", " <  Back "), ImVec2(arrowBtnW, btnH))) {
         tourCurrentStep_ = std::max(0, tourCurrentStep_ - 1);
       }
       if (boldFont_) ImGui::PopFont();
       if (isFirst) {
         ImGui::EndDisabled();
       } else if (ImGui::IsItemHovered()) {
-        showStyledTooltip(uiScale, "Попередній крок");
+        showStyledTooltip(uiScale, "%s", LOC("Попередній крок", "Previous step"));
       }
       ImGui::PopStyleColor(2);
 
@@ -4555,7 +4970,7 @@ public:
       ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.12f, 0.42f, 0.52f, 0.90f));
       ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
                             ImVec4(0.18f, 0.56f, 0.70f, 1.00f));
-      const char *nextLabel = isLast ? " Завершити ✓ " : " Далі > ";
+      const char *nextLabel = isLast ? LOC(" Завершити ✓ ", " Finish ✓ ") : LOC(" Далі > ", " Next > ");
       if (boldFont_) ImGui::PushFont(boldFont_);
       if (ImGui::Button(nextLabel, ImVec2(arrowBtnW, btnH))) {
         if (isLast) {
@@ -4567,7 +4982,8 @@ public:
       if (boldFont_) ImGui::PopFont();
       ImGui::PopStyleColor(2);
       if (ImGui::IsItemHovered()) {
-        showStyledTooltip(uiScale, isLast ? "Завершити екскурс" : "Наступний крок");
+        showStyledTooltip(uiScale, "%s", isLast ? LOC("Завершити екскурс", "Finish tour")
+                                                : LOC("Наступний крок", "Next step"));
       }
     }
     ImGui::End();
@@ -4887,121 +5303,130 @@ public:
 
       if (isHoveringStartArrow) {
         ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.1f, 1.0f),
-                           "Шлюз (Старт) — Вхідна стрілка");
+                           "%s", LOC("Шлюз (Старт) — Вхідна стрілка", "Airlock (Start) — Entry Arrow"));
         ImGui::Separator();
         ImGui::TextUnformatted(
-            "Вектор заходу робітника у комплекс через початковий шлюз");
-        ImGui::Text("Координати шлюзу: [%d, %d]", startPt.x, startPt.y);
+            LOC("Вектор заходу робітника у комплекс через початковий шлюз",
+                "Worker entry trajectory into the complex via start airlock"));
+        ImGui::Text("%s: [%d, %d]", LOC("Координати шлюзу", "Airlock coords"), startPt.x, startPt.y);
       } else if (isHoveringExitArrow) {
         ImGui::TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f),
-                           "Вихід (Евакуація) — Стрілка евакуації");
+                           "%s", LOC("Вихід (Евакуація) — Стрілка евакуації", "Exit (Evacuation) — Evacuation Arrow"));
         ImGui::Separator();
         ImGui::TextUnformatted(
-            "Вектор виходу та евакуації робітника з комплексу");
-        ImGui::Text("Координати шлюзу: [%d, %d]", maze.getExitPoint().x,
+            LOC("Вектор виходу та евакуації робітника з комплексу",
+                "Worker evacuation vector out of the industrial complex"));
+        ImGui::Text("%s: [%d, %d]", LOC("Координати шлюзу", "Airlock coords"), maze.getExitPoint().x,
                     maze.getExitPoint().y);
       } else if (isHoveringAgent) {
-        ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f), "Робітник");
+        ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f), "%s", LOC("Робітник", "Worker"));
         ImGui::Separator();
         ImGui::TextUnformatted(
-            "Поточна позиція автономного робітника (GPS тактичний маяк)");
-        ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
-        ImGui::Text("Стан: %s", agent.getStatusString().c_str());
-        ImGui::Text("Запас енергії: %d / %d од.", agent.getCurrentEnergy(),
-                    agent.getMaxEnergy());
-        ImGui::Text("Вантаж: %d / %d кг (%d грн)",
+            LOC("Поточна позиція автономного робітника (GPS тактичний маяк)",
+                "Current position of autonomous worker (GPS beacon)"));
+        ImGui::Text("%s: [%d, %d]", LOC("Координати", "Coordinates"), cellPoint.x, cellPoint.y);
+        ImGui::Text("%s: %s", LOC("Стан", "Status"), agent.getStatusString().c_str());
+        ImGui::Text("%s: %d / %d %s", LOC("Запас енергії", "Energy reserve"), agent.getCurrentEnergy(),
+                    agent.getMaxEnergy(), LOC("од.", "pts"));
+        ImGui::Text("%s: %d / %d %s (%d %s)",
+                    LOC("Вантаж", "Payload"),
                     agent.getBackpack().getCurrentWeight(),
                     agent.getBackpack().getMaxCapacity(),
-                    agent.getBackpack().getCurrentValue());
+                    LOC("кг", "kg"),
+                    agent.getBackpack().getCurrentValue(),
+                    LOC("грн", "UAH"));
       } else if (itemHere.has_value() && !isCollected) {
         if (itemHere->category == core::ItemCategory::LightScrap) {
           ImGui::TextColored(ImVec4(0.20f, 0.41f, 1.00f, 1.0f),
-                             "Дрібний брухт: %s", itemHere->name.c_str());
+                             "%s: %s", LOC("Дрібний брухт", "Small Scrap"), itemHere->name.c_str());
         } else if (itemHere->category == core::ItemCategory::MediumScrap) {
           ImGui::TextColored(ImVec4(1.00f, 1.00f, 0.00f, 1.0f),
-                             "Побутовий брухт: %s", itemHere->name.c_str());
+                             "%s: %s", LOC("Побутовий брухт", "Household Scrap"), itemHere->name.c_str());
         } else {
           ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f),
-                             "Дорогоцінний брухт: %s", itemHere->name.c_str());
+                             "%s: %s", LOC("Дорогоцінний брухт", "Precious Scrap"), itemHere->name.c_str());
         }
         ImGui::Separator();
-        ImGui::Text("Категорія: %s",
+        ImGui::Text("%s: %s", LOC("Категорія", "Category"),
                     core::itemCategoryToString(itemHere->category).c_str());
-        ImGui::Text("Вага: %d кг", itemHere->weight);
-        ImGui::Text("Цінність: %d грн", itemHere->value);
-        ImGui::Text("Питома цінність (V/W): %.2f грн/кг",
-                    itemHere->getValueDensity());
-        ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
+        ImGui::Text("%s: %d %s", LOC("Вага", "Weight"), itemHere->weight, LOC("кг", "kg"));
+        ImGui::Text("%s: %d %s", LOC("Цінність", "Value"), itemHere->value, LOC("грн", "UAH"));
+        ImGui::Text("%s (V/W): %.2f %s", LOC("Питома цінність", "Value Density"),
+                    itemHere->getValueDensity(), LOC("грн/кг", "UAH/kg"));
+        ImGui::Text("%s: [%d, %d]", LOC("Координати", "Coordinates"), cellPoint.x, cellPoint.y);
       } else if (isHoveringRouteLine) {
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.9f, 1.0f),
-                           "Лінія маршруту (TSP)");
+                           "%s", LOC("Лінія маршруту (TSP)", "Planned Route (TSP)"));
         ImGui::Separator();
         ImGui::TextUnformatted(
-            "Розрахована лінія оптимального шляху робітника");
-        ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
+            LOC("Розрахована лінія оптимального шляху робітника",
+                "Calculated optimal path trajectory for worker"));
+        ImGui::Text("%s: [%d, %d]", LOC("Координати", "Coordinates"), cellPoint.x, cellPoint.y);
       } else if (itemHere.has_value() && isCollected) {
         if (itemHere->category == core::ItemCategory::LightScrap) {
           ImGui::TextColored(ImVec4(0.20f, 0.41f, 1.00f, 1.0f),
-                             "Дрібний брухт: %s", itemHere->name.c_str());
+                             "%s: %s", LOC("Дрібний брухт", "Small Scrap"), itemHere->name.c_str());
         } else if (itemHere->category == core::ItemCategory::MediumScrap) {
           ImGui::TextColored(ImVec4(1.00f, 1.00f, 0.00f, 1.0f),
-                             "Побутовий брухт: %s", itemHere->name.c_str());
+                             "%s: %s", LOC("Побутовий брухт", "Household Scrap"), itemHere->name.c_str());
         } else {
           ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f),
-                             "Дорогоцінний брухт: %s", itemHere->name.c_str());
+                             "%s: %s", LOC("Дорогоцінний брухт", "Precious Scrap"), itemHere->name.c_str());
         }
         ImGui::Separator();
-        ImGui::Text("Категорія: %s",
+        ImGui::Text("%s: %s", LOC("Категорія", "Category"),
                     core::itemCategoryToString(itemHere->category).c_str());
-        ImGui::Text("Вага: %d кг", itemHere->weight);
-        ImGui::Text("Цінність: %d грн", itemHere->value);
-        ImGui::Text("Питома цінність (V/W): %.2f грн/кг",
-                    itemHere->getValueDensity());
-        ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
+        ImGui::Text("%s: %d %s", LOC("Вага", "Weight"), itemHere->weight, LOC("кг", "kg"));
+        ImGui::Text("%s: %d %s", LOC("Цінність", "Value"), itemHere->value, LOC("грн", "UAH"));
+        ImGui::Text("%s (V/W): %.2f %s", LOC("Питома цінність", "Value Density"),
+                    itemHere->getValueDensity(), LOC("грн/кг", "UAH/kg"));
+        ImGui::Text("%s: [%d, %d]", LOC("Координати", "Coordinates"), cellPoint.x, cellPoint.y);
         ImGui::Separator();
         ImGui::TextColored(ImVec4(0.35f, 0.95f, 0.55f, 1.0f),
-                           "Вже підібрано робітником у рюкзак");
+                           "%s", LOC("Вже підібрано робітником у рюкзак", "Already collected into backpack"));
       } else if (pCell && pCell->getType() == core::CellType::Start) {
-        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.1f, 1.0f), "Шлюз (Старт)");
+        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.1f, 1.0f), "%s", LOC("Шлюз (Старт)", "Airlock (Start)"));
         ImGui::Separator();
         ImGui::TextUnformatted(
-            "Початкова точка, звідки робітник починає місію");
-        ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
+            LOC("Початкова точка, звідки робітник починає місію",
+                "Starting point where worker begins mission"));
+        ImGui::Text("%s: [%d, %d]", LOC("Координати", "Coordinates"), cellPoint.x, cellPoint.y);
       } else if (pCell && pCell->getType() == core::CellType::Exit) {
         if (isExitDisabled) {
           ImGui::TextColored(ImVec4(0.85f, 0.35f, 0.35f, 1.0f),
-                             "Вихід (Недоступний / Заблокований)");
+                             "%s", LOC("Вихід (Недоступний / Заблокований)", "Exit (Unavailable / Locked)"));
           ImGui::Separator();
           ImGui::TextUnformatted(
-              "Режим евакуації: 'A -> A (База)'. Шлюз законсервовано, вихід "
-              "лише через початковий шлюз (A).");
-          ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
+              LOC("Режим евакуації: 'A -> A (База)'. Шлюз законсервовано, вихід лише через початковий шлюз (A).",
+                  "Evacuation mode: 'A -> A (Base)'. Exit locked, return only via start airlock (A)."));
+          ImGui::Text("%s: [%d, %d]", LOC("Координати", "Coordinates"), cellPoint.x, cellPoint.y);
         } else {
           ImGui::TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f),
-                             "Вихід (Евакуація)");
+                             "%s", LOC("Вихід (Евакуація)", "Exit (Evacuation)"));
           ImGui::Separator();
           ImGui::TextUnformatted(
-              "Шлюз евакуації, куди робітник прямує після збору брухту");
-          ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
+              LOC("Шлюз евакуації, куди робітник прямує після збору брухту",
+                  "Extraction hatch where worker heads after collecting scrap"));
+          ImGui::Text("%s: [%d, %d]", LOC("Координати", "Coordinates"), cellPoint.x, cellPoint.y);
         }
       } else if (pCell && pCell->getType() == core::CellType::Mud) {
         ImGui::TextColored(ImVec4(0.85f, 0.65f, 0.35f, 1.0f),
-                           "Багнюка / Болото / Вода");
+                           "%s", LOC("Багнюка / Болото / Вода", "Mud / Swamp / Water"));
         ImGui::Separator();
-        ImGui::TextUnformatted("Важкопрохідна ділянка: витрата енергії +25 "
-                               "прямо, +35 по діагоналі");
-        ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
+        ImGui::TextUnformatted(LOC("Важкопрохідна ділянка: витрата енергії +25 прямо, +35 по діагоналі",
+                                   "Difficult terrain: energy cost +25 orthogonal, +35 diagonal"));
+        ImGui::Text("%s: [%d, %d]", LOC("Координати", "Coordinates"), cellPoint.x, cellPoint.y);
         if (showWalkedCells && pCell->isWalked()) {
           ImGui::Separator();
           ImGui::TextColored(ImVec4(0.85f, 0.65f, 0.35f, 1.0f),
-                             "Пройдений слід: Блакитно-коричнева пройдена "
-                             "болотяна клітинка");
+                             "%s", LOC("Пройдений слід: Блакитно-коричнева пройдена болотяна клітинка",
+                                       "Walked trail: Cyan-brown traversed mud cell"));
         }
       } else if (showWalkedCells && pCell && pCell->isWalked()) {
-        ImGui::TextColored(ImVec4(0.0f, 0.9f, 0.95f, 1.0f), "Пройдений слід");
+        ImGui::TextColored(ImVec4(0.0f, 0.9f, 0.95f, 1.0f), "%s", LOC("Пройдений слід", "Walked Trail"));
         ImGui::Separator();
-        ImGui::TextUnformatted("Клітинка, яку робітник уже пройшов");
-        ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
+        ImGui::TextUnformatted(LOC("Клітинка, яку робітник уже пройшов", "Cell already traversed by worker"));
+        ImGui::Text("%s: [%d, %d]", LOC("Координати", "Coordinates"), cellPoint.x, cellPoint.y);
       } else if (pCell && pCell->getType() == core::CellType::Wall) {
         if ((cellPoint.x == cellBeforeStart.x &&
              cellPoint.y == cellBeforeStart.y) ||
@@ -5009,10 +5434,10 @@ public:
              cellPoint.y == cellAfterExit.y)) {
           return;
         }
-        ImGui::TextColored(ImVec4(0.6f, 0.65f, 0.75f, 1.0f), "Стіна комплексу");
+        ImGui::TextColored(ImVec4(0.6f, 0.65f, 0.75f, 1.0f), "%s", LOC("Стіна комплексу", "Complex Wall"));
         ImGui::Separator();
-        ImGui::TextUnformatted("Непрохідна металева перешкода лабіринту");
-        ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
+        ImGui::TextUnformatted(LOC("Непрохідна металева перешкода лабіринту", "Impassable metallic maze obstacle"));
+        ImGui::Text("%s: [%d, %d]", LOC("Координати", "Coordinates"), cellPoint.x, cellPoint.y);
       } else if (pCell) {
         const map::Room *inRoom = nullptr;
         for (const auto &r : maze.getRooms()) {
@@ -5023,19 +5448,21 @@ public:
         }
         if (inRoom != nullptr) {
           ImGui::TextColored(ImVec4(0.7f, 0.8f, 0.9f, 1.0f),
-                             "Кімната комплексу");
+                             "%s", LOC("Кімната комплексу", "Complex Room"));
           ImGui::Separator();
-          ImGui::Text("Сектор кімнати (#%d)", inRoom->id);
+          ImGui::Text("%s (#%d)", LOC("Сектор кімнати", "Room Sector"), inRoom->id);
           ImGui::TextUnformatted(
-              "Вільний прохід комплексу (витрата: 10 прямо, 14 по діагоналі)");
-          ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
+              LOC("Вільний прохід комплексу (витрата: 10 прямо, 14 по діагоналі)",
+                  "Free interior floor (cost: 10 orthogonal, 14 diagonal)"));
+          ImGui::Text("%s: [%d, %d]", LOC("Координати", "Coordinates"), cellPoint.x, cellPoint.y);
         } else {
           ImGui::TextColored(ImVec4(0.7f, 0.8f, 0.9f, 1.0f),
-                             "Коридор комплексу");
+                             "%s", LOC("Коридор комплексу", "Complex Corridor"));
           ImGui::Separator();
           ImGui::TextUnformatted(
-              "Вільний коридор комплексу (витрата: 10 прямо, 14 по діагоналі)");
-          ImGui::Text("Координати: [%d, %d]", cellPoint.x, cellPoint.y);
+              LOC("Вільний коридор комплексу (витрата: 10 прямо, 14 по діагоналі)",
+                  "Free corridor path (cost: 10 orthogonal, 14 diagonal)"));
+          ImGui::Text("%s: [%d, %d]", LOC("Координати", "Coordinates"), cellPoint.x, cellPoint.y);
         }
       }
 

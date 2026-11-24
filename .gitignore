@@ -114,6 +114,7 @@ course-projects/DSA-cpp/build/
 course-projects/DSA-cpp/.cache/
 course-projects/DSA-cpp/*.csv
 course-projects/DSA-cpp/session_state.json
+course-projects/DSA-cpp/report_route.json
 compile_commands.json
 compile_flags.txt
 .clangd

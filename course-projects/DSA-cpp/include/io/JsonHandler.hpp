@@ -373,6 +373,9 @@ public:
         float sidebarScrollY = 0.0f;
         std::vector<bool> sectionsOpen = {true, true, true, true, true};
         bool isFullscreen = true;
+        bool customSeedEnabled = false;
+        std::string customSeedInput = "";
+        std::string language = "UA";
     };
 
     static bool saveSessionState(const std::string& filepath,
@@ -389,6 +392,13 @@ public:
 
             // 1. Config & Display checkboxes
             j["config"] = {
+                {"map_width", config.mapWidth},
+                {"map_height", config.mapHeight},
+                {"min_room_size", config.minRoomSize},
+                {"max_room_size", config.maxRoomSize},
+                {"mud_spawn_chance", config.mudSpawnChance},
+                {"extra_passage_chance", config.extraPassageChance},
+                {"auto_backpack_capacity", config.autoBackpackCapacity},
                 {"show_grid", config.showGrid},
                 {"show_optimal_route", config.showOptimalRoute},
                 {"show_walked_cells", config.showWalkedCells},
@@ -425,7 +435,10 @@ public:
                 {"monitor_powered_on", guiState.monitorPoweredOn},
                 {"sidebar_scroll_y", guiState.sidebarScrollY},
                 {"sections_open", guiState.sectionsOpen},
-                {"is_fullscreen", guiState.isFullscreen}
+                {"is_fullscreen", guiState.isFullscreen},
+                {"custom_seed_enabled", guiState.customSeedEnabled},
+                {"custom_seed_input", guiState.customSeedInput},
+                {"language", guiState.language}
             };
 
             // 3. Maze layout, rooms, items, and cells
@@ -589,6 +602,13 @@ public:
             // 1. Config
             if (j.contains("config") && j["config"].is_object()) {
                 const auto& jc = j["config"];
+                if (jc.contains("map_width")) config.mapWidth = jc["map_width"];
+                if (jc.contains("map_height")) config.mapHeight = jc["map_height"];
+                if (jc.contains("min_room_size")) config.minRoomSize = jc["min_room_size"];
+                if (jc.contains("max_room_size")) config.maxRoomSize = jc["max_room_size"];
+                if (jc.contains("mud_spawn_chance")) config.mudSpawnChance = jc["mud_spawn_chance"];
+                if (jc.contains("extra_passage_chance")) config.extraPassageChance = jc["extra_passage_chance"];
+                if (jc.contains("auto_backpack_capacity")) config.autoBackpackCapacity = jc["auto_backpack_capacity"];
                 if (jc.contains("show_grid")) config.showGrid = jc["show_grid"];
                 if (jc.contains("show_optimal_route")) config.showOptimalRoute = jc["show_optimal_route"];
                 if (jc.contains("show_walked_cells")) config.showWalkedCells = jc["show_walked_cells"];
@@ -632,13 +652,18 @@ public:
                     }
                 }
                 if (jg.contains("is_fullscreen")) guiState.isFullscreen = jg["is_fullscreen"];
+                if (jg.contains("custom_seed_enabled")) guiState.customSeedEnabled = jg["custom_seed_enabled"];
+                if (jg.contains("custom_seed_input")) guiState.customSeedInput = jg.value("custom_seed_input", "");
+                if (jg.contains("language")) guiState.language = jg.value("language", "UA");
             }
 
             // 3. Maze
             if (!j.contains("maze") || !j["maze"].is_object()) return false;
             const auto& jm = j["maze"];
-            int w = jm.value("width", 30);
-            int h = jm.value("height", 30);
+            int w = jm.value("width", config.mapWidth > 0 ? config.mapWidth : 30);
+            int h = jm.value("height", config.mapHeight > 0 ? config.mapHeight : 30);
+            config.mapWidth = w;
+            config.mapHeight = h;
             maze.resize(w, h);
             maze.setSeed(jm.value("seed", 0u));
             maze.setStartPoint({jm.value("start_x", 1), jm.value("start_y", 1)});

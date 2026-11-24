@@ -129,12 +129,14 @@ void ForceForegroundAndTop(HWND hwnd) {
 #include "simulation/SimulationEngine.hpp"
 #include "ui/CameraController.hpp"
 #include "ui/ImGuiOverlay.hpp"
+#include "ui/Localization.hpp"
 #include "ui/Minimap.hpp"
 #include "ui/ProceduralRenderer.hpp"
 
 
 std::vector<io::BenchmarkRow> runBatchBenchmark(map::Maze &maze,
-                                                const core::Config &config) {
+                                                const core::Config &config,
+                                                const algorithms::routing::RoutePlan *existingPlan = nullptr) {
   std::vector<io::BenchmarkRow> rows;
   int cap = std::max(10, maze.getTotalItemWeight() / 2);
 
@@ -181,15 +183,25 @@ std::vector<io::BenchmarkRow> runBatchBenchmark(map::Maze &maze,
                   bfsRes.totalEnergyCost, bfsRes.visitedNodesCount,
                   bfsRes.executionTimeMicroseconds, 0, 0, 0, bfsQuality});
 
-  algorithms::routing::TSPSolver tsp(&astar);
-  auto plan = tsp.solveRoute(maze, dpRes.selectedItems, config.routeMode);
-  rows.push_back({"Маршрутизація TSP", "Nearest Neighbor + 2-Opt",
-                  maze.getWidth(), plan.totalSteps, plan.totalEnergyCost,
-                  static_cast<int>(plan.visitOrder.size()),
-                  plan.calculationTimeMicroseconds,
-                  static_cast<int>(dpRes.selectedItems.size()),
-                  dpRes.totalWeight, dpRes.totalValue,
-                  100.0 + plan.twoOptGainPercent});
+  if (existingPlan && existingPlan->routeValid) {
+    rows.push_back({"Маршрутизація TSP", "Nearest Neighbor + 2-Opt",
+                    maze.getWidth(), existingPlan->totalSteps, existingPlan->totalEnergyCost,
+                    static_cast<int>(existingPlan->visitOrder.size()),
+                    existingPlan->calculationTimeMicroseconds,
+                    static_cast<int>(dpRes.selectedItems.size()),
+                    dpRes.totalWeight, dpRes.totalValue,
+                    100.0 + existingPlan->twoOptGainPercent});
+  } else {
+    algorithms::routing::TSPSolver tsp(&astar);
+    auto plan = tsp.solveRoute(maze, dpRes.selectedItems, config.routeMode);
+    rows.push_back({"Маршрутизація TSP", "Nearest Neighbor + 2-Opt",
+                    maze.getWidth(), plan.totalSteps, plan.totalEnergyCost,
+                    static_cast<int>(plan.visitOrder.size()),
+                    plan.calculationTimeMicroseconds,
+                    static_cast<int>(dpRes.selectedItems.size()),
+                    dpRes.totalWeight, dpRes.totalValue,
+                    100.0 + plan.twoOptGainPercent});
+  }
 
   return rows;
 }
@@ -232,6 +244,7 @@ void recalculateSimulation(map::Maze &maze, core::Config &config,
     }
   }
 
+  engine.updateConfig(config);
   engine.initPlan(plan, config.initialEnergy, cap);
 }
 
@@ -555,7 +568,7 @@ int main(int argc, char *argv[]) {
     std::cerr << "[ERROR]: Failed to update font texture!\n";
   }
 
-  ui::ImGuiOverlay::applyLethalCompanyCherryTheme(ImGui::GetStyle());
+  ui::ImGuiOverlay::applyUIScaleAndFontGlobal(config);
 
   window.resetGLStates();
 #ifdef _WIN32
@@ -754,6 +767,9 @@ int main(int argc, char *argv[]) {
       gState.sidebarScrollY = guiOverlay.getSidebarScrollY();
       gState.sectionsOpen = guiOverlay.getSectionsOpen();
       gState.isFullscreen = isBorderlessFullscreen;
+      gState.customSeedEnabled = uiState.customSeedEnabled;
+      gState.customSeedInput = uiState.customSeedInput;
+      gState.language = ui::Localization::instance().getLangCode();
 
       io::JsonHandler::saveSessionState("session_state.json", config, gState, maze, engine, benchmarkRows);
     }
@@ -782,6 +798,12 @@ int main(int argc, char *argv[]) {
       triggerStartGame();
       return false;
     }
+
+    config.mapWidth = maze.getWidth();
+    config.mapHeight = maze.getHeight();
+    uiState.customSeedEnabled = loadedGui.customSeedEnabled;
+    snprintf(uiState.customSeedInput, sizeof(uiState.customSeedInput), "%s", loadedGui.customSeedInput.c_str());
+    ui::Localization::instance().setLanguage((loadedGui.language == "EN") ? ui::Language::EN : ui::Language::UA);
 
     guiOverlay.setSavedSidebarBaseWidth(loadedGui.sidebarWidth);
     guiOverlay.setSidebarCollapsed(loadedGui.sidebarCollapsed);
@@ -855,7 +877,18 @@ int main(int argc, char *argv[]) {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
     if (ImGui::Begin("SplashWelcomeWindow", nullptr, splashWinFlags)) {
+      // Top-right language switch toggle
+      if (fadeMultiplier > 0.05f) {
+        ImGui::SetWindowFontScale(1.0f);
+        float langBtnW = 120.0f * config.uiScale;
+        float langBtnH = 34.0f * config.uiScale;
+        float langBtnX = scrW - langBtnW - 24.0f;
+        float langBtnY = 24.0f;
+        ui::ImGuiOverlay::renderLanguageToggleButton("##SplashLangToggle", ImVec2(langBtnX, langBtnY), ImVec2(langBtnW, langBtnH), fadeMultiplier);
+      }
+
       ImGui::SetWindowFontScale(1.0f / ImGui::GetIO().FontGlobalScale);
+
       float logoDim = std::clamp(scrH * 0.20f, 150.0f, 210.0f);
       float logoX = (scrW - logoDim) * 0.5f;
 
@@ -939,15 +972,15 @@ int main(int argc, char *argv[]) {
         ImGui::SetCursorPos(ImVec2(pctX, pctY));
         ImGui::TextColored(ImVec4(0.0f, 0.90f, 1.0f, effectiveBarAlpha), "%s", pctStr.c_str());
 
-        std::string stageText = "Ініціалізація комплексу...";
+        std::string stageText = ui::LOC("Ініціалізація комплексу...", "Initializing facility...");
         if (splashStage == 1)
-          stageText = "Процедурна генерація лабіринту (BSP)...";
+          stageText = ui::LOC("Процедурна генерація лабіринту (BSP)...", "Procedural maze generation (BSP)...");
         else if (splashStage == 2)
-          stageText = "Оптимізація маршруту та розміщення брухту...";
+          stageText = ui::LOC("Оптимізація маршруту та розміщення брухту...", "Route optimization & scrap placement...");
         else if (splashStage == 3)
-          stageText = "Калібрування навігаційних алгоритмів...";
+          stageText = ui::LOC("Калібрування навігаційних алгоритмів...", "Calibrating navigation algorithms...");
         else if (splashStage >= 4)
-          stageText = "Готово! Комплекс переведено в режим очікування...";
+          stageText = ui::LOC("Готово! Комплекс переведено в режим очікування...", "Ready! Facility in standby mode...");
 
         float stageW = ImGui::CalcTextSize(stageText.c_str()).x;
         float stageX = (scrW - stageW) * 0.5f;
@@ -972,7 +1005,7 @@ int main(int argc, char *argv[]) {
 
         // 4.2. Centered Header (without "ТА НАВІГАЦІЯ")
         float headerY = topHrY + 14.0f;
-        const char *headerText = "ЕКСПЕДИЦІЙНИЙ БРИФІНГ";
+        const char *headerText = ui::LOC("ЕКСПЕДИЦІЙНИЙ БРИФІНГ", "EXPEDITION BRIEFING");
         float headerW = ImGui::CalcTextSize(headerText).x;
         ImGui::SetCursorPos(ImVec2((scrW - headerW) * 0.5f, headerY));
         ImGui::TextColored(ImVec4(1.0f, 0.82f, 0.25f, effectiveWelcomeAlpha), "%s", headerText);
@@ -1009,28 +1042,38 @@ int main(int argc, char *argv[]) {
 
         // Centered Paragraph 1: Greeting line
         renderCenteredWrapped(
-            "Ласкаво просимо до «Lethal Labyrinth»!",
+            ui::LOC("Ласкаво просимо до «Lethal Labyrinth»!",
+                    "Welcome to «Lethal Labyrinth»!"),
             textMaxW, scrW, ImVec4(0.88f, 0.86f, 0.84f, effectiveWelcomeAlpha));
 
         ImGui::Dummy(ImVec2(0.0f, 6.0f));
 
         // Centered Paragraph 1: Main description
         renderCenteredWrapped(
-            "Проєкт натхненний атмосферою гри Lethal Company та адаптований як "
-            "навчально-дослідницька система з дискретних структур та алгоритмів. "
-            "Комплекс моделює процедурну BSP-генерацію лабіринтів, алгоритми пошуку "
-            "найкоротших шляхів (A*, Dijkstra, BFS) та розв'язання задачі про рюкзак "
-            "(Knapsack Problem) для збору цінностей.",
+            ui::LOC("Проєкт натхненний атмосферою гри Lethal Company та адаптований як "
+                    "навчально-дослідницька система з дискретних структур та алгоритмів. "
+                    "Комплекс моделює процедурну BSP-генерацію лабіринтів, алгоритми пошуку "
+                    "найкоротших шляхів (A*, Dijkstra, BFS) та розв'язання задачі про рюкзак "
+                    "(Knapsack Problem) для збору цінностей.",
+                    "Inspired by the atmosphere of Lethal Company and adapted as an "
+                    "educational & research framework for discrete structures and algorithms. "
+                    "The complex simulates procedural BSP maze generation, pathfinding "
+                    "algorithms (A*, Dijkstra, BFS), and knapsack optimization "
+                    "(Knapsack Problem) for scrap collection."),
             textMaxW, scrW, ImVec4(0.88f, 0.86f, 0.84f, effectiveWelcomeAlpha));
 
         ImGui::Dummy(ImVec2(0.0f, 14.0f));
 
         // Centered Paragraph 2
         renderCenteredWrapped(
-            "У грі навігаційна система автоматично розраховує «найоптимальніший» маршрут "
-            "за заданими параметрами квоти. Проте ви можете особисто спробувати пройти "
-            "лабіринт у ручному режимі (клавіші W, A, S, D), зважаючи на обмежений ліміт "
-            "заряду енергії робітника та місткість рюкзака.",
+            ui::LOC("У грі навігаційна система автоматично розраховує «найоптимальніший» маршрут "
+                    "за заданими параметрами квоти. Проте ви можете особисто спробувати пройти "
+                    "лабіринт у ручному режимі (клавіші W, A, S, D), зважаючи на обмежений ліміт "
+                    "заряду енергії робітника та місткість рюкзака.",
+                    "The in-game navigation system automatically computes the optimal route "
+                    "satisfying Company quota goals. You can also manually explore the facility "
+                    "(keys W, A, S, D), taking into account limited worker battery energy "
+                    "and backpack carrying capacity."),
             textMaxW, scrW, ImVec4(0.88f, 0.86f, 0.84f, effectiveWelcomeAlpha));
 
         ImGui::Dummy(ImVec2(0.0f, 22.0f));
@@ -1050,14 +1093,15 @@ int main(int argc, char *argv[]) {
           ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.8f);
           ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
 
-          if (ImGui::Button("Згенерувати перший лабіринт", ImVec2(btnW, btnH))) {
+          if (ImGui::Button(ui::LOC("Згенерувати перший лабіринт", "Generate First Labyrinth"), ImVec2(btnW, btnH))) {
             triggerStartGame();
           }
           if (ImGui::IsItemHovered()) {
             ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
             ui::ImGuiOverlay::showStyledTooltip(
                 1.0f, "%s",
-                "Згенерувати перший комплекс з процедурною BSP-генерацією [Enter / Space]");
+                ui::LOC("Згенерувати перший комплекс з процедурною BSP-генерацією [Enter / Space]",
+                        "Generate first facility using procedural BSP generation [Enter / Space]"));
           }
 
           ImGui::PopStyleVar(2);
@@ -1078,14 +1122,15 @@ int main(int argc, char *argv[]) {
           ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.8f);
           ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
 
-          if (ImGui::Button("Нова експедиція", ImVec2(btnW, btnH))) {
+          if (ImGui::Button(ui::LOC("Нова експедиція", "New Expedition"), ImVec2(btnW, btnH))) {
             triggerStartGame();
           }
           if (ImGui::IsItemHovered()) {
             ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
             ui::ImGuiOverlay::showStyledTooltip(
                 1.0f, "%s",
-                "Створити новий лабіринт з процедурною BSP-генерацією та новим розміщенням цінностей");
+                ui::LOC("Створити новий лабіринт з процедурною BSP-генерацією та новим розміщенням цінностей",
+                        "Create a new maze with procedural BSP generation and newly randomized scrap"));
           }
 
           ImGui::PopStyleVar(2);
@@ -1103,14 +1148,15 @@ int main(int argc, char *argv[]) {
           ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.8f);
           ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
 
-          if (ImGui::Button("Продовжити останню експедицію", ImVec2(btnW, btnH))) {
+          if (ImGui::Button(ui::LOC("Продовжити останню експедицію", "Resume Last Expedition"), ImVec2(btnW, btnH))) {
             triggerResumeSession();
           }
           if (ImGui::IsItemHovered()) {
             ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
             ui::ImGuiOverlay::showStyledTooltip(
                 1.0f, "%s",
-                "Відновити збережений стан лабіринту, позицію робітника, рюкзак та маршрути [Enter / Space]");
+                ui::LOC("Відновити збережений стан лабіринту, позицію робітника, рюкзак та маршрути [Enter / Space]",
+                        "Restore saved maze state, worker position, backpack, and routes [Enter / Space]"));
           }
 
           ImGui::PopStyleVar(2);
@@ -1276,8 +1322,8 @@ int main(int argc, char *argv[]) {
             if (!ImGui::GetIO().WantTextInput) {
               config.showLegend = !config.showLegend;
               uiState.statusNotice = config.showLegend
-                                         ? "Легенду карти відкрито [M]"
-                                         : "Легенду карти закрито [M]";
+                                         ? ui::LOC("Легенду карти відкрито [M]", "Map legend opened [M]")
+                                         : ui::LOC("Легенду карти закрито [M]", "Map legend closed [M]");
             }
           }
           if (key->code == sf::Keyboard::Key::C || key->scancode == sf::Keyboard::Scan::C) {
@@ -1290,7 +1336,8 @@ int main(int argc, char *argv[]) {
                   uiState.requestCenterCameraOnMaze = true;
                 }
               } else {
-                uiState.statusNotice = "Центрування недоступне під час генерації та трасування маршруту";
+                uiState.statusNotice = ui::LOC("Центрування недоступне під час генерації та трасування маршруту",
+                                               "Centering unavailable during generation and routing");
               }
             }
           }
@@ -1299,8 +1346,8 @@ int main(int argc, char *argv[]) {
               bool collapse = !guiOverlay.isMissionPanelCollapsed();
               guiOverlay.setMissionPanelCollapsed(collapse);
               uiState.statusNotice = collapse
-                                         ? "Показники місії сховано [B]"
-                                         : "Показники місії відкрито [B]";
+                                         ? ui::LOC("Показники місії сховано [B]", "Mission HUD hidden [B]")
+                                         : ui::LOC("Показники місії відкрито [B]", "Mission HUD opened [B]");
             }
           }
           if (key->code == sf::Keyboard::Key::Z || key->scancode == sf::Keyboard::Scan::Z) {
@@ -1313,7 +1360,9 @@ int main(int argc, char *argv[]) {
         }
         if (key->code == sf::Keyboard::Key::F11) {
           setFullscreenMode(!isBorderlessFullscreen);
-          uiState.statusNotice = isBorderlessFullscreen ? "Повноекранний режим" : "Віконний режим";
+          uiState.statusNotice = isBorderlessFullscreen
+                                     ? ui::LOC("Повноекранний режим", "Fullscreen Mode")
+                                     : ui::LOC("Віконний режим", "Windowed Mode");
         }
         if (!ImGui::GetIO().WantTextInput) {
           bool agentReadyOnGround =
@@ -1344,10 +1393,10 @@ int main(int argc, char *argv[]) {
                   }
                   if (engine.getCurrentStepIndex() == 0 && !atEvacOrSuccess) {
                     engine.instantFinish();
-                    uiState.statusNotice = "Телепортація на фініш маршруту!";
+                    uiState.statusNotice = ui::LOC("Телепортація на фініш маршруту!", "Teleporting to route finish!");
                   } else {
                     engine.resetToStart();
-                    uiState.statusNotice = "Повернення на стартовий шлюз!";
+                    uiState.statusNotice = ui::LOC("Повернення на стартовий шлюз!", "Returned to start airlock!");
                   }
                   renderer.resetAnimation();
                   if (config.cameraFollowAgent) {
@@ -1547,12 +1596,13 @@ int main(int argc, char *argv[]) {
             config.showGrid = true;
             config.showOptimalRoute = true;
             config.showWalkedCells = true;
-            uiState.statusNotice = "Тактичні шари увімкнено [СІТКА | МАРШРУТ | СЛІД]";
+            uiState.statusNotice = ui::LOC("Тактичні шари увімкнено [СІТКА | МАРШРУТ | СЛІД]",
+                                           "Tactical layers enabled [GRID | ROUTE | TRAIL]");
           } else {
             config.showGrid = false;
             config.showOptimalRoute = false;
             config.showWalkedCells = false;
-            uiState.statusNotice = "Тактичні шари вимкнено";
+            uiState.statusNotice = ui::LOC("Тактичні шари вимкнено", "Tactical layers disabled");
           }
         }
 
@@ -1608,6 +1658,7 @@ int main(int argc, char *argv[]) {
     float dtSeconds = deltaClock.restart().asSeconds();
     if (dtSeconds > 0.15f)
       dtSeconds = 0.15f; // Cap delta time on minimize/restore
+    ui::Localization::instance().update(dtSeconds);
 
     if (appFlowState == AppFlowState::Loading || appFlowState == AppFlowState::Welcome) {
       if (appFlowState == AppFlowState::Loading) {
@@ -1680,6 +1731,7 @@ int main(int argc, char *argv[]) {
 
       // 2. Render ImGui Loading & Welcome Screen
       renderSplashWelcomeUI(windowW, windowH, 1.0f);
+      ui::ImGuiOverlay::renderLanguageGlitchOverlay(windowW, windowH);
 
       ImGui::SFML::Render(window);
       window.display();
@@ -1705,16 +1757,26 @@ int main(int argc, char *argv[]) {
         int finalVal = engine.getAgent().getBackpack().getCurrentValue();
         int quota = config.companyQuota;
         if (engine.getExtraCollectedCount() > 0) {
-          char noticeBuf[220];
+          char noticeBuf[256];
           std::snprintf(noticeBuf, sizeof(noticeBuf),
-                        "Евакуація успішна! Зібрано %d/%d грн (%zu од., +%zu попутно: брухт лежав на шляху і помістився у рюкзак)!",
-                        finalVal, quota, engine.getCollectedItemIds().size(), engine.getExtraCollectedCount());
+                        "%s %d/%d %s (%zu %s, +%zu %s)",
+                        ui::LOC("Евакуація успішна! Зібрано", "Evacuation successful! Collected"),
+                        finalVal, quota, ui::LOC("грн", "UAH"),
+                        engine.getCollectedItemIds().size(), ui::LOC("од.", "items"),
+                        engine.getExtraCollectedCount(),
+                        ui::LOC("попутно: брухт лежав на шляху і помістився у рюкзак)!",
+                                "opportunistic: scrap on path picked up)!"));
           uiState.statusNotice = noticeBuf;
         } else {
-          char noticeBuf[180];
+          char noticeBuf[220];
           std::snprintf(noticeBuf, sizeof(noticeBuf),
-                        "Евакуація успішна! Зібрано %d/%d грн (%s). Всі заплановані предмети доставлено на базу!",
-                        finalVal, quota, (finalVal >= quota ? "Квоту виконано!" : "Квоту не досягнуто!"));
+                        "%s %d/%d %s (%s). %s",
+                        ui::LOC("Евакуація успішна! Зібрано", "Evacuation successful! Collected"),
+                        finalVal, quota, ui::LOC("грн", "UAH"),
+                        (finalVal >= quota ? ui::LOC("Квоту виконано!", "Quota completed!")
+                                           : ui::LOC("Квоту не досягнуто!", "Quota not reached!")),
+                        ui::LOC("Всі заплановані предмети доставлено на базу!",
+                                "All planned items secured at base!"));
           uiState.statusNotice = noticeBuf;
         }
       }
@@ -1878,11 +1940,11 @@ int main(int argc, char *argv[]) {
         renderer.setWaitingForDrop(true);
         if (transition.pendingUseSpecifiedSeed) {
           config.randomSeed = transition.pendingSpecifiedSeedValue;
-          uiState.statusNotice = "Лабіринт відтворено за власним сідом!";
+          uiState.statusNotice = ui::LOC("Лабіринт відтворено за власним сідом!", "Maze regenerated using custom seed!");
         } else {
           config.randomSeed = static_cast<unsigned int>(
               std::chrono::high_resolution_clock::now().time_since_epoch().count());
-          uiState.statusNotice = "Новий лабіринт успішно згенеровано!";
+          uiState.statusNotice = ui::LOC("Новий лабіринт успішно згенеровано!", "New maze generated successfully!");
         }
         generator.setConfig(config);
         generator.generate(maze);
@@ -1898,7 +1960,7 @@ int main(int argc, char *argv[]) {
         camera.fitMaze(newMazeW, newMazeH, windowW, windowH, 1.25f, false);
         minimap.resetZoom();
 
-        benchmarkRows = runBatchBenchmark(maze, config);
+        benchmarkRows = runBatchBenchmark(maze, config, &engine.getPlan());
         uiState.appliedKnapsackAlgoIndex = uiState.knapsackAlgoIndex;
         uiState.appliedPathfinderAlgoIndex = uiState.pathfinderAlgoIndex;
         uiState.appliedBackpackCapacity = config.manualBackpackCapacity;
@@ -1996,7 +2058,7 @@ int main(int argc, char *argv[]) {
       renderer.resetAnimation();
       recalculateSimulation(maze, config, engine, uiState.knapsackAlgoIndex,
                             uiState.pathfinderAlgoIndex);
-      benchmarkRows = runBatchBenchmark(maze, config);
+      benchmarkRows = runBatchBenchmark(maze, config, &engine.getPlan());
       uiState.appliedKnapsackAlgoIndex = uiState.knapsackAlgoIndex;
       uiState.appliedPathfinderAlgoIndex = uiState.pathfinderAlgoIndex;
       uiState.appliedBackpackCapacity = config.manualBackpackCapacity;
@@ -2005,7 +2067,8 @@ int main(int argc, char *argv[]) {
       uiState.appliedInitialEnergy = config.initialEnergy;
       uiState.appliedEnergyLimitEnabled = config.energyLimitEnabled;
       uiState.appliedBackpackLimitEnabled = config.backpackLimitEnabled;
-      uiState.statusNotice = "Маршрут перераховано за обраними алгоритмами!";
+      uiState.statusNotice = ui::LOC("Маршрут перераховано за обраними алгоритмами!",
+                                     "Route recalculated with selected algorithms!");
 
       // Keep report_route.json synchronized
       io::JsonHandler::exportRouteReport("report_route.json", maze, config,
@@ -2020,16 +2083,17 @@ int main(int argc, char *argv[]) {
     if (uiState.triggerBatchBenchmark) {
       uiState.triggerBatchBenchmark = false;
       benchmarkRows = runBatchBenchmark(maze, config);
-      uiState.statusNotice = "Аналіз усіх 6 алгоритмів виконано!";
+      uiState.statusNotice = ui::LOC("Аналіз усіх 6 алгоритмів виконано!", "Analysis of all 6 algorithms complete!");
     }
 
     if (uiState.triggerExportCsv) {
       uiState.triggerExportCsv = false;
       if (io::CsvExporter::exportToCsv("benchmark_results.csv",
                                        benchmarkRows)) {
-        uiState.statusNotice = "Звіт збережено у 'benchmark_results.csv'!";
+        uiState.statusNotice = ui::LOC("Звіт збережено у 'benchmark_results.csv'!",
+                                       "Report saved to 'benchmark_results.csv'!");
       } else {
-        uiState.statusNotice = "Помилка при збереженні файлу CSV!";
+        uiState.statusNotice = ui::LOC("Помилка при збереженні файлу CSV!", "Error saving CSV file!");
       }
     }
 
@@ -2039,9 +2103,11 @@ int main(int argc, char *argv[]) {
                                             engine.getPlan(), engine, benchmarkRows,
                                             uiState.appliedKnapsackAlgoIndex,
                                             uiState.appliedPathfinderAlgoIndex)) {
-        uiState.statusNotice = "Повний звіт успішно збережено у 'report_route.json'!";
+        uiState.statusNotice = ui::LOC("Повний звіт успішно збережено у 'report_route.json'!",
+                                       "Full report saved to 'report_route.json'!");
       } else {
-        uiState.statusNotice = "Помилка при збереженні файлу 'report_route.json'!";
+        uiState.statusNotice = ui::LOC("Помилка при збереженні файлу 'report_route.json'!",
+                                       "Error saving 'report_route.json'!");
       }
     }
 
@@ -2050,9 +2116,11 @@ int main(int argc, char *argv[]) {
       if (io::JsonHandler::saveInputConfig("input_config.json", config,
                                           uiState.knapsackAlgoIndex,
                                           uiState.pathfinderAlgoIndex)) {
-        uiState.statusNotice = "Параметри місії збережено у 'input_config.json'!";
+        uiState.statusNotice = ui::LOC("Параметри місії збережено у 'input_config.json'!",
+                                       "Mission parameters saved to 'input_config.json'!");
       } else {
-        uiState.statusNotice = "Помилка при збереженні 'input_config.json'!";
+        uiState.statusNotice = ui::LOC("Помилка при збереженні 'input_config.json'!",
+                                       "Error saving 'input_config.json'!");
       }
     }
 
@@ -2066,9 +2134,10 @@ int main(int argc, char *argv[]) {
         uiState.useSpecifiedSeed = true;
         uiState.specifiedSeedValue = config.randomSeed;
         uiState.triggerRegeneration = true;
-        uiState.statusNotice = "Конфіг успішно імпортовано з 'input_config.json'!";
+        uiState.statusNotice = ui::LOC("Конфіг успішно імпортовано з 'input_config.json'!",
+                                       "Config loaded from 'input_config.json'!");
       } else {
-        uiState.statusNotice = "Помилка імпорту JSON: " + err;
+        uiState.statusNotice = std::string(ui::LOC("Помилка імпорту JSON: ", "JSON import error: ")) + err;
       }
     }
 
@@ -2109,6 +2178,7 @@ int main(int argc, char *argv[]) {
                                      renderer, windowW, windowH);
       guiOverlay.renderMissionStatusPanel(uiState, config, maze, engine,
                                           renderer, windowW, windowH);
+      guiOverlay.renderFloatingLanguageButton(windowW, windowH, config.uiScale);
       if (appFlowState == AppFlowState::InGame) {
         guiOverlay.renderTourOverlay(windowW, windowH, config.uiScale, config,
                                      uiState, engine, maze);
@@ -2117,7 +2187,8 @@ int main(int argc, char *argv[]) {
         uiState.requestReturnToLastAutoStep = false;
         if (engine.returnToLastAutoStep()) {
           renderer.snapAfterReturn(engine.getCollectedItemIds());
-          uiState.statusNotice = "Повернуто до останнього автоматичного кроку!";
+          uiState.statusNotice = ui::LOC("Повернуто до останнього автоматичного кроку!",
+                                         "Rewound to last automated route step!");
           if (config.cameraFollowAgent) {
             uiState.requestCenterCameraOnAgent = true;
           }
@@ -2168,17 +2239,18 @@ int main(int argc, char *argv[]) {
       ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
       ui::ImGuiOverlay::showStyledTooltip(
           config.uiScale,
-          "Регулятор оптичного масштабу");
+          "%s", ui::LOC("Регулятор оптичного масштабу", "Optical Zoom Slider"));
     } else if (appFlowState == AppFlowState::InGame && minimap.isPoweredOn() && minimap.isDialButtonHovered()) {
       ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
       ui::ImGuiOverlay::showStyledTooltip(
           config.uiScale,
-          "Огляд комплексу [Весь лабіринт]");
+          "%s", ui::LOC("Огляд комплексу [Весь лабіринт]", "Overview [Fit Maze]"));
     } else if (appFlowState == AppFlowState::InGame && minimap.isPowerButtonHovered()) {
       ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
       ui::ImGuiOverlay::showStyledTooltip(
           config.uiScale,
-          minimap.isPoweredOn() ? "Вимкнути" : "Увімкнути");
+          "%s", minimap.isPoweredOn() ? ui::LOC("Вимкнути радар", "Turn Radar Off")
+                                      : ui::LOC("Увімкнути радар", "Turn Radar On"));
     } else if (appFlowState == AppFlowState::InGame && minimap.isPoweredOn() && minimap.isToggleSwitchHovered()) {
       ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
       ui::ImGuiOverlay::showStyledTooltip(
@@ -2417,6 +2489,8 @@ int main(int argc, char *argv[]) {
                      guiOverlay.getHoveredCatalogCategory(),
                      config.showWalkedCells);
     }
+
+    ui::ImGuiOverlay::renderLanguageGlitchOverlay(windowW, windowH);
 
     ImGui::SFML::Render(window);
     window.display();

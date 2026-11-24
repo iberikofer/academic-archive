@@ -34,16 +34,38 @@
 
 All documentation files located in [`course-projects/DSA-cpp/docs/`](./) are structured as follows:
 
-| File | Format | Language | Description |
+| File / Directory | Format | Language | Description |
 | :--- | :---: | :---: | :--- |
-| [`Індивідуальне_завдання_Lethal_Company.docx`](./Індивідуальне_завдання_Lethal_Company.docx) | `DOCX` | 🇺🇦 Ukrainian | Approved individual coursework assignment and official specifications |
+| [`DSA-Sych-Yaroslav-2PI25b.docx`](./DSA-Sych-Yaroslav-2PI25b.docx) | `DOCX` | 🇺🇦 Ukrainian | **Final official coursework explanatory note manuscript** (Title page, approved assignment, abstract, Chapters 1–3, empirical tables 3.1–3.3, figures 3.1–3.2, conclusions, literature, and Appendix A code) |
+| [`DSA-Sych-Yaroslav-2PI25b.pdf`](./DSA-Sych-Yaroslav-2PI25b.pdf) | `PDF` | 🇺🇦 Ukrainian | **Print-ready compiled PDF version** of the explanatory note conforming to DSTU 3008:2015 |
 | [`guidelines-for-coursework-UA.pdf`](./guidelines-for-coursework-UA.pdf) | `PDF` | 🇺🇦 Ukrainian | Official VNTU department methodological guidelines for DSA coursework |
-| [`individual_task_variants.docx`](./individual_task_variants.docx) | `DOCX` | 🇺🇦 Ukrainian | Department coursework task variants catalog and assignment register |
-| [`notes.md`](./notes.md) | `MD` | 🇺🇦 Ukrainian | Research notes, approved topic formulations, and formal problem statement |
-| [`OOP-SychYaroslav-2PI-25B.docx`](./OOP-SychYaroslav-2PI-25B.docx) | `DOCX` | 🇺🇦 Ukrainian | Structural reference template and formatting standard for thesis manuscript |
+| [`assets/`](./assets/) | `DIR` | 🇺🇦 / — | Academic figure assets ([`3.1.png`](./assets/3.1.png), [`3.2.png`](./assets/3.2.png)) and department assignment register ([`individual_task_variants.docx`](./assets/individual_task_variants.docx), [`individual_task_variants.pdf`](./assets/individual_task_variants.pdf)) |
 | [`../benchmark_results.csv`](../benchmark_results.csv) | `CSV` | — | Empirical benchmark dataset comparing all 6 algorithmic combinations |
-| [`../report_route.json`](../report_route.json) | `JSON` | — | Exported telemetry, planned waypoints, and step-by-step path coordinates |
+| [`../input_config.json`](../input_config.json) | `JSON` | — | Declarative mission configuration file (agent capacities, quotas, BSP labyrinth dimensions, algorithmic selections) |
+| `session_state.json` | `JSON` | — | Local runtime session snapshot (active maze, telemetry, GUI window layouts, zoom, language preferences) |
+| `report_route.json` | `JSON` | — | Exported telemetry, planned waypoints, and step-by-step path coordinates (generated on-demand via simulator UI) |
 | [`../README.md`](../README.md) | `MD` | 🇬🇧 / 🇺🇦 | Root README for the interactive C++20 / SFML 3 game simulation software |
+
+### ⚙️ Simulator I/O & JSON State Specifications
+
+The software relies on structured JSON formats for declarative inputs, runtime session state, and analytical reporting:
+
+1. **`input_config.json` (Declarative Mission Configuration)**:
+   - Configures the simulation parameters before runtime or when loading preset scenarios.
+   - **`agent`**: Sets backpack payload capacity (`backpack_capacity_kg`), company quota targets (`company_quota_credits`), battery energy reserve (`initial_energy`), energy limit enforcement (`energy_limit_enabled`), and traversal mode (`route_mode`: `"PointAToPointB"` vs `"RoundTrip"`).
+   - **`algorithms`**: Selects the active Knapsack optimizer (0/1 DP vs Greedy Value/Weight) and Pathfinding algorithm (A* Octile, Dijkstra Uniform-Cost, or BFS Shortest-Path).
+   - **`map`**: Governs procedural BSP generation: grid dimensions (`width`, `height`), room limits (`min_room_size`, `max_room_size`), obstacle generation (`mud_spawn_chance`, `extra_passage_chance`), and deterministic RNG seed (`seed`).
+
+2. **`session_state.json` (Full Exploration State & UI Persistence)**:
+   - Provides complete lossless serialization of the active game session and player preferences.
+   - **`config`**: Synchronized simulation parameters and display flags (`show_grid`, `show_optimal_route`, `show_walked_cells`, `camera_follow_agent`, `vsync_enabled`).
+   - **`gui`**: Preserves tactical UI geometry across restarts: sidebar width and collapse state (`sidebar_width`, `sidebar_collapsed`), mission status panel dimensions (`mission_panel_width`, `mission_panel_collapsed`), camera coordinates and zoom level (`camera_zoom`, `camera_center_x`, `camera_center_y`), accordion section states, fullscreen toggle, and global language preference (`"language"`: `"UA"` or `"EN"`).
+   - **`maze`**: Exact spatial map snapshot: generated room bounds, scrap item locations with weights and values, and the discrete tile matrix (walkable paths, mud hazards, solid walls).
+   - **`agent`**: Dynamic traversal state: worker coordinates $(X, Y)$, battery energy, list of collected scrap IDs, executed step history, and mission status.
+   - **`benchmarks`**: In-memory matrix of benchmark metrics recorded across algorithmic combinations for the current session.
+
+3. **`report_route.json` (Analytical Route Telemetry Export)**:
+   - Exported on-demand via the simulator interface (`↓ Export report_route.json`) for empirical verification, containing calculated TSP waypoint sequences, step-by-step path coordinates, and algorithmic benchmark logs.
 
 ---
 
@@ -138,29 +160,27 @@ The coursework explanatory note is designed to adhere to DSTU 3008:2015 and VNTU
 - **Environment Generation:**
   - Recursive Binary Space Partitioning (BSP) generating rooms, corridor connections, and cyclic loops.
 
-### 5. Chapter 3: Software Architecture & Data Structures Implementation (Розділ 3)
-- Modern C++20 implementation utilizing a header-only modular architecture in [`include/`](../include/).
+### 5. Chapter 3: Software Implementation, User Interface & Experimental Analysis (Розділ 3)
+- Modern C++20 implementation utilizing a modular architecture in [`include/`](../include/).
 - Container complexity mappings:
   - Dynamic grid matrix: `std::vector<std::vector<Cell>>`
   - Priority min-heap: `std::priority_queue<Node, vector<Node>, greater<Node>>`
   - Hash lookup sets: `std::unordered_map` and `std::unordered_set`
   - Backtracking stack: `std::vector<core::Point>` with `std::reverse`
-- Real-time hardware-accelerated GUI subsystem: SFML 3.0.2 with Dear ImGui integration.
+- Real-time hardware-accelerated GUI subsystem: SFML 3.0.2 with Dear ImGui integration and bilingual localization (UA / EN).
+- Section 3.2: Architecture and User Interface (Figure 3.1).
+- Section 3.3: Experimental Performance Analysis & Empirical Benchmarks across 6 solver configurations:
+  - Table 3.1: Pathfinding algorithms comparison ($A^*$ vs. Dijkstra vs. BFS on $30 \times 30$ grid).
+  - Table 3.2: Knapsack optimization comparison ($0/1$ Exact DP vs. Greedy Density Heuristic).
+  - Table 3.3: TSP route optimization parameters (Nearest Neighbor + 2-Opt local search with Multi-Target Dijkstra distance matrix cache ~160x acceleration).
+  - Figure 3.2: Interactive in-game benchmark and comparative analysis window.
+- Section 3.4: Spatial Complexity Analysis (Memory Footprint formula $(N+1)(C+1)\cdot \text{sizeof(int)}$ and Heap Chunk Pooling).
+- Benchmark telemetry exported to [`benchmark_results.csv`](../benchmark_results.csv) and [`report_route.json`](../report_route.json).
 
-### 6. Chapter 4: Experimental Performance Analysis & Empirical Benchmarks (Розділ 4)
-- Benchmarking methodology across 6 solver configurations ($2 \text{ Knapsack} \times 3 \text{ Pathfinders}$).
-- Quantitative comparison metrics:
-  - Solver execution runtime ($\mu s$)
-  - Memory consumption and dynamic allocations (bytes)
-  - Explored node count (search frontier efficiency)
-  - Total tour energy cost vs. remaining agent battery
-- Optimality gap analysis: DP vs. Greedy value recovery.
-- Benchmark data exported directly to [`benchmark_results.csv`](../benchmark_results.csv).
-
-### 7. Conclusions, References & Appendices
-- Summary of algorithmic findings and recommendations for real-time robotic and game applications.
-- Academic references (Cormen, Knuth, Sedgewick, Hart/Nilsson/Raphael A\* papers).
-- Code listings of core algorithmic classes (`DPKnapsack.hpp`, `AStarFinder.hpp`, `TSPSolver.hpp`).
+### 6. Conclusions, References & Appendices
+- Summary of algorithmic findings and recommendations for real-time robotics and game engines.
+- Academic references (Cormen, Knuth, Sedgewick, Hart/Nilsson/Raphael $A^*$ papers, ISO C++ standards).
+- Appendix A: Complete C++ source code listings of core algorithmic classes (`DPKnapsack.hpp`, `AStarFinder.hpp`, `TSPSolver.hpp`).
 
 ---
 
@@ -233,14 +253,36 @@ The explanatory note follows VNTU coursework standards:
 
 | Файл / Каталог | Формат | Мова | Призначення та зміст |
 | :--- | :---: | :---: | :--- |
-| [`Індивідуальне_завдання_Lethal_Company.docx`](./Індивідуальне_завдання_Lethal_Company.docx) | `DOCX` | 🇺🇦 Українська | Офіційне затверджене індивідуальне завдання до курсової роботи |
+| [`DSA-Sych-Yaroslav-2PI25b.docx`](./DSA-Sych-Yaroslav-2PI25b.docx) | `DOCX` | 🇺🇦 Українська | **Офіційний фінальний рукопис пояснювальної записки** (Титульний аркуш, індивідуальне завдання, анотація, Розділи 1–3, емпіричні таблиці 3.1–3.3, рисунки 3.1–3.2, висновки, джерела та Додаток А) |
+| [`DSA-Sych-Yaroslav-2PI25b.pdf`](./DSA-Sych-Yaroslav-2PI25b.pdf) | `PDF` | 🇺🇦 Українська | **Готовий до друку та перевірки PDF-файл** пояснювальної записки за ДСТУ 3008:2015 |
 | [`guidelines-for-coursework-UA.pdf`](./guidelines-for-coursework-UA.pdf) | `PDF` | 🇺🇦 Українська | Офіційні методичні вказівки кафедри ПЗ ВНТУ до виконання курсових робіт з АСД |
-| [`individual_task_variants.docx`](./individual_task_variants.docx) | `DOCX` | 🇺🇦 Українська | Збірник варіантів завдань кафедри та реєстр тем курсових робіт |
-| [`notes.md`](./notes.md) | `MD` | 🇺🇦 Українська | Дослідницькі нотатки, варіанти теми та формальна постановка оптимізаційної задачі |
-| [`OOP-SychYaroslav-2PI-25B.docx`](./OOP-SychYaroslav-2PI-25B.docx) | `DOCX` | 🇺🇦 Українська | Зразок оформлення та шаблон рукопису записки за стандартами ВНТУ |
+| [`assets/`](./assets/) | `DIR` | 🇺🇦 / — | Графічні матеріали ([`3.1.png`](./assets/3.1.png), [`3.2.png`](./assets/3.2.png)) та реєстр завдань кафедри ([`individual_task_variants.docx`](./assets/individual_task_variants.docx), [`individual_task_variants.pdf`](./assets/individual_task_variants.pdf)) |
 | [`../benchmark_results.csv`](../benchmark_results.csv) | `CSV` | — | Масив емпіричних даних порівняльного бенчмаркінгу 6 конфігурацій алгоритмів |
-| [`../report_route.json`](../report_route.json) | `JSON` | — | Експортований файл телеметрії маршруту, опорних точок та координат кроків |
+| [`../input_config.json`](../input_config.json) | `JSON` | — | Декларативний конфігураційний файл місії (параметри робітника, квота, розміри BSP-лабіринту, алгоритми) |
+| `session_state.json` | `JSON` | — | Знімок поточної сесії симулятора (активний лабіринт, телеметрія, геометрія вікон GUI, зум, мова) |
+| `report_route.json` | `JSON` | — | Експортований файл телеметрії маршруту, опорних точок та координат кроків (формується через інтерфейс) |
 | [`../README.md`](../README.md) | `MD` | 🇬🇧 / 🇺🇦 | Головний README з описом програми, симулятора та інструкціями зі збірки |
+
+### ⚙️ Специфікація JSON-файлів конфігурації та збереження сесії
+
+Програмний комплекс використовує структуровані JSON-файли для декларативної конфігурації, збереження поточної сесії та аналітичної звітності:
+
+1. **`input_config.json` (Декларативна конфігурація місії)**:
+   - Задає вхідні параметри сценарію перед запуском симулятора або завантаженням попередньо налаштованих шаблонів.
+   - **`agent`**: Місткість рюкзака (`backpack_capacity_kg`), норма обов'язкової квоти компанії (`company_quota_credits`), початковий запас енергії (`initial_energy`), прапорець обмеження енергії (`energy_limit_enabled`) та режим руху (`route_mode`: `"PointAToPointB"` або `"RoundTrip"`).
+   - **`algorithms`**: Вибір методів оптимізації рюкзака (0/1 DP або жадібний за питомою цінністю) та пошуку шляху (A* Octile, Dijkstra Uniform-Cost, BFS).
+   - **`map`**: Параметри процедурної BSP-генерації: габарити сітки (`width`, `height`), діапазон кімнат (`min_room_size`, `max_room_size`), ймовірність перешкод (`mud_spawn_chance`, `extra_passage_chance`) та числовий зерно генератора (`seed`).
+
+2. **`session_state.json` (Повний знімок сесії та збереження інтерфейсу)**:
+   - Забезпечує безвтратну серіалізацію активного стану комплексу з можливістю продовження експедиції (`has_active_session`).
+   - **`config`**: Синхронізовані параметри симуляції та прапорці відображення (`show_grid`, `show_optimal_route`, `show_walked_cells`, `camera_follow_agent`, `vsync_enabled`).
+   - **`gui`**: Збереження геометрії інтерфейсу між перезапусками: ширина та згортання бічної панелі (`sidebar_width`, `sidebar_collapsed`), параметри панелі місії (`mission_panel_width`, `mission_panel_collapsed`), координати фокусу та рівень масштабу камери (`camera_zoom`, `camera_center_x`, `camera_center_y`), стани акордеонів, повноекранний режим і мова інтерфейсу (`"language"`: `"UA"` або `"EN"`).
+   - **`maze`**: Повний стан мапи: згенеровані кімнати, позиції металобрухту з їхньою вагою і цінністю, матриця клітинок (прохідні, багнюка, монолітні стіни).
+   - **`agent`**: Динамічний стан агента: поточні координати $(X, Y)$, залишок заряду батареї, список зібраних предметів, історія пройдених кроків і статус виконання місії.
+   - **`benchmarks`**: Таблиця результатів обчислювальної складності всіх 6 комбінацій алгоритмів для поточної конфігурації.
+
+3. **`report_route.json` (Аналітичний звіт телеметрії маршруту)**:
+   - Формується на вимогу користувача через інтерфейс програми (`↓ Експортувати report_route.json`) для науково-дослідного аналізу: містить розраховану послідовність опорних точок TSP, порядкові координати кожного кроку та порівняльні бенчмарки.
 
 ---
 
@@ -332,29 +374,27 @@ $$\min_{\pi} \sum_{e \in \pi} \text{cost}(e), \quad \text{за умови: } \te
 - **Процедурна генерація лабіринту:**
   - Алгоритм двійкового розбиття простору (BSP) з гарантованою досяжністю кімнат і циклічними зв'язками.
 
-### 5. Розділ 3: Програмна реалізація та структури даних
-- Реалізація стандартом C++20 із модульною архітектурою в папці [`include/`](../include/).
+### 5. Розділ 3: Програмна реалізація, інтерфейс та аналіз ефективності алгоритмів
+- Реалізація стандартом C++20 із модульною архітектурою в каталозі [`include/`](../include/).
 - Відображення абстрактних структур на контейнери STL:
   - Сітка лабіринту: `std::vector<std::vector<Cell>>`
   - Пріоритетна черга: `std::priority_queue<Node, vector<Node>, greater<Node>>`
   - Хеш-таблиці та множини: `std::unordered_map`, `std::unordered_set`
   - Стек реверсу шляху: `std::vector<core::Point>` із `std::reverse`
-- Графічна підсистема на базі SFML 3.0.2 та аналітичний HUD Dear ImGui.
+- Графічна підсистема на базі SFML 3.0.2 та аналітичний HUD Dear ImGui з підтримкою двомовної локалізації (UA / EN).
+- Підрозділ 3.2: Архітектура програмного забезпечення та графічний інтерфейс (Рисунок 3.1).
+- Підрозділ 3.3: Експериментальне дослідження та емпіричний бенчмаркінг 6 конфігурацій алгоритмів:
+  - Таблиця 3.1: Порівняння алгоритмів пошуку шляху ($A^*$ проти Дейкстри та BFS на сітці $30 \times 30$).
+  - Таблиця 3.2: Дослідження оптимізації рюкзака (Точний $0/1$ DP проти жадібного за питомою цінністю).
+  - Таблиця 3.3: Параметри маршрутизації TSP (Найближчий сусід + 2-Opt локальний пошук із кешуванням матриці відстаней Multi-Target Dijkstra — прискорення ~160x).
+  - Рисунок 3.2: Інтерактивне вікно зведеного порівняльного аналізу алгоритмів.
+- Підрозділ 3.4: Аналіз просторової складності (формула оцінки пам'яті $(N+1)(C+1)\cdot \text{sizeof(int)}$ та пулінг пам'яті Heap Chunk Pooling).
+- Експорт результатів у файли [`benchmark_results.csv`](../benchmark_results.csv) та [`report_route.json`](../report_route.json).
 
-### 6. Розділ 4: Експериментальне дослідження та аналіз ефективності
-- Методологія автоматизованого бенчмаркінгу 6 комбінацій алгоритмів ($2 \text{ рюкзаки} \times 3 \text{ шукачі шляху}$).
-- Порівняння за метриками:
-  - Час обчислення ($\mu s$)
-  - Використана пам'ять та динамічні алокації (байти)
-  - Кількість розкритих вузлів у пошуковому графі
-  - Загальні енерговитрати маршруту та залишок заряду агента
-- Порівняльний аналіз похибки жадібного рюкзака відносно точного оптимуму DP.
-- Експорт результатів у файл [`benchmark_results.csv`](../benchmark_results.csv).
-
-### 7. Висновки, список джерел та додатки
+### 6. Висновки, список використаних джерел та додатки
 - Науково-практичні рекомендації щодо вибору алгоритмів для високонавантажених ігрових рушіїв.
 - Список використаних літературних джерел (Кормен, Кнут, Седжвік, стандарти ISO C++).
-- Додатки з вихідним кодом ключових класів та даними бенчмарків.
+- Додаток А: Повний вихідний код ключових класів та алгоритмів (`DPKnapsack.hpp`, `AStarFinder.hpp`, `TSPSolver.hpp`).
 
 ---
 

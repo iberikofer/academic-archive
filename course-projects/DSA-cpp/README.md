@@ -6,8 +6,8 @@
 
 > [!IMPORTANT]
 > **Type of README:** 🎮 **Game Application / Simulation Software README**  
-> This file is dedicated specifically to the **Lethal Company DSA Simulator** software application: combinatorial algorithms pipeline (0/1 Knapsack, TSP with 2-Opt, A*/Dijkstra/BFS pathfinding, BSP maze generation), Dear ImGui HUD, interactive controls, C++20 / SFML 3 architecture, and build/run instructions.  
-> 
+> This file is dedicated specifically to the **Lethal Company DSA Simulator** software application: combinatorial algorithms pipeline (0/1 Knapsack, TSP with 2-Opt, A\*/Dijkstra/BFS pathfinding, BSP maze generation), Dear ImGui HUD, interactive controls, C++20 / SFML 3 architecture, and build/run instructions.
+>
 > 📑 **Looking for the Coursework Explanatory Note & Academic Documentation?**  
 > See the dedicated **[Coursework Explanatory Note & Documentation README (`docs/README.md`)](./docs/README.md)** for the academic report structure, approved individual assignment, mathematical problem formulations, guideline compliance, and algorithmic research notes.
 
@@ -15,12 +15,13 @@
 
 ## 📑 Project Documentation & Guidelines
 
-| Document | Format | Description & Link |
-| :--- | :---: | :--- |
-| **Coursework Documentation README** | `MD` | 📑 [docs/README.md](./docs/README.md) — Comprehensive guide to coursework explanatory note, mathematical model & guidelines |
-| **Individual Assignment** | `DOCX` | 🇺🇦 [`Індивідуальне_завдання_Lethal_Company.docx`](./docs/Індивідуальне_завдання_Lethal_Company.docx) — Approved individual coursework assignment and specifications |
-| **Methodological Guidelines** | `PDF` | 🇺🇦 [`guidelines-for-coursework-UA.pdf`](./docs/guidelines-for-coursework-UA.pdf) — Official VNTU DSA coursework requirements and standards |
-| **Task Variants Catalog** | `DOCX` | 🇺🇦 [`individual_task_variants.docx`](./docs/individual_task_variants.docx) — Department coursework task variants list |
+| Document                            | Format | Description & Link                                                                                                                                                  |
+| :---------------------------------- | :----: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Coursework Documentation README** |  `MD`  | 📑 [docs/README.md](./docs/README.md) — Comprehensive guide to coursework explanatory note, mathematical model & guidelines                                         |
+| **Coursework Thesis (DOCX)**        | `DOCX` | 🇺🇦 [`DSA-Sych-Yaroslav-2PI25b.docx`](./docs/DSA-Sych-Yaroslav-2PI25b.docx) — Final official coursework explanatory note manuscript (DSTU 3008:2015)                |
+| **Coursework Thesis (PDF)**         | `PDF`  | 🇺🇦 [`DSA-Sych-Yaroslav-2PI25b.pdf`](./docs/DSA-Sych-Yaroslav-2PI25b.pdf) — Print-ready compiled PDF version of the thesis note                                    |
+| **Methodological Guidelines**       | `PDF`  | 🇺🇦 [`guidelines-for-coursework-UA.pdf`](./docs/guidelines-for-coursework-UA.pdf) — Official VNTU DSA coursework requirements and standards                          |
+| **Task Variants & Figures**         | `DIR`  | 🇺🇦 [`docs/assets/`](./docs/assets/) — Department coursework task variants list and thesis figure assets                                                            |
 
 ---
 
@@ -42,13 +43,14 @@
 ### Project Topic
 
 > **"Development and Efficiency Analysis of Discrete Route Optimization and Autonomous Resource Gathering Algorithms in a Grid Complex (Lethal Company DSA Simulator)"**
-> *(General theme: "Development and efficiency analysis of algorithms and programs")*
+> _(General theme: "Development and efficiency analysis of algorithms and programs")_
 
 ### Background & Gamification Concept
 
 The project simulates an autonomous worker-agent expedition inspired by the popular cooperative game **Lethal Company**. An employee of "The Company" is deployed into an abandoned procedural underground industrial complex to collect high-value scrap items scattered across hazardous terrain, meeting a strict profit quota while operating under bounded energy constraints and backpack payload capacity.
 
 Solving this challenge requires a multi-tier combinatorial optimization pipeline:
+
 1. **Resource Value Maximization:** Solving the 0/1 Knapsack problem to select the optimal subset of scrap items subject to physical weight limits.
 2. **Global Tour Planning:** Solving the Traveling Salesperson Problem (TSP) with fixed departure (Airlock) and return/extraction points to determine the optimal sequence of waypoints.
 3. **Low-Level Grid Navigation:** Finding energy-efficient, collision-free paths between consecutive waypoints in an 8-directional weighted maze containing mud traps, obstacles, and doorway bottlenecks.
@@ -94,37 +96,51 @@ flowchart TD
 
 ### 1. Optimization Pipeline
 
-| Stage | Algorithm | Complexity (Time / Space) | Implementation Details |
-| :--- | :--- | :---: | :--- |
-| **Item Selection** | **0/1 Knapsack DP** | $O(N \cdot \min(C, \sum W)) \ /\ O(N \cdot C)$ | Exact optimal solution; memory-bounded allocation with fast-path bypass when total weight $\le$ capacity. |
-| **Item Selection** | **Greedy Knapsack** | $O(N \log N) \ /\ O(N)$ | Fast heuristic sorting by value density $V_i / W_i$; handles zero-weight items via infinity density. |
-| **Global Tour** | **TSP Nearest Neighbor** | $O(K^2) \ /\ O(K)$ | Greedy order construction between $K$ waypoints with fixed start airlock and return/exit destination. |
-| **Global Tour** | **TSP 2-Opt Search** | $O(M \cdot K^2) \ /\ O(K)$ | Local 2-edge exchange optimization; preserves fixed endpoints and handles disconnected graphs safely. |
-| **Navigation** | **A\* Pathfinding** | $O(E \log V) \ /\ O(V)$ | 8-directional search with Octile metric $h = 10(dx+dy) - 6\min(dx,dy)$; uses `closedSet` to prune stale queue items. |
-| **Navigation** | **Dijkstra Finder** | $O(E \log V) \ /\ O(V)$ | Uniform-cost search exploring equidistant contours; serves as the exact ground truth for path costs. |
-| **Navigation** | **BFS Finder** | $O(V + E) \ /\ O(V)$ | Uninformed 8-directional wave flood fill; minimizes hop count regardless of terrain energy costs. |
-| **Environment** | **BSP Generator** | $O(R \log R) \ /\ O(W \cdot H)$ | Recursive Binary Space Partitioning; generates industrial rooms, hallways, and extra cyclic loops. |
+| Stage              | Algorithm                |           Complexity (Time / Space)            | Implementation Details                                                                                               |
+| :----------------- | :----------------------- | :--------------------------------------------: | :------------------------------------------------------------------------------------------------------------------- |
+| **Item Selection** | **0/1 Knapsack DP**      | $O(N \cdot \min(C, \sum W)) \ /\ O(N \cdot C)$ | Exact optimal solution; memory-bounded allocation with fast-path bypass when total weight $\le$ capacity.            |
+| **Item Selection** | **Greedy Knapsack**      |            $O(N \log N) \ /\ O(N)$             | Fast heuristic sorting by value density $V_i / W_i$; handles zero-weight items via infinity density.                 |
+| **Global Tour**    | **TSP Nearest Neighbor** |               $O(K^2) \ /\ O(K)$               | Greedy order construction between $K$ waypoints with fixed start airlock and return/exit destination.                |
+| **Global Tour**    | **TSP 2-Opt Search**     |           $O(M \cdot K^2) \ /\ O(K)$           | Local 2-edge exchange optimization; preserves fixed endpoints and handles disconnected graphs safely.                |
+| **Navigation**     | **A\* Pathfinding**      |            $O(E \log V) \ /\ O(V)$             | 8-directional search with Octile metric $h = 10(dx+dy) - 6\min(dx,dy)$; uses `closedSet` to prune stale queue items. |
+| **Navigation**     | **Dijkstra Finder**      |            $O(E \log V) \ /\ O(V)$             | Uniform-cost search exploring equidistant contours; serves as the exact ground truth for path costs.                 |
+| **Navigation**     | **BFS Finder**           |              $O(V + E) \ /\ O(V)$              | Uninformed 8-directional wave flood fill; minimizes hop count regardless of terrain energy costs.                    |
+| **Environment**    | **BSP Generator**        |        $O(R \log R) \ /\ O(W \cdot H)$         | Recursive Binary Space Partitioning; generates industrial rooms, hallways, and extra cyclic loops.                   |
 
 ### 2. Standard Data Structures Mapping
 
-| Abstract Data Structure | C++ Standard Type | Role in the System |
-| :--- | :--- | :--- |
-| **Dynamic 2D Array** | `std::vector<std::vector<Cell>>` | Discrete grid matrix storing floor, wall, doorway, and mud cell types. |
-| **Priority Queue / Min-Heap** | `std::priority_queue<Node, vector<Node>, greater<Node>>` | Open set for A\* and Dijkstra frontier expansion with $O(\log N)$ extraction. |
-| **FIFO Queue** | `std::queue<core::Point>` | Wavefront exploration buffer for Breadth-First Search (BFS). |
-| **Hash Tables / Sets** | `std::unordered_map`, `std::unordered_set` | Fast $O(1)$ lookups for `gScore`, `cameFrom` parent maps, and closed visited sets. |
-| **Matrix DP Table** | `std::vector<std::vector<int>>` | 2D dynamic programming memoization table for knapsack values. |
-| **Call Stack / Reversal** | `std::vector<core::Point>` with `std::reverse` | Backtracking path reconstruction from destination back to source. |
+| Abstract Data Structure       | C++ Standard Type                                        | Role in the System                                                                 |
+| :---------------------------- | :------------------------------------------------------- | :--------------------------------------------------------------------------------- |
+| **Dynamic 2D Array**          | `std::vector<std::vector<Cell>>`                         | Discrete grid matrix storing floor, wall, doorway, and mud cell types.             |
+| **Priority Queue / Min-Heap** | `std::priority_queue<Node, vector<Node>, greater<Node>>` | Open set for A\* and Dijkstra frontier expansion with $O(\log N)$ extraction.      |
+| **FIFO Queue**                | `std::queue<core::Point>`                                | Wavefront exploration buffer for Breadth-First Search (BFS).                       |
+| **Hash Tables / Sets**        | `std::unordered_map`, `std::unordered_set`               | Fast $O(1)$ lookups for `gScore`, `cameFrom` parent maps, and closed visited sets. |
+| **Matrix DP Table**           | `std::vector<std::vector<int>>`                          | 2D dynamic programming memoization table for knapsack values.                      |
+| **Call Stack / Reversal**     | `std::vector<core::Point>` with `std::reverse`           | Backtracking path reconstruction from destination back to source.                  |
 
 ---
 
 ## 🎮 Interactive Simulation & GUI Features
 
-- **Procedural 2D Grid Engine:** Hardware-accelerated rendering using **SFML 3** with custom tile textures, animated agent sprites, and scrap rarity indicators.
-- **Dynamic Camera Controller:** Smooth dragging with Left Mouse Button (<kbd>LMB</kbd>), customizable zoom level ($0.5\times$ to $3.0\times$), and toggleable auto-follow camera.
-- **Interactive Radar Minimap:** Scalable top-down minimap overlay in the corner. Clicking anywhere on the minimap instantly centers the viewport.
-- **Full Simulation Controls:** Real-time speed slider ($0.5\times$ to $4.0\times$), step-by-step frame advance, history stepping backward, instant finish, and reset.
-- **Safety / Evacuation Warnings:** Intelligent monitoring of remaining agent energy relative to maze winding factor and distance to extraction point.
+- **Procedural 2D Grid Engine:** Hardware-accelerated rendering using **SFML 3** with custom tile textures, animated agent sprites, and a catalog of 60 authentic scrap items with rarity tiers.
+- **Dynamic Camera Controller:** Smooth dragging with Left Mouse Button (<kbd>LMB</kbd>), smooth zoom ($0.2\times$ to $4.5\times$), keyboard arrow panning, and toggleable auto-follow camera.
+- **Tactical Radar Monitor & Hardware Bezel Controls:**
+  - Scalable CRT tactical radar overlay in the corner with interactive hardware bezel controls.
+  - Power button with CRT screen power-off/on animation and dark-masked LED diode.
+  - Dual-state tactical layers toggle switch with smooth animated upper (ON) and lower (OFF) green LED indicators.
+  - Interactive zoom slider knob with mouse dragging, camera zoom synchronization, and generous grab padding.
+  - Overview rotary dial button with circular cyan hover to instantly fit the entire maze into view.
+- **Direct Tactical Manual Piloting (WASD + Diagonal):**
+  - Full 8-directional manual agent control with chord detection, deliberate tactical pacing, and accurate energy deduction.
+  - Emergency evacuation allowance: allows stepping onto the exit cell from the penultimate tile even under low energy.
+  - Instant return to route via <kbd>Z</kbd> hotkey or tactical return HUD card.
+- **Interactive Guided Beginner Tour ("Інструкція для чайників"):**
+  - Step-by-step interactive tutorial with glowing spotlight cutouts, auto-scrolling sidebar highlights, and safe hold-<kbd>Esc</kbd> exit.
+- **Session State Persistence:**
+  - Preserves simulation settings, collapsing headers, radar power, camera view, and borderless fullscreen state (<kbd>F11</kbd>) across game restarts.
+- **Full Simulation Controls & Safety Warnings:**
+  - Real-time speed slider ($0.5\times$ to $4.0\times$), step-by-step frame advance, history stepping backward, instant finish, and reset.
+  - Intelligent monitoring of remaining agent energy relative to maze winding factor and distance to extraction point.
 - **Batch Benchmarking Suite:** Automated execution comparing all algorithm combinations ($2 \times 3 = 6$ solver configurations) with CSV metric export.
 
 ---
@@ -133,17 +149,18 @@ flowchart TD
 
 | Key / Action | Function | Description |
 | :---: | :--- | :--- |
-| <kbd>Space</kbd> | **Play / Pause** | Toggle simulation real-time playback. |
-| <kbd>N</kbd> | **Step Forward** | Advance simulation by exactly one move along the planned path. |
-| <kbd>B</kbd> | **Step Backward** | Revert simulation state to the previous historical step. |
-| <kbd>R</kbd> | **Reset Agent** | Reset agent position, energy, and backpack to starting conditions. |
-| <kbd>F</kbd> | **Instant Finish** | Fast-forward all remaining path steps immediately. |
-| <kbd>G</kbd> | **Toggle Grid** | Show or hide tile coordinate grid lines. |
-| <kbd>C</kbd> | **Camera Follow** | Toggle automatic camera tracking on the active agent. |
+| <kbd>Space</kbd> | **Play / Pause / Step** | Toggle real-time playback; when paused, tap to advance 1 step or hold for continuous step. |
+| <kbd>Ctrl</kbd> + <kbd>Space</kbd> | **Step Backward** | Revert simulation state and energy consumption to the previous historical step. |
+| <kbd>W</kbd>, <kbd>A</kbd>, <kbd>S</kbd>, <kbd>D</kbd> | **Manual Movement** | Freely pilot the worker agent in 8 directions (orthogonal + diagonal chords). |
+| <kbd>Z</kbd> | **Return to Plan** | Instantly return worker agent from manual exploration back to the planned route. |
+| <kbd>B</kbd> | **Mission Telemetry** | Toggle the collapsible HUD mission metrics and scrap quota telemetry card. |
+| <kbd>M</kbd> | **Tactical Layers** | Toggle tactical overlay layers (Grid lines, Optimal route, Walked cell footprint). |
+| <kbd>C</kbd> | **Camera Follow** | Toggle automatic camera tracking on the active worker agent. |
+| <kbd>F11</kbd> | **Fullscreen** | Toggle borderless fullscreen display mode. |
+| <kbd>Esc</kbd> | **Menu / Tour Abort** | Toggle sidebar control panel; hold during the Beginner Tour to safely abort. |
 | <kbd>LMB</kbd> Drag (Map) | **Pan Viewport** | Click and drag with left mouse button to pan camera smoothly across the labyrinth. |
-| <kbd>LMB</kbd> Click / Drag (Minimap) | **Minimap Navigate** | Click or drag on the radar minimap to reposition viewport camera. |
-| <kbd>Mouse Wheel</kbd> | **Zoom** | Smoothly zoom viewport in and out ($0.5\times$ to $3.0\times$). |
-| <kbd>Esc</kbd> | **Exit** | Close simulation application window. |
+| <kbd>LMB</kbd> (Radar / Bezel) | **Radar Controls** | Click radar to center camera; drag zoom slider, toggle power, or click overview dial. |
+| <kbd>Mouse Wheel</kbd> | **Zoom** | Smoothly zoom viewport in and out ($0.2\times$ to $4.5\times$). |
 
 ---
 
@@ -175,15 +192,16 @@ course-projects/DSA-cpp/
 ├── CMakeLists.txt                         # CMake build script
 ├── README.md                              # 📖 Project Documentation (Bilingual: EN / UA)
 ├── docs/                                  # 📑 Academic documentation & specifications
+│   ├── DSA-Sych-Yaroslav-2PI25b.docx      # Final coursework explanatory note manuscript
+│   ├── DSA-Sych-Yaroslav-2PI25b.pdf       # Compiled PDF version (DSTU 3008:2015)
 │   ├── guidelines-for-coursework-UA.pdf   # Methodological Guidelines (Ukrainian)
-│   ├── individual_task_variants.docx      # Department Coursework Variants Catalog
-│   ├── notes.md                           # Algorithmic notes
-│   └── Індивідуальне_завдання_Lethal_Company.docx # Approved Individual Assignment
+│   └── assets/                            # Task variants & figures (3.1.png, 3.2.png)
 ├── assets/                                # 🎨 Application visual assets & icons
 │   ├── app.rc                             # Windows resource definition script
 │   ├── icon.ico                           # Executable icon
 │   ├── icon.png                           # High-res application icon
-│   ├── map.png                            # Floor texture background
+│   ├── map.png                            # Floor texture background & CRT monitor frame
+│   ├── slider_knob.png                    # Hardware CRT zoom slider knob sprite
 │   └── cursor-grabbing*.png               # Camera drag cursors
 ├── include/                               # 📦 C++ Header-only architecture
 │   ├── algorithms/                        # Core algorithmic solvers
@@ -268,8 +286,8 @@ All required SFML runtime DLLs and asset files are automatically copied into `bu
 
 > [!IMPORTANT]
 > **Тип README-файлу:** 🎮 **Документація до програми / комп'ютерної гри-симулятора**  
-> Цей файл присвячено безпосередньо програмному застосунку-симулятору **Lethal Company DSA Simulator**: пайплайну комбінаторних алгоритмів (0/1 рюкзак, TSP з 2-Opt, пошук шляху A*/Дейкстра/BFS, процедурна генерація BSP), інтерфейсу Dear ImGui, інтерактивному керуванню, C++20 / SFML 3 архітектурі та інструкціям зі збірки проєкту.  
-> 
+> Цей файл присвячено безпосередньо програмному застосунку-симулятору **Lethal Company DSA Simulator**: пайплайну комбінаторних алгоритмів (0/1 рюкзак, TSP з 2-Opt, пошук шляху A\*/Дейкстра/BFS, процедурна генерація BSP), інтерфейсу Dear ImGui, інтерактивному керуванню, C++20 / SFML 3 архітектурі та інструкціям зі збірки проєкту.
+>
 > 📑 **Шукаєте пояснювальну записку та академічну документацію до курсової роботи?**  
 > Перейдіть до окремого **[README пояснювальної записки та документації курсової (`docs/README.md`)](./docs/README.md)**, де представлено структуру пояснювальної записки, затверджене індивідуальне завдання, формальну математичну постановку задачі, вимоги кафедри та нотатки дослідження алгоритмів.
 
@@ -277,12 +295,13 @@ All required SFML runtime DLLs and asset files are automatically copied into `bu
 
 ## 📑 Документація курсового проєкту та методичні матеріали
 
-| Документ | Формат | Опис та пряме посилання |
-| :--- | :---: | :--- |
-| **README курсової записки** | `MD` | 📑 [docs/README.md](./docs/README.md) — Повний путівник по пояснювальній записці, математичній моделі та методичним вимогам |
-| **Індивідуальне завдання** | `DOCX` | 🇺🇦 [`Індивідуальне_завдання_Lethal_Company.docx`](./docs/Індивідуальне_завдання_Lethal_Company.docx) — Затверджене індивідуальне завдання та вимоги кафедри |
-| **Методичні вказівки кафедри** | `PDF` | 🇺🇦 [`guidelines-for-coursework-UA.pdf`](./docs/guidelines-for-coursework-UA.pdf) — Офіційні методичні вказівки ВНТУ з дисципліни АСД |
-| **Каталог варіантів завдань** | `DOCX` | 🇺🇦 [`individual_task_variants.docx`](./docs/individual_task_variants.docx) — Збірник тем та варіантів курсових робіт |
+| Документ                       | Формат | Опис та пряме посилання                                                                                                                                     |
+| :----------------------------- | :----: | :---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **README курсової записки**    |  `MD`  | 📑 [docs/README.md](./docs/README.md) — Повний путівник по пояснювальній записці, математичній моделі та методичним вимогам                                 |
+| **Рукопис записки (DOCX)**     | `DOCX` | 🇺🇦 [`DSA-Sych-Yaroslav-2PI25b.docx`](./docs/DSA-Sych-Yaroslav-2PI25b.docx) — Фінальний офіційний рукопис пояснювальної записки (ДСТУ 3008:2015)            |
+| **Пояснювальна записка (PDF)** | `PDF`  | 🇺🇦 [`DSA-Sych-Yaroslav-2PI25b.pdf`](./docs/DSA-Sych-Yaroslav-2PI25b.pdf) — Готовий до друку та перевірки PDF-документ курсової роботи                     |
+| **Методичні вказівки кафедри** | `PDF`  | 🇺🇦 [`guidelines-for-coursework-UA.pdf`](./docs/guidelines-for-coursework-UA.pdf) — Офіційні методичні вказівки ВНТУ з дисципліни АСД                        |
+| **Матеріали та рисунки**       | `DIR`  | 🇺🇦 [`docs/assets/`](./docs/assets/) — Графічні матеріали (рис. 3.1, рис. 3.2) та реєстр варіантів завдань кафедри                                          |
 
 ---
 
@@ -304,13 +323,14 @@ All required SFML runtime DLLs and asset files are automatically copied into `bu
 ### Тема роботи
 
 > **«Розробка та дослідження ефективності алгоритмів дискретної оптимізації маршруту та збору ресурсів у сітковому лабіринті (Симулятор Lethal Company DSA)»**
-> *(Загальна тема: «Розробка й аналіз ефективності алгоритмів і програм»)*
+> _(Загальна тема: «Розробка й аналіз ефективності алгоритмів і програм»)_
 
 ### Актуальність та концепція гейміфікації
 
 Проєкт моделює роботу автономного агента-експерта у стилістиці популярної гри **Lethal Company**. Співробітник корпорації висаджується в покинутому процедурно згенерованому підземному комплексі для збору цінних ресурсів (металобрухту). Агент має обмежений запас автономної енергії, лімітовану вантажопідйомність рюкзака та повинен виконати корпоративну квоту мінімального прибутку, повернувшись до точки шлюзу.
 
 Розв'язання поставленої задачі вимагає дворівневого комбінаторного оптимізаційного пайплайну:
+
 1. **Оптимізація вибору ресурсів:** Розв'язання задачі про рюкзак (Knapsack Problem) для максимізації вартості вантажу в межах граничної ваги.
 2. **Оптимізація черговості обходу:** Розв'язання задачі комівояжера (TSP) із фіксованими точками старту та евакуації для мінімізації загальної довжини туру.
 3. **Низькорівнева навігація в сітці:** Пошук енергетично найвигідніших траєкторій без колізій на 8-зв'язному зваженому графі лабіринту з урахуванням стін, дверей та багнистих ділянок.
@@ -356,37 +376,51 @@ flowchart TD
 
 ### 1. Порівняльна характеристика реалізованих алгоритмів
 
-| Етап | Алгоритм | Складність (Час / Пам'ять) | Особливості реалізації |
-| :--- | :--- | :---: | :--- |
-| **Вибір брухту** | **0/1 Knapsack DP** | $O(N \cdot \min(C, \sum W)) \ /\ O(N \cdot C)$ | Точний глобальний оптимум; безпечне виділення пам'яті та миттєвий результат, якщо всі предмети вміщуються в рюкзак. |
-| **Вибір брухту** | **Greedy Knapsack** | $O(N \log N) \ /\ O(N)$ | Швидке сортування за питомою цінністю $V_i / W_i$; пріоритетна обробка предметів нульової ваги через `infinity`. |
-| **Тур TSP** | **TSP Nearest Neighbor** | $O(K^2) \ /\ O(K)$ | Жадібна побудова ланцюжка між $K$ точками з фіксованими точками старту та евакуації; безпечна обробка ізольованих вершин. |
-| **Тур TSP** | **TSP 2-Opt Search** | $O(M \cdot K^2) \ /\ O(K)$ | Локальна оптимізація обміну 2 ребер; захист від нескінченної вартості ребер при частковій недосяжності. |
-| **Навігація** | **A\* Pathfinding** | $O(E \log V) \ /\ O(V)$ | 8-напрямковий пошук з октагональною евристикою $h = 10(dx+dy) - 6\min(dx,dy)$; `closedSet` усуває дублікати та застарілі записи. |
-| **Навігація** | **Алгоритм Дейкстри** | $O(E \log V) \ /\ O(V)$ | Рівномірний пошук за мінімальною вартістю енергії; еталон точності вартості переходів. |
-| **Навігація** | **Пошук у ширину (BFS)** | $O(V + E) \ /\ O(V)$ | Неінформований хвильовий пошук; знаходить шлях із найменшою кількістю кроків без врахування вартості покриття. |
-| **Топологія** | **Генератор BSP** | $O(R \log R) \ /\ O(W \cdot H)$ | Двійкове розбиття простору з вирубкою кімнат, сполучних коридорів та додаткових циклічних петель. |
+| Етап             | Алгоритм                 |           Складність (Час / Пам'ять)           | Особливості реалізації                                                                                                           |
+| :--------------- | :----------------------- | :--------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------- |
+| **Вибір брухту** | **0/1 Knapsack DP**      | $O(N \cdot \min(C, \sum W)) \ /\ O(N \cdot C)$ | Точний глобальний оптимум; безпечне виділення пам'яті та миттєвий результат, якщо всі предмети вміщуються в рюкзак.              |
+| **Вибір брухту** | **Greedy Knapsack**      |            $O(N \log N) \ /\ O(N)$             | Швидке сортування за питомою цінністю $V_i / W_i$; пріоритетна обробка предметів нульової ваги через `infinity`.                 |
+| **Тур TSP**      | **TSP Nearest Neighbor** |               $O(K^2) \ /\ O(K)$               | Жадібна побудова ланцюжка між $K$ точками з фіксованими точками старту та евакуації; безпечна обробка ізольованих вершин.        |
+| **Тур TSP**      | **TSP 2-Opt Search**     |           $O(M \cdot K^2) \ /\ O(K)$           | Локальна оптимізація обміну 2 ребер; захист від нескінченної вартості ребер при частковій недосяжності.                          |
+| **Навігація**    | **A\* Pathfinding**      |            $O(E \log V) \ /\ O(V)$             | 8-напрямковий пошук з октагональною евристикою $h = 10(dx+dy) - 6\min(dx,dy)$; `closedSet` усуває дублікати та застарілі записи. |
+| **Навігація**    | **Алгоритм Дейкстри**    |            $O(E \log V) \ /\ O(V)$             | Рівномірний пошук за мінімальною вартістю енергії; еталон точності вартості переходів.                                           |
+| **Навігація**    | **Пошук у ширину (BFS)** |              $O(V + E) \ /\ O(V)$              | Неінформований хвильовий пошук; знаходить шлях із найменшою кількістю кроків без врахування вартості покриття.                   |
+| **Топологія**    | **Генератор BSP**        |        $O(R \log R) \ /\ O(W \cdot H)$         | Двійкове розбиття простору з вирубкою кімнат, сполучних коридорів та додаткових циклічних петель.                                |
 
 ### 2. Використані базові структури даних
 
-| Абстрактна структура даних | Контейнер у C++20 | Застосування в проєкті |
-| :--- | :--- | :--- |
-| **Динамічний 2D масив** | `std::vector<std::vector<Cell>>` | Матриця комірок лабіринту (стіни, підлога, шлюз, вихід, болото). |
-| **Бінарна купа (Min-Heap)** | `std::priority_queue<Node, vector<Node>, greater<Node>>` | Черга з пріоритетом для швидкого отримання вузла з найменшим $f$ або $g$ у A\* та Дейкстрі. |
-| **Черга FIFO** | `std::queue<core::Point>` | Черга для покрокового хвильового обходу графа у BFS. |
-| **Хеш-таблиці / Множини** | `std::unordered_map`, `std::unordered_set` | Збереження відстаней `gScore`, батьківських вузлів `cameFrom` та відвіданих клітинок за $O(1)$. |
-| **Матриця значень DP** | `std::vector<std::vector<int>>` | Таблиця динамічного програмування для розв'язання задачі про рюкзак. |
-| **Стек / Вектор предків** | `std::vector<core::Point>` із `std::reverse` | Відновлення знайденого ланцюжка кроків від фінішу до старту. |
+| Абстрактна структура даних  | Контейнер у C++20                                        | Застосування в проєкті                                                                          |
+| :-------------------------- | :------------------------------------------------------- | :---------------------------------------------------------------------------------------------- |
+| **Динамічний 2D масив**     | `std::vector<std::vector<Cell>>`                         | Матриця комірок лабіринту (стіни, підлога, шлюз, вихід, болото).                                |
+| **Бінарна купа (Min-Heap)** | `std::priority_queue<Node, vector<Node>, greater<Node>>` | Черга з пріоритетом для швидкого отримання вузла з найменшим $f$ або $g$ у A\* та Дейкстрі.     |
+| **Черга FIFO**              | `std::queue<core::Point>`                                | Черга для покрокового хвильового обходу графа у BFS.                                            |
+| **Хеш-таблиці / Множини**   | `std::unordered_map`, `std::unordered_set`               | Збереження відстаней `gScore`, батьківських вузлів `cameFrom` та відвіданих клітинок за $O(1)$. |
+| **Матриця значень DP**      | `std::vector<std::vector<int>>`                          | Таблиця динамічного програмування для розв'язання задачі про рюкзак.                            |
+| **Стек / Вектор предків**   | `std::vector<core::Point>` із `std::reverse`             | Відновлення знайденого ланцюжка кроків від фінішу до старту.                                    |
 
 ---
 
 ## 🎮 Інтерактивна симуляція та графічний інтерфейс
 
-- **Процедурний графічний рушій:** Апаратне прискорення через **SFML 3**, текстурована сітка кімнат, анімований спрайт агента та розширений каталог із 60 автентичних предметів брухту Lethal Company.
-- **Динамічна камера:** Плавне переміщення лівою кнопкою миші (<kbd>ЛКМ</kbd>), масштабування колесом миші ($0.5\times$ – $3.0\times$) та режим авто-слідкування за персонажем.
-- **Інтерактивна міні-карта:** Радар комплексу у кутку екрана. Клік по міні-карті миттєво центрує камеру на обраній точці комплексу.
-- **Повне керування процесом симуляції:** Слайдер швидкості ($0.5\times$ – $4.0\times$), покроковий хід уперед/назад, миттєве завершення та скидання до старту.
-- **Інтелектуальна система безпеки:** Розрахунок мінімальної енергії до точки евакуації з урахуванням звивистості коридорів лабіринту та завчасний перехід у стан `Evacuating`.
+- **Процедурний графічний рушій:** Апаратне прискорення через **SFML 3**, текстурована сітка кімнат, анімований спрайт агента та розширений каталог із 60 автентичних предметів брухту Lethal Company з градацією рідкості.
+- **Динамічна камера:** Плавне переміщення лівою кнопкою миші (<kbd>ЛКМ</kbd>), плавний зум ($0.2\times$ – $4.5\times$), переміщення стрілками клавіатури та режим авто-слідкування за персонажем.
+- **Тактичний ЕПТ-радар та інтерактивні апаратні органи керування на рамці:**
+  - Масштабована міні-карта у вигляді тактичного ЕПТ-монітора з анімованим індикатором масштабу.
+  - Кнопка живлення з плавною анімацією ввімкнення/вимкнення ЕПТ-екрана та маскуванням діода у вимкненому стані.
+  - Тумблер перемикання тактичних шарів (сітка, маршрут, слід) із плавним перехресним засвіченням верхнього (ON) та нижнього (OFF) зелених світлодіодів.
+  - Апаратний інтерактивний повзунок зуму з плавним перетягуванням мишкою, синхронізацією з камерою та розширеною буферною зоною наведення курсора.
+  - Кругла кнопка огляду комплексу з неоновим блакитним підсвічуванням для миттєвої підгонки масштабу під увесь лабіринт.
+- **Пряме тактичне пілотування робітником (WASD + діагоналі):**
+  - Повноцінний 8-напрямковий рух клавішами з акордовою обробкою діагоналей, виваженим тактичним темпом та динамічним списанням ходової енергії.
+  - Аварійна дотяжка до евакуації: можливість перейти на клітинку виходу з передостанньої позиції навіть за нестачі енергії на стандартний крок.
+  - Миттєве повернення до алгоритмічного плану експедиції клавішею <kbd>Z</kbd> або через тактичну картку на екрані.
+- **Інтерактивна покрокова інструкція («Інструкція для чайників»):**
+  - Інтерактивний 17-кроковий туторіал для новачків із підсвічуванням елементів неоновим прожектором, автопрокруткою сайдбару та безпечним утриманням <kbd>Esc</kbd> для виходу.
+- **Збереження стану сесії між перезапусками:**
+  - Повне збереження положення камери, стану згортання панелей, живлення термінала та повноекранного режиму (<kbd>F11</kbd>).
+- **Повний контроль симуляції та система безпеки:**
+  - Слайдер швидкості ($0.5\times$ – $4.0\times$), покроковий хід уперед/назад, миттєве завершення та скидання до старту.
+  - Розрахунок мінімальної енергії до точки евакуації з урахуванням звивистості коридорів лабіринту та завчасний перехід у стан `Evacuating`.
 - **Модуль пакетного тестування (Batch Benchmark):** Одночасний запуск усіх 6 комбінацій алгоритмів із побудовою підсумкової порівняльної таблиці та експортом у CSV.
 
 ---
@@ -395,17 +429,18 @@ flowchart TD
 
 | Клавіша / Дія | Призначення | Опис дії |
 | :---: | :--- | :--- |
-| <kbd>Пробіл</kbd> | **Старт / Пауза** | Зупинити або продовжити рух агента в реальному часі. |
-| <kbd>N</kbd> | **Крок уперед** | Виконати один дискретний крок уздовж побудованого маршруту. |
-| <kbd>B</kbd> | **Крок назад** | Відкотити стан симуляції та енергії на один крок назад за історією. |
-| <kbd>R</kbd> | **Скинути агента** | Повернути агента на початкову точку зі стартовим рівнем енергії. |
-| <kbd>F</kbd> | **Миттєвий фініш** | Пройти весь залишок маршруту миттєво. |
-| <kbd>G</kbd> | **Сітка** | Увімкнути/вимкнути відображення ліній сітки між комірками. |
-| <kbd>C</kbd> | **Автокамера** | Увімкнути/вимкнути фокусування камери на агенті під час руху. |
+| <kbd>Пробіл</kbd> | **Старт / Пауза / Крок** | Зупинити або продовжити рух; на паузі: один клік — 1 крок, утримання — безперервний хід. |
+| <kbd>Ctrl</kbd> + <kbd>Пробіл</kbd> | **Крок назад** | Відкотити стан симуляції та показники енергії на один крок назад за історією. |
+| <kbd>W</kbd>, <kbd>A</kbd>, <kbd>S</kbd>, <kbd>D</kbd> | **Ручне керування** | Пряме 8-напрямкове пілотування робітником комплексом (ортогонально та по діагоналях). |
+| <kbd>Z</kbd> | **Повернення до плану** | Миттєво повернути робітника з ручного дослідження до останньої планової точки маршруту. |
+| <kbd>B</kbd> | **Показники місії** | Відкрити/згорнути плаваючу HUD-картку квоти брухту та телеметрії місії. |
+| <kbd>M</kbd> | **Тактичні шари** | Увімкнути/вимкнути тактичні шари (координатну сітку, лінію маршруту, слід кроків). |
+| <kbd>C</kbd> | **Автокамера** | Увімкнути/вимкнути динамічне фокусування камери на агенті під час його руху. |
+| <kbd>F11</kbd> | **Повноекранний режим** | Перемкнути режим безрамкового повноекранного відображення (Borderless Fullscreen). |
+| <kbd>Esc</kbd> | **Меню / Вихід з туру** | Відкрити/закрити бічну панель керування; під час інтерактивного туру — утримання для виходу. |
 | <kbd>ЛКМ</kbd> перетягування (Карта) | **Панорамування** | Затиснути ліву кнопку миші для плавного переміщення камери лабіринтом. |
-| <kbd>ЛКМ</kbd> клік / перетягування (Міні-карта) | **Навігація міні-картою** | Клік або перетягування по радару для миттєвого центрування камери. |
-| <kbd>Колесо миші</kbd> | **Зум** | Наближення та віддалення камери ($0.5\times$ – $3.0\times$). |
-| <kbd>Esc</kbd> | **Вихід** | Закрити вікно застосунку. |
+| <kbd>ЛКМ</kbd> (Радар / Рамка) | **Керування радаром** | Центрування камери по кліку, перетягування повзунка зуму, тумблер шарів, кнопка живлення та огляду. |
+| <kbd>Колесо миші</kbd> | **Зум** | Плавне наближення та віддалення камери ($0.2\times$ – $4.5\times$). |
 
 ---
 
@@ -437,15 +472,16 @@ course-projects/DSA-cpp/
 ├── CMakeLists.txt                         # Конфігурація збірки CMake
 ├── README.md                              # 📖 Документація проєкту (Bilingual: EN / UA)
 ├── docs/                                  # 📑 Академічна документація та специфікації
+│   ├── DSA-Sych-Yaroslav-2PI25b.docx      # Фінальний рукопис пояснювальної записки
+│   ├── DSA-Sych-Yaroslav-2PI25b.pdf       # Скомпільований PDF-файл (ДСТУ 3008:2015)
 │   ├── guidelines-for-coursework-UA.pdf   # Методичні вказівки кафедри (Українська)
-│   ├── individual_task_variants.docx      # Збірник варіантів завдань кафедри
-│   ├── notes.md                           # Нотатки дослідження алгоритмів
-│   └── Індивідуальне_завдання_Lethal_Company.docx # Затверджене індивідуальне завдання
+│   └── assets/                            # Варіанти завдань та рисунки (3.1.png, 3.2.png)
 ├── assets/                                # 🎨 Графічні ресурси, текстури та іконка
 │   ├── app.rc                             # Скрипт ресурсів програми (Windows)
 │   ├── icon.ico                           # Іконка виконуваного файлу
 │   ├── icon.png                           # Графічна іконка вікна
-│   ├── map.png                            # Текстура фону комплексу
+│   ├── map.png                            # Текстура фону комплексу та рамка ЕПТ-радара
+│   ├── slider_knob.png                    # Спрайт апаратного повзунка масштабу
 │   └── cursor-grabbing*.png               # Спрайти курсорів перетягування
 ├── include/                               # 📦 Заголовні файли C++ (Header-only архітектура)
 │   ├── algorithms/                        # Реалізації алгоритмів
@@ -516,3 +552,4 @@ cmake --build build --config Release -j4
 ```
 
 Усі необхідні динамичні бібліотеки (`*.dll`) SFML та графічні ресурси автоматично копіюються в папку `build/` на етапі постобробки CMake (`POST_BUILD`).
+
